@@ -14,7 +14,9 @@ function getR2Config() {
   const bucket = process.env.CLOUDFLARE_R2_BUCKET;
 
   if (!accountId || !accessKeyId || !secretAccessKey || !bucket) {
-    throw new Error("Configura las variables de Cloudflare R2 antes de subir archivos.");
+    throw new Error(
+      "Configura las variables de Cloudflare R2 antes de subir archivos.",
+    );
   }
 
   return {
@@ -59,6 +61,26 @@ export async function uploadToR2({
       Body: body,
       ContentType: contentType,
     }),
+  );
+}
+
+export async function getR2UploadUrl({
+  key,
+  contentType,
+}: {
+  key: string;
+  contentType: string;
+}) {
+  const { bucket } = getR2Config();
+
+  return getSignedUrl(
+    getClient(),
+    new PutObjectCommand({
+      Bucket: bucket,
+      Key: key,
+      ContentType: contentType,
+    }),
+    { expiresIn: 60 * 5 },
   );
 }
 
