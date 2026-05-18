@@ -1,9 +1,14 @@
-import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
+import {
+  SidebarInset,
+  SidebarProvider,
+  SidebarTrigger,
+} from "@/components/ui/sidebar";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import { signOut } from "@/auth";
 import { requireAdmin } from "@/lib/auth/require-admin";
 import { AdminNav } from "@/app/admin/admin-nav";
+import { ThemeToggle } from "@/components/admin/theme-toggle";
 
 export default async function AdminLayout({
   children,
@@ -20,8 +25,12 @@ export default async function AdminLayout({
           <SidebarTrigger />
           <Separator orientation="vertical" className="h-5" />
           <div className="text-sm font-medium">Panel administrativo</div>
+          <div className="ml-auto flex items-center gap-2">
+            <ThemeToggle />
+            <Separator orientation="vertical" className="h-5" />
+          </div>
           <form
-            className="ml-auto"
+            className=""
             action={async () => {
               "use server";
 
