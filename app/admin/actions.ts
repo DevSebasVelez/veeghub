@@ -9,13 +9,39 @@ import { compactId, slugify } from "@/lib/admin/slug";
 import { uploadToR2, getR2ObjectBuffer } from "@/lib/storage/r2";
 import { sendInvoiceEmail as sendWithResend } from "@/lib/email/resend";
 import { decryptSecret, encryptSecret } from "@/lib/security/credentials";
+import {
+  clientSchema,
+  credentialSchema,
+  driveFileSchema,
+  folderSchema,
+  invoiceSchema,
+  formErrorMessage,
+  parseForm,
+  paymentSchema,
+  projectSchema,
+  receivableSchema,
+  taskSchema,
+} from "@/lib/admin/schemas";
 import type {
   CredentialKind,
-  ProjectStatus,
   ReceivableStatus,
-  TaskPriority,
-  TaskStatus,
 } from "@/app/generated/prisma/enums";
+
+export type AdminFormState = {
+  ok?: boolean;
+  error?: string;
+};
+
+async function actionState(
+  operation: () => Promise<void>,
+): Promise<AdminFormState> {
+  try {
+    await operation();
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, error: formErrorMessage(error) };
+  }
+}
 
 function text(formData: FormData, key: string) {
   const value = String(formData.get(key) ?? "").trim();
@@ -30,15 +56,6 @@ function requiredText(formData: FormData, key: string) {
   }
 
   return value;
-}
-
-function dateValue(formData: FormData, key: string) {
-  const value = text(formData, key);
-  return value ? new Date(value) : null;
-}
-
-function decimalValue(formData: FormData, key: string) {
-  return requiredText(formData, key).replace(",", ".");
 }
 
 function optionalId(formData: FormData, key: string) {
@@ -93,45 +110,41 @@ async function uploadFileRecord({
 
 export async function createClient(formData: FormData) {
   await requireAdmin();
+  const data = parseForm(clientSchema, formData);
 
   await prisma.client.create({
-    data: {
-      name: requiredText(formData, "name"),
-      legalName: text(formData, "legalName"),
-      taxId: text(formData, "taxId"),
-      email: text(formData, "email"),
-      billingEmail: text(formData, "billingEmail"),
-      phone: text(formData, "phone"),
-      website: text(formData, "website"),
-      address: text(formData, "address"),
-      notes: text(formData, "notes"),
-    },
+    data,
   });
 
   revalidatePath("/admin");
   revalidatePath("/admin/clientes");
 }
 
+export async function updateClient(id: string, formData: FormData) {
+  await requireAdmin();
+  const data = parseForm(clientSchema, formData);
+
+  await prisma.client.update({
+    where: { id },
+    data,
+  });
+
+  revalidatePath("/admin");
+  revalidatePath("/admin/clientes");
+  revalidatePath(`/admin/clientes/${id}`);
+}
+
 export async function createProject(formData: FormData) {
   await requireAdmin();
+  const data = parseForm(projectSchema, formData);
 
-  const name = requiredText(formData, "name");
-  const baseSlug = slugify(name) || compactId();
+  const baseSlug = slugify(data.name) || compactId();
   const slug = `${baseSlug}-${compactId()}`;
 
   await prisma.project.create({
     data: {
-      name,
+      ...data,
       slug,
-      clientId: optionalId(formData, "clientId"),
-      status: requiredText(formData, "status") as ProjectStatus,
-      description: text(formData, "description"),
-      stack: text(formData, "stack"),
-      repositoryUrl: text(formData, "repositoryUrl"),
-      productionUrl: text(formData, "productionUrl"),
-      budget: text(formData, "budget")?.replace(",", "."),
-      startDate: dateValue(formData, "startDate"),
-      dueDate: dateValue(formData, "dueDate"),
     },
   });
 
@@ -139,17 +152,41 @@ export async function createProject(formData: FormData) {
   revalidatePath("/admin/proyectos");
 }
 
+export async function updateProject(id: string, formData: FormData) {
+  await requireAdmin();
+  const data = parseForm(projectSchema, formData);
+
+  await prisma.project.update({
+    where: { id },
+    data,
+  });
+
+  revalidatePath("/admin");
+  revalidatePath("/admin/proyectos");
+  if (data.clientId) revalidatePath(`/admin/clientes/${data.clientId}`);
+}
+
 export async function createTask(formData: FormData) {
   await requireAdmin();
+  const data = parseForm(taskSchema, formData);
 
   await prisma.task.create({
+    data,
+  });
+
+  revalidatePath("/admin");
+  revalidatePath("/admin/proyectos");
+}
+
+export async function updateTask(id: string, formData: FormData) {
+  await requireAdmin();
+  const data = parseForm(taskSchema, formData);
+
+  await prisma.task.update({
+    where: { id },
     data: {
-      projectId: requiredText(formData, "projectId"),
-      title: requiredText(formData, "title"),
-      description: text(formData, "description"),
-      status: requiredText(formData, "status") as TaskStatus,
-      priority: requiredText(formData, "priority") as TaskPriority,
-      dueDate: dateValue(formData, "dueDate"),
+      ...data,
+      completedAt: data.status === "DONE" ? new Date() : null,
     },
   });
 
@@ -159,51 +196,52 @@ export async function createTask(formData: FormData) {
 
 export async function createReceivable(formData: FormData) {
   await requireAdmin();
+  const data = parseForm(receivableSchema, formData);
 
   await prisma.receivable.create({
-    data: {
-      clientId: requiredText(formData, "clientId"),
-      projectId: optionalId(formData, "projectId"),
-      title: requiredText(formData, "title"),
-      description: text(formData, "description"),
-      amount: decimalValue(formData, "amount"),
-      dueDate: dateValue(formData, "dueDate"),
-      status: requiredText(formData, "status") as ReceivableStatus,
-    },
+    data,
   });
 
   revalidatePath("/admin");
   revalidatePath("/admin/finanzas");
 }
 
+export async function updateReceivable(id: string, formData: FormData) {
+  await requireAdmin();
+  const data = parseForm(receivableSchema, formData);
+
+  await prisma.receivable.update({
+    where: { id },
+    data,
+  });
+
+  revalidatePath("/admin");
+  revalidatePath("/admin/finanzas");
+  if (data.clientId) revalidatePath(`/admin/clientes/${data.clientId}`);
+}
+
 export async function recordPayment(formData: FormData) {
   await requireAdmin();
-
-  const receivableId = requiredText(formData, "receivableId");
-  const amount = Number(decimalValue(formData, "amount"));
+  const data = parseForm(paymentSchema, formData);
 
   await prisma.$transaction(async (tx) => {
     const receivable = await tx.receivable.findUniqueOrThrow({
-      where: { id: receivableId },
+      where: { id: data.receivableId },
     });
-    const paidAmount = Number(receivable.paidAmount) + amount;
+    const paidAmount = Number(receivable.paidAmount) + data.amount;
     const status = (
       paidAmount >= Number(receivable.amount) ? "PAID" : "PARTIALLY_PAID"
     ) as ReceivableStatus;
 
     await tx.payment.create({
       data: {
-        receivableId,
-        amount,
-        paidAt: dateValue(formData, "paidAt") ?? new Date(),
-        method: text(formData, "method"),
-        reference: text(formData, "reference"),
-        notes: text(formData, "notes"),
+        ...data,
+        paidAt: data.paidAt ?? new Date(),
       },
     });
 
     await tx.receivable.update({
-      where: { id: receivableId },
+      where: { id: data.receivableId },
       data: {
         paidAmount,
         status,
@@ -217,55 +255,59 @@ export async function recordPayment(formData: FormData) {
 
 export async function createInvoice(formData: FormData) {
   await requireAdmin();
+  const data = parseForm(invoiceSchema, formData);
 
-  const clientId = requiredText(formData, "clientId");
-  const projectId = optionalId(formData, "projectId");
-  const receivableId = optionalId(formData, "receivableId");
   const xml = formData.get("xml") as File | null;
   const ride = formData.get("ride") as File | null;
 
   const xmlFile = xml
     ? await uploadFileRecord({
         file: xml,
-        clientId,
-        projectId,
+        clientId: data.clientId,
+        projectId: data.projectId,
         prefix: "invoices/xml",
       })
     : null;
   const rideFile = ride
     ? await uploadFileRecord({
         file: ride,
-        clientId,
-        projectId,
+        clientId: data.clientId,
+        projectId: data.projectId,
         prefix: "invoices/ride",
       })
     : null;
 
   await prisma.invoice.create({
     data: {
-      clientId,
-      projectId,
-      receivableId,
-      invoiceNumber: text(formData, "invoiceNumber"),
-      accessKey: text(formData, "accessKey"),
-      subtotal: text(formData, "subtotal")?.replace(",", "."),
-      taxAmount: text(formData, "taxAmount")?.replace(",", "."),
-      total: decimalValue(formData, "total"),
-      issueDate: dateValue(formData, "issueDate"),
+      ...data,
       xmlFileId: xmlFile?.id,
       rideFileId: rideFile?.id,
     },
   });
 
-  if (receivableId) {
+  if (data.receivableId) {
     await prisma.receivable.update({
-      where: { id: receivableId },
+      where: { id: data.receivableId },
       data: { status: "INVOICED" },
     });
   }
 
   revalidatePath("/admin");
   revalidatePath("/admin/facturas");
+}
+
+export async function updateInvoice(id: string, formData: FormData) {
+  await requireAdmin();
+  const data = parseForm(invoiceSchema, formData);
+
+  await prisma.invoice.update({
+    where: { id },
+    data,
+  });
+
+  revalidatePath("/admin");
+  revalidatePath("/admin/facturas");
+  revalidatePath(`/admin/clientes/${data.clientId}`);
 }
 
 export async function sendInvoiceEmail(formData: FormData) {
@@ -352,17 +394,26 @@ export async function sendInvoiceEmail(formData: FormData) {
 
 export async function createFolder(formData: FormData) {
   await requireAdmin();
+  const data = parseForm(folderSchema, formData);
 
   await prisma.driveFolder.create({
-    data: {
-      name: requiredText(formData, "name"),
-      parentId: optionalId(formData, "parentId"),
-      clientId: optionalId(formData, "clientId"),
-      projectId: optionalId(formData, "projectId"),
-    },
+    data,
   });
 
   revalidatePath("/admin/drive");
+}
+
+export async function updateFolder(id: string, formData: FormData) {
+  await requireAdmin();
+  const data = parseForm(folderSchema, formData);
+
+  await prisma.driveFolder.update({
+    where: { id },
+    data,
+  });
+
+  revalidatePath("/admin/drive");
+  if (data.clientId) revalidatePath(`/admin/clientes/${data.clientId}`);
 }
 
 export async function uploadDriveFile(formData: FormData) {
@@ -387,24 +438,49 @@ export async function uploadDriveFile(formData: FormData) {
 
 export async function createCredential(formData: FormData) {
   await requireAdmin();
+  const data = parseForm(credentialSchema, formData);
 
-  const secret = requiredText(formData, "secret");
-  const encrypted = encryptSecret(secret);
+  const encrypted = data.secret ? encryptSecret(data.secret) : {};
 
   await prisma.credential.create({
     data: {
-      clientId: optionalId(formData, "clientId"),
-      projectId: optionalId(formData, "projectId"),
-      title: requiredText(formData, "title"),
-      kind: requiredText(formData, "kind") as CredentialKind,
-      url: text(formData, "url"),
-      username: text(formData, "username"),
-      notes: text(formData, "notes"),
+      clientId: data.clientId,
+      projectId: data.projectId,
+      title: data.title,
+      kind: data.kind as CredentialKind,
+      url: data.url,
+      username: data.username,
+      accessMethod: data.accessMethod,
+      notes: data.notes,
       ...encrypted,
     },
   });
 
   revalidatePath("/admin/credenciales");
+}
+
+export async function updateCredential(id: string, formData: FormData) {
+  await requireAdmin();
+  const data = parseForm(credentialSchema, formData);
+  const encrypted = data.secret ? encryptSecret(data.secret) : {};
+
+  await prisma.credential.update({
+    where: { id },
+    data: {
+      clientId: data.clientId,
+      projectId: data.projectId,
+      title: data.title,
+      kind: data.kind as CredentialKind,
+      url: data.url,
+      username: data.username,
+      accessMethod: data.accessMethod,
+      notes: data.notes,
+      ...encrypted,
+    },
+  });
+
+  revalidatePath("/admin/credenciales");
+  if (data.clientId) revalidatePath(`/admin/clientes/${data.clientId}`);
 }
 
 export async function revealCredential(id: string) {
@@ -415,10 +491,165 @@ export async function revealCredential(id: string) {
     data: { lastViewedAt: new Date() },
   });
 
-  return decryptSecret(credential);
+  if (
+    !credential.encryptedSecret ||
+    !credential.secretIv ||
+    !credential.secretTag
+  ) {
+    return credential.accessMethod ?? "Sin secreto guardado";
+  }
+
+  return decryptSecret({
+    encryptedSecret: credential.encryptedSecret,
+    secretIv: credential.secretIv,
+    secretTag: credential.secretTag,
+  });
 }
 
 export async function downloadDriveFile(formData: FormData) {
   await requireAdmin();
   redirect(`/admin/drive/download/${requiredText(formData, "fileId")}`);
+}
+
+export async function updateDriveFile(id: string, formData: FormData) {
+  await requireAdmin();
+  const data = parseForm(driveFileSchema, formData);
+
+  await prisma.driveFile.update({
+    where: { id },
+    data,
+  });
+
+  revalidatePath("/admin/drive");
+  if (data.clientId) revalidatePath(`/admin/clientes/${data.clientId}`);
+}
+
+export async function createProjectState(
+  _state: AdminFormState,
+  formData: FormData,
+) {
+  return actionState(() => createProject(formData));
+}
+
+export async function updateProjectState(
+  id: string,
+  _state: AdminFormState,
+  formData: FormData,
+) {
+  return actionState(() => updateProject(id, formData));
+}
+
+export async function createTaskState(
+  _state: AdminFormState,
+  formData: FormData,
+) {
+  return actionState(() => createTask(formData));
+}
+
+export async function updateTaskState(
+  id: string,
+  _state: AdminFormState,
+  formData: FormData,
+) {
+  return actionState(() => updateTask(id, formData));
+}
+
+export async function updateClientState(
+  id: string,
+  _state: AdminFormState,
+  formData: FormData,
+) {
+  return actionState(() => updateClient(id, formData));
+}
+
+export async function createReceivableState(
+  _state: AdminFormState,
+  formData: FormData,
+) {
+  return actionState(() => createReceivable(formData));
+}
+
+export async function updateReceivableState(
+  id: string,
+  _state: AdminFormState,
+  formData: FormData,
+) {
+  return actionState(() => updateReceivable(id, formData));
+}
+
+export async function createCredentialState(
+  _state: AdminFormState,
+  formData: FormData,
+) {
+  return actionState(() => createCredential(formData));
+}
+
+export async function updateCredentialState(
+  id: string,
+  _state: AdminFormState,
+  formData: FormData,
+) {
+  return actionState(() => updateCredential(id, formData));
+}
+
+export async function updateInvoiceState(
+  id: string,
+  _state: AdminFormState,
+  formData: FormData,
+) {
+  return actionState(() => updateInvoice(id, formData));
+}
+
+export async function updateFolderState(
+  id: string,
+  _state: AdminFormState,
+  formData: FormData,
+) {
+  return actionState(() => updateFolder(id, formData));
+}
+
+export async function createFolderState(
+  _state: AdminFormState,
+  formData: FormData,
+) {
+  return actionState(() => createFolder(formData));
+}
+
+export async function updateDriveFileState(
+  id: string,
+  _state: AdminFormState,
+  formData: FormData,
+) {
+  return actionState(() => updateDriveFile(id, formData));
+}
+
+export async function recordPaymentState(
+  _state: AdminFormState,
+  formData: FormData,
+) {
+  return actionState(() => recordPayment(formData));
+}
+
+export async function registerDriveFile(formData: FormData) {
+  await requireAdmin();
+
+  const name = String(formData.get("name") ?? "").trim();
+  const objectKey = String(formData.get("objectKey") ?? "").trim();
+  const mimeType =
+    String(formData.get("mimeType") ?? "").trim() ||
+    "application/octet-stream";
+  const size = parseInt(String(formData.get("size") ?? "0"), 10);
+  const folderId = optionalId(formData, "folderId");
+  const clientId = optionalId(formData, "clientId");
+  const projectId = optionalId(formData, "projectId");
+
+  if (!name || !objectKey) {
+    throw new Error("Datos de archivo incompletos.");
+  }
+
+  await prisma.driveFile.create({
+    data: { name, objectKey, mimeType, size, folderId, clientId, projectId },
+  });
+
+  revalidatePath("/admin/drive");
 }
