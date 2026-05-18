@@ -36,7 +36,7 @@ export default async function AdminPage() {
     prisma.project.count({ where: { status: "ACTIVE" } }),
     prisma.task.count({ where: { status: { not: "DONE" } } }),
     prisma.receivable.findMany({
-      where: { status: { in: ["PLANNED", "INVOICED", "PARTIALLY_PAID", "OVERDUE"] } },
+      where: { status: { not: "PAID" } },
       select: { amount: true, paidAmount: true },
     }),
     prisma.invoice.count({ where: { status: "READY_TO_SEND" } }),
@@ -48,15 +48,17 @@ export default async function AdminPage() {
       include: { project: { select: { name: true } } },
     }),
     prisma.receivable.findMany({
-      where: { status: { in: ["PLANNED", "INVOICED", "PARTIALLY_PAID", "OVERDUE"] } },
+      where: { status: { not: "PAID" } },
       orderBy: [{ dueDate: "asc" }, { createdAt: "desc" }],
-      take: 5,
       include: {
         client: { select: { name: true } },
         project: { select: { name: true } },
       },
     }),
   ]);
+  const outstandingReceivables = upcomingReceivables.filter(
+    (item) => Number(item.amount) - Number(item.paidAmount) > 0,
+  );
   const receivableBalance = receivables.reduce(
     (total, item) => total + Number(item.amount) - Number(item.paidAmount),
     0,
@@ -78,15 +80,27 @@ export default async function AdminPage() {
 
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         <MetricCard icon={Users} label="Clientes" value={clients} />
-        <MetricCard icon={BriefcaseBusiness} label="Proyectos activos" value={activeProjects} />
+        <MetricCard
+          icon={BriefcaseBusiness}
+          label="Proyectos activos"
+          value={activeProjects}
+        />
         <MetricCard icon={Clock3} label="Tareas abiertas" value={openTasks} />
         <MetricCard
           icon={BadgeDollarSign}
           label="Por cobrar"
           value={formatCurrency(receivableBalance)}
         />
-        <MetricCard icon={FileText} label="Facturas por enviar" value={pendingInvoices} />
-        <MetricCard icon={KeyRound} label="Credenciales guardadas" value={credentials} />
+        <MetricCard
+          icon={FileText}
+          label="Facturas por enviar"
+          value={pendingInvoices}
+        />
+        <MetricCard
+          icon={KeyRound}
+          label="Credenciales guardadas"
+          value={credentials}
+        />
       </div>
 
       <div className="grid gap-4 xl:grid-cols-2">
@@ -103,7 +117,9 @@ export default async function AdminPage() {
                   className="flex items-center justify-between gap-3 rounded-lg border p-3"
                 >
                   <div className="min-w-0">
-                    <div className="truncate text-sm font-medium">{task.title}</div>
+                    <div className="truncate text-sm font-medium">
+                      {task.title}
+                    </div>
                     <div className="text-xs text-muted-foreground">
                       {task.project.name} · {formatDate(task.dueDate)}
                     </div>
@@ -123,14 +139,16 @@ export default async function AdminPage() {
             <CardDescription>Hitos y pagos pendientes.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            {upcomingReceivables.length ? (
-              upcomingReceivables.map((item) => (
+            {outstandingReceivables.length ? (
+              outstandingReceivables.slice(0, 5).map((item) => (
                 <div
                   key={item.id}
                   className="flex items-center justify-between gap-3 rounded-lg border p-3"
                 >
                   <div className="min-w-0">
-                    <div className="truncate text-sm font-medium">{item.title}</div>
+                    <div className="truncate text-sm font-medium">
+                      {item.title}
+                    </div>
                     <div className="text-xs text-muted-foreground">
                       {item.client.name}
                       {item.project ? ` · ${item.project.name}` : ""} ·{" "}
@@ -138,7 +156,9 @@ export default async function AdminPage() {
                     </div>
                   </div>
                   <div className="text-right text-sm font-medium">
-                    {formatCurrency(Number(item.amount) - Number(item.paidAmount))}
+                    {formatCurrency(
+                      Number(item.amount) - Number(item.paidAmount),
+                    )}
                   </div>
                 </div>
               ))

@@ -1,9 +1,10 @@
-import { createCredential } from "@/app/admin/actions";
 import { CredentialSecret } from "@/app/admin/credenciales/credential-secret";
+import { CredentialDialog } from "@/components/admin/dialogs/credential-dialog";
+import { getPage, Pagination } from "@/components/admin/pagination";
+import { StatusBadge } from "@/components/admin/status-badge";
+import { forCredentialDialog } from "@/lib/admin/serialize";
 import prisma from "@/lib/db/prisma";
 import { formatDate } from "@/lib/admin/format";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -11,8 +12,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
 import {
   Table,
   TableBody,
@@ -21,28 +20,51 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Textarea } from "@/components/ui/textarea";
 
-export default async function CredentialsPage() {
-  const [clients, projects, credentials] = await Promise.all([
-    prisma.client.findMany({ orderBy: { name: "asc" } }),
-    prisma.project.findMany({ orderBy: { name: "asc" } }),
+const PAGE_SIZE = 10;
+
+export default async function CredentialsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string }>;
+}) {
+  const { page: pageParam } = await searchParams;
+  const page = getPage(pageParam);
+  const [clients, projects, credentials, total] = await Promise.all([
+    prisma.client.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }),
+    prisma.project.findMany({
+      orderBy: { name: "asc" },
+      select: { id: true, name: true },
+    }),
     prisma.credential.findMany({
       orderBy: { updatedAt: "desc" },
+      skip: (page - 1) * PAGE_SIZE,
+      take: PAGE_SIZE,
       include: {
         client: { select: { name: true } },
         project: { select: { name: true } },
       },
     }),
+    prisma.credential.count(),
   ]);
 
   return (
-    <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
-      <Card className="rounded-lg">
-        <CardHeader>
-          <CardTitle>Credenciales</CardTitle>
-          <CardDescription>
+    <div className="space-y-6">
+      <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Credenciales</h1>
+          <p className="text-sm text-muted-foreground">
             Accesos cifrados para reemplazar notas expuestas en Notion.
+          </p>
+        </div>
+        <CredentialDialog clients={clients} projects={projects} mode="create" />
+      </div>
+
+      <Card className="rounded-lg border-violet-100 bg-violet-50/30">
+        <CardHeader>
+          <CardTitle>Vault</CardTitle>
+          <CardDescription>
+            Passwords, tokens, accesos OAuth y notas seguras.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -52,8 +74,9 @@ export default async function CredentialsPage() {
                 <TableHead>Acceso</TableHead>
                 <TableHead>Contexto</TableHead>
                 <TableHead>Usuario</TableHead>
-                <TableHead>Secreto</TableHead>
+                <TableHead>Método / secreto</TableHead>
                 <TableHead>Visto</TableHead>
+                <TableHead className="text-right">Acciones</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -61,125 +84,42 @@ export default async function CredentialsPage() {
                 <TableRow key={credential.id}>
                   <TableCell>
                     <div className="font-medium">{credential.title}</div>
-                    <Badge variant="outline" className="mt-1">
-                      {credential.kind}
-                    </Badge>
+                    <div className="mt-1">
+                      <StatusBadge value={credential.kind} />
+                    </div>
                   </TableCell>
                   <TableCell>
-                    {credential.project?.name ??
-                      credential.client?.name ??
-                      "General"}
+                    {credential.project?.name ?? credential.client?.name ?? "General"}
                   </TableCell>
                   <TableCell>{credential.username ?? "Sin usuario"}</TableCell>
                   <TableCell>
-                    <CredentialSecret
-                      id={credential.id}
-                      preview={credential.secretPreview}
-                    />
+                    {credential.accessMethod ? (
+                      <div className="mb-1 text-xs text-muted-foreground">
+                        {credential.accessMethod}
+                      </div>
+                    ) : null}
+                    <CredentialSecret id={credential.id} preview={credential.secretPreview} />
                   </TableCell>
                   <TableCell>{formatDate(credential.lastViewedAt)}</TableCell>
+                  <TableCell className="text-right">
+                    <CredentialDialog
+                      credential={forCredentialDialog(credential)}
+                      clients={clients}
+                      projects={projects}
+                    />
+                  </TableCell>
                 </TableRow>
               ))}
               {!credentials.length ? (
                 <TableRow>
-                  <TableCell
-                    colSpan={5}
-                    className="h-24 text-center text-muted-foreground"
-                  >
+                  <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
                     Aún no hay credenciales guardadas.
                   </TableCell>
                 </TableRow>
               ) : null}
             </TableBody>
           </Table>
-        </CardContent>
-      </Card>
-
-      <Card className="rounded-lg">
-        <CardHeader>
-          <CardTitle>Nuevo acceso</CardTitle>
-          <CardDescription>
-            El secreto se cifra antes de guardarse en la base de datos.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form action={createCredential}>
-            <FieldGroup>
-              <Field>
-                <FieldLabel htmlFor="title">Nombre</FieldLabel>
-                <Input
-                  id="title"
-                  name="title"
-                  placeholder="Google Workspace cliente"
-                  required
-                />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="kind">Tipo</FieldLabel>
-                <select
-                  id="kind"
-                  name="kind"
-                  defaultValue="LOGIN"
-                  className="h-10 rounded-md border bg-background px-3 text-sm"
-                >
-                  <option value="LOGIN">Login</option>
-                  <option value="API_KEY">API key</option>
-                  <option value="DATABASE">Base de datos</option>
-                  <option value="HOSTING">Hosting</option>
-                  <option value="SOCIAL_MEDIA">Red social</option>
-                  <option value="EMAIL">Email</option>
-                  <option value="OTHER">Otro</option>
-                </select>
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="clientId">Cliente</FieldLabel>
-                <select
-                  id="clientId"
-                  name="clientId"
-                  className="h-10 rounded-md border bg-background px-3 text-sm"
-                >
-                  <option value="none">General</option>
-                  {clients.map((client) => (
-                    <option key={client.id} value={client.id}>
-                      {client.name}
-                    </option>
-                  ))}
-                </select>
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="projectId">Proyecto</FieldLabel>
-                <select
-                  id="projectId"
-                  name="projectId"
-                  className="h-10 rounded-md border bg-background px-3 text-sm"
-                >
-                  <option value="none">Sin proyecto</option>
-                  {projects.map((project) => (
-                    <option key={project.id} value={project.id}>
-                      {project.name}
-                    </option>
-                  ))}
-                </select>
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="url">URL</FieldLabel>
-                <Input id="url" name="url" type="url" />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="username">Usuario</FieldLabel>
-                <Input id="username" name="username" autoComplete="off" />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="secret">Contraseña / token</FieldLabel>
-                <Textarea id="secret" name="secret" rows={3} required />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="notes">Notas</FieldLabel>
-                <Textarea id="notes" name="notes" rows={3} />
-              </Field>
-              <Button type="submit">Guardar cifrado</Button>
-            </FieldGroup>
-          </form>
+          <Pagination page={page} pageSize={PAGE_SIZE} total={total} basePath="/admin/credenciales" />
         </CardContent>
       </Card>
     </div>

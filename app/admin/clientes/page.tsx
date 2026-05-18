@@ -1,4 +1,9 @@
+import Link from "next/link";
+
 import { createClient } from "@/app/admin/actions";
+import { ClientEditDialog } from "@/components/admin/dialogs/client-dialog";
+import { forClientDialog } from "@/lib/admin/serialize";
+import { getPage, Pagination } from "@/components/admin/pagination";
 import prisma from "@/lib/db/prisma";
 import { Button } from "@/components/ui/button";
 import {
@@ -20,20 +25,33 @@ import {
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 
-export default async function ClientsPage() {
-  const clients = await prisma.client.findMany({
-    orderBy: { createdAt: "desc" },
-    include: {
-      _count: {
-        select: {
-          projects: true,
-          receivables: true,
-          invoices: true,
-          credentials: true,
+const PAGE_SIZE = 10;
+
+export default async function ClientsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string }>;
+}) {
+  const { page: pageParam } = await searchParams;
+  const page = getPage(pageParam);
+  const [clients, total] = await Promise.all([
+    prisma.client.findMany({
+      orderBy: { createdAt: "desc" },
+      skip: (page - 1) * PAGE_SIZE,
+      take: PAGE_SIZE,
+      include: {
+        _count: {
+          select: {
+            projects: true,
+            receivables: true,
+            invoices: true,
+            credentials: true,
+          },
         },
       },
-    },
-  });
+    }),
+    prisma.client.count(),
+  ]);
 
   return (
     <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
@@ -52,13 +70,19 @@ export default async function ClientsPage() {
                 <TableHead>Facturación</TableHead>
                 <TableHead>Proyectos</TableHead>
                 <TableHead>Credenciales</TableHead>
+                <TableHead className="text-right">Acciones</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {clients.map((client) => (
                 <TableRow key={client.id}>
                   <TableCell>
-                    <div className="font-medium">{client.name}</div>
+                    <Link
+                      href={`/admin/clientes/${client.id}`}
+                      className="font-medium underline-offset-4 hover:underline"
+                    >
+                      {client.name}
+                    </Link>
                     <div className="text-xs text-muted-foreground">
                       {client.email ?? "Sin email principal"}
                     </div>
@@ -73,12 +97,15 @@ export default async function ClientsPage() {
                   </TableCell>
                   <TableCell>{client._count.projects}</TableCell>
                   <TableCell>{client._count.credentials}</TableCell>
+                  <TableCell className="text-right">
+                    <ClientEditDialog client={forClientDialog(client)} />
+                  </TableCell>
                 </TableRow>
               ))}
               {!clients.length ? (
                 <TableRow>
                   <TableCell
-                    colSpan={4}
+                    colSpan={5}
                     className="h-24 text-center text-muted-foreground"
                   >
                     Aún no hay clientes.
@@ -87,6 +114,12 @@ export default async function ClientsPage() {
               ) : null}
             </TableBody>
           </Table>
+          <Pagination
+            page={page}
+            pageSize={PAGE_SIZE}
+            total={total}
+            basePath="/admin/clientes"
+          />
         </CardContent>
       </Card>
 

@@ -11,6 +11,7 @@ import {
   LayoutDashboard,
   Users,
 } from "lucide-react";
+import { FaChartLine } from "react-icons/fa6";
 
 import {
   Sidebar,
@@ -30,6 +31,7 @@ const navItems = [
   { href: "/admin/proyectos", label: "Proyectos", icon: BriefcaseBusiness },
   { href: "/admin/finanzas", label: "Finanzas", icon: BadgeDollarSign },
   { href: "/admin/facturas", label: "Facturas", icon: FileText },
+  { href: "/admin/reportes", label: "Reportes", icon: FaChartLine },
   { href: "/admin/drive", label: "Drive", icon: Folder },
   { href: "/admin/credenciales", label: "Credenciales", icon: KeyRound },
 ];
