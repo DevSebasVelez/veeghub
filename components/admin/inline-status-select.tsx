@@ -23,9 +23,9 @@ const options = [
 
 const colorClass: Record<string, string> = {
   PLANNED: "text-muted-foreground",
-  INVOICED: "text-blue-600",
-  PARTIALLY_PAID: "text-amber-600",
-  PAID: "text-emerald-600",
+  INVOICED: "text-blue-600 dark:text-blue-400",
+  PARTIALLY_PAID: "text-amber-600 dark:text-amber-400",
+  PAID: "text-emerald-600 dark:text-emerald-400",
   OVERDUE: "text-destructive",
   CANCELLED: "text-muted-foreground line-through",
 };

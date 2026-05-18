@@ -153,7 +153,7 @@ export default async function ClientDetailPage({
   return (
     <div className="space-y-6">
       {/* Header */}
-      <Card className="rounded-lg border-sky-100 bg-sky-50/50">
+      <Card className="rounded-lg border-sky-100 bg-sky-50/50 dark:border-sky-900/40 dark:bg-sky-950/20">
         <CardContent className="p-5">
           <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
             <div className="space-y-2">

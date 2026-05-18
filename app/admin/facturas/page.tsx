@@ -107,10 +107,10 @@ export default async function InvoicesPage({
 
       <Card className="rounded-lg">
         <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <CardTitle>Facturas</CardTitle>
             {/* Status filter tabs */}
-            <div className="flex gap-1 rounded-lg border bg-background p-1">
+            <div className="flex flex-wrap gap-1 rounded-lg border bg-background p-1 w-fit">
               {STATUS_FILTERS.map((f) => (
                 <Link
                   key={f.value}
@@ -120,7 +120,7 @@ export default async function InvoicesPage({
                       : "/admin/facturas"
                   }
                   className={cn(
-                    "rounded-md px-3 py-1 text-xs font-medium transition-colors",
+                    "rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
                     (statusFilter ?? "") === f.value
                       ? "bg-primary text-primary-foreground"
                       : "text-muted-foreground hover:text-foreground",
@@ -198,7 +198,7 @@ export default async function InvoicesPage({
                     </div>
 
                     {/* Right: send form + edit */}
-                    <div className="flex shrink-0 items-center gap-2">
+                    <div className="flex flex-wrap shrink-0 items-center gap-2">
                       {invoice.xmlFile && invoice.rideFile ? (
                         <form action={sendInvoiceEmail} className="flex gap-2">
                           <input

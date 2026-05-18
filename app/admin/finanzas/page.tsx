@@ -310,102 +310,107 @@ export default async function FinancePage({
             </div>
           </CardHeader>
           <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-36 pl-6">Estado</TableHead>
-                  <TableHead>Concepto</TableHead>
-                  <TableHead>Proyecto</TableHead>
-                  <TableHead>Cliente</TableHead>
-                  <TableHead className="text-right">Monto</TableHead>
-                  <TableHead className="text-right">Por cobrar</TableHead>
-                  <TableHead>Vence</TableHead>
-                  <TableHead className="pr-6 text-right">Acciones</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {receivables.map((item) => {
-                  const remaining =
-                    Number(item.amount) - Number(item.paidAmount);
-                  const isOverdue =
-                    item.dueDate &&
-                    item.dueDate < new Date() &&
-                    item.status !== "PAID" &&
-                    item.status !== "CANCELLED";
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-36 pl-6">Estado</TableHead>
+                    <TableHead>Concepto</TableHead>
+                    <TableHead>Proyecto</TableHead>
+                    <TableHead>Cliente</TableHead>
+                    <TableHead className="text-right">Monto</TableHead>
+                    <TableHead className="text-right">Por cobrar</TableHead>
+                    <TableHead>Vence</TableHead>
+                    <TableHead className="pr-6 text-right">Acciones</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {receivables.map((item) => {
+                    const remaining =
+                      Number(item.amount) - Number(item.paidAmount);
+                    const isOverdue =
+                      item.dueDate &&
+                      item.dueDate < new Date() &&
+                      item.status !== "PAID" &&
+                      item.status !== "CANCELLED";
 
-                  return (
-                    <TableRow key={item.id} className="group">
-                      <TableCell className="pl-4">
-                        <InlineStatusSelect id={item.id} status={item.status} />
-                      </TableCell>
-                      <TableCell>
-                        <div className="font-medium">{item.title}</div>
-                      </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
-                        {item.project?.name ?? (
-                          <span className="italic opacity-40">—</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-sm">
-                        {item.client.name}
-                      </TableCell>
-                      <TableCell className="text-right text-sm">
-                        {formatCurrency(item.amount.toString())}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <span
-                          className={cn(
-                            "text-sm font-medium",
-                            remaining > 0
-                              ? "text-amber-600"
-                              : "text-emerald-600",
+                    return (
+                      <TableRow key={item.id} className="group">
+                        <TableCell className="pl-4">
+                          <InlineStatusSelect
+                            id={item.id}
+                            status={item.status}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <div className="font-medium">{item.title}</div>
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
+                          {item.project?.name ?? (
+                            <span className="italic opacity-40">—</span>
                           )}
-                        >
-                          {formatCurrency(remaining.toFixed(2))}
-                        </span>
-                      </TableCell>
-                      <TableCell>
-                        {item.dueDate ? (
+                        </TableCell>
+                        <TableCell className="text-sm">
+                          {item.client.name}
+                        </TableCell>
+                        <TableCell className="text-right text-sm">
+                          {formatCurrency(item.amount.toString())}
+                        </TableCell>
+                        <TableCell className="text-right">
                           <span
                             className={cn(
-                              "text-sm",
-                              isOverdue
-                                ? "font-medium text-destructive"
-                                : "text-muted-foreground",
+                              "text-sm font-medium",
+                              remaining > 0
+                                ? "text-amber-600"
+                                : "text-emerald-600",
                             )}
                           >
-                            {formatDate(item.dueDate)}
+                            {formatCurrency(remaining.toFixed(2))}
                           </span>
-                        ) : (
-                          <span className="text-muted-foreground opacity-40">
-                            —
-                          </span>
-                        )}
-                      </TableCell>
-                      <TableCell className="pr-6 text-right">
-                        <ReceivableDialog
-                          receivable={forReceivableDialog(item)}
-                          clients={clients}
-                          projects={projects}
-                        />
+                        </TableCell>
+                        <TableCell>
+                          {item.dueDate ? (
+                            <span
+                              className={cn(
+                                "text-sm",
+                                isOverdue
+                                  ? "font-medium text-destructive"
+                                  : "text-muted-foreground",
+                              )}
+                            >
+                              {formatDate(item.dueDate)}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground opacity-40">
+                              —
+                            </span>
+                          )}
+                        </TableCell>
+                        <TableCell className="pr-6 text-right">
+                          <ReceivableDialog
+                            receivable={forReceivableDialog(item)}
+                            clients={clients}
+                            projects={projects}
+                          />
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                  {!receivables.length ? (
+                    <TableRow>
+                      <TableCell
+                        colSpan={8}
+                        className="h-24 text-center text-muted-foreground"
+                      >
+                        {showAll
+                          ? "Aún no hay hitos registrados."
+                          : "No hay hitos pendientes de cobro."}
                       </TableCell>
                     </TableRow>
-                  );
-                })}
-                {!receivables.length ? (
-                  <TableRow>
-                    <TableCell
-                      colSpan={8}
-                      className="h-24 text-center text-muted-foreground"
-                    >
-                      {showAll
-                        ? "Aún no hay hitos registrados."
-                        : "No hay hitos pendientes de cobro."}
-                    </TableCell>
-                  </TableRow>
-                ) : null}
-              </TableBody>
-            </Table>
+                  ) : null}
+                </TableBody>
+              </Table>
+            </div>
             <div className="px-6 pb-4">
               <Pagination
                 page={page}
@@ -468,49 +473,53 @@ export default async function FinancePage({
                   </div>
                 </CardHeader>
                 <CardContent className="p-0">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="pl-6">Hito</TableHead>
-                        <TableHead>Cliente</TableHead>
-                        <TableHead>Método</TableHead>
-                        <TableHead>Referencia</TableHead>
-                        <TableHead className="text-right">Monto</TableHead>
-                        <TableHead>Fecha</TableHead>
-                        <TableHead className="pr-6 text-right" />
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {group.payments.map((payment) => (
-                        <TableRow key={payment.id}>
-                          <TableCell className="pl-6 font-medium">
-                            {payment.receivable.title}
-                          </TableCell>
-                          <TableCell className="text-sm text-muted-foreground">
-                            {payment.receivable.client.name}
-                          </TableCell>
-                          <TableCell className="text-sm text-muted-foreground">
-                            {payment.method ?? "—"}
-                          </TableCell>
-                          <TableCell className="text-sm text-muted-foreground">
-                            {payment.reference ?? "—"}
-                          </TableCell>
-                          <TableCell className="text-right font-medium text-emerald-600">
-                            {formatCurrency(payment.amount.toString())}
-                          </TableCell>
-                          <TableCell className="text-sm text-muted-foreground">
-                            {formatDate(payment.paidAt)}
-                          </TableCell>
-                          <TableCell className="pr-6 text-right">
-                            <DeletePaymentButton
-                              id={payment.id}
-                              amount={formatCurrency(payment.amount.toString())}
-                            />
-                          </TableCell>
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="pl-6">Hito</TableHead>
+                          <TableHead>Cliente</TableHead>
+                          <TableHead>Método</TableHead>
+                          <TableHead>Referencia</TableHead>
+                          <TableHead className="text-right">Monto</TableHead>
+                          <TableHead>Fecha</TableHead>
+                          <TableHead className="pr-6 text-right" />
                         </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
+                      </TableHeader>
+                      <TableBody>
+                        {group.payments.map((payment) => (
+                          <TableRow key={payment.id}>
+                            <TableCell className="pl-6 font-medium">
+                              {payment.receivable.title}
+                            </TableCell>
+                            <TableCell className="text-sm text-muted-foreground">
+                              {payment.receivable.client.name}
+                            </TableCell>
+                            <TableCell className="text-sm text-muted-foreground">
+                              {payment.method ?? "—"}
+                            </TableCell>
+                            <TableCell className="text-sm text-muted-foreground">
+                              {payment.reference ?? "—"}
+                            </TableCell>
+                            <TableCell className="text-right font-medium text-emerald-600">
+                              {formatCurrency(payment.amount.toString())}
+                            </TableCell>
+                            <TableCell className="text-sm text-muted-foreground">
+                              {formatDate(payment.paidAt)}
+                            </TableCell>
+                            <TableCell className="pr-6 text-right">
+                              <DeletePaymentButton
+                                id={payment.id}
+                                amount={formatCurrency(
+                                  payment.amount.toString(),
+                                )}
+                              />
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
                 </CardContent>
               </Card>
             ))

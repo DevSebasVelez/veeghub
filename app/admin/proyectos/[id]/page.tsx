@@ -27,8 +27,9 @@ import { Separator } from "@/components/ui/separator";
 
 const priorityColor: Record<string, string> = {
   URGENT: "text-destructive border-destructive/30 bg-destructive/10",
-  HIGH: "text-orange-600 border-orange-300 bg-orange-50",
-  MEDIUM: "text-blue-600 border-blue-300 bg-blue-50",
+  HIGH: "text-orange-600 border-orange-300 bg-orange-50 dark:text-orange-400 dark:border-orange-800 dark:bg-orange-950",
+  MEDIUM:
+    "text-blue-600 border-blue-300 bg-blue-50 dark:text-blue-400 dark:border-blue-800 dark:bg-blue-950",
   LOW: "text-muted-foreground border-border bg-muted/30",
 };
 
@@ -108,7 +109,7 @@ export default async function ProjectDetailPage({
   return (
     <div className="space-y-6">
       {/* Header */}
-      <Card className="rounded-lg border-blue-100 bg-blue-50/40">
+      <Card className="rounded-lg border-blue-100 bg-blue-50/40 dark:border-blue-900/40 dark:bg-blue-950/20">
         <CardContent className="p-5">
           <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
             <div className="space-y-2">
@@ -254,7 +255,7 @@ export default async function ProjectDetailPage({
                               {formatDate(task.dueDate)}
                             </span>
                           ) : null}
-                          <div className="opacity-0 transition-opacity group-hover:opacity-100">
+                          <div className="sm:opacity-0 transition-opacity sm:group-hover:opacity-100">
                             <TaskDialog
                               task={forTaskDialog(task)}
                               projects={projects}
@@ -286,7 +287,7 @@ export default async function ProjectDetailPage({
                               {task.title}
                             </div>
                           </div>
-                          <div className="opacity-0 transition-opacity group-hover:opacity-100">
+                          <div className="sm:opacity-0 transition-opacity sm:group-hover:opacity-100">
                             <TaskDialog
                               task={forTaskDialog(task)}
                               projects={projects}

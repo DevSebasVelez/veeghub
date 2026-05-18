@@ -62,64 +62,68 @@ export default async function ClientsPage({
             Contactos, datos de facturación y relación con proyectos.
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Cliente</TableHead>
-                <TableHead>Facturación</TableHead>
-                <TableHead>Proyectos</TableHead>
-                <TableHead>Credenciales</TableHead>
-                <TableHead className="text-right">Acciones</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {clients.map((client) => (
-                <TableRow key={client.id}>
-                  <TableCell>
-                    <Link
-                      href={`/admin/clientes/${client.id}`}
-                      className="font-medium underline-offset-4 hover:underline"
-                    >
-                      {client.name}
-                    </Link>
-                    <div className="text-xs text-muted-foreground">
-                      {client.email ?? "Sin email principal"}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div>
-                      {client.billingEmail ?? client.email ?? "Sin correo"}
-                    </div>
-                    <div className="text-xs text-muted-foreground">
-                      {client.taxId ?? "Sin RUC/cédula"}
-                    </div>
-                  </TableCell>
-                  <TableCell>{client._count.projects}</TableCell>
-                  <TableCell>{client._count.credentials}</TableCell>
-                  <TableCell className="text-right">
-                    <ClientEditDialog client={forClientDialog(client)} />
-                  </TableCell>
-                </TableRow>
-              ))}
-              {!clients.length ? (
+        <CardContent className="p-0">
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
                 <TableRow>
-                  <TableCell
-                    colSpan={5}
-                    className="h-24 text-center text-muted-foreground"
-                  >
-                    Aún no hay clientes.
-                  </TableCell>
+                  <TableHead className="pl-6">Cliente</TableHead>
+                  <TableHead>Facturación</TableHead>
+                  <TableHead>Proyectos</TableHead>
+                  <TableHead>Credenciales</TableHead>
+                  <TableHead className="pr-6 text-right">Acciones</TableHead>
                 </TableRow>
-              ) : null}
-            </TableBody>
-          </Table>
-          <Pagination
-            page={page}
-            pageSize={PAGE_SIZE}
-            total={total}
-            basePath="/admin/clientes"
-          />
+              </TableHeader>
+              <TableBody>
+                {clients.map((client) => (
+                  <TableRow key={client.id}>
+                    <TableCell className="pl-6">
+                      <Link
+                        href={`/admin/clientes/${client.id}`}
+                        className="font-medium underline-offset-4 hover:underline"
+                      >
+                        {client.name}
+                      </Link>
+                      <div className="text-xs text-muted-foreground">
+                        {client.email ?? "Sin email principal"}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div>
+                        {client.billingEmail ?? client.email ?? "Sin correo"}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        {client.taxId ?? "Sin RUC/cédula"}
+                      </div>
+                    </TableCell>
+                    <TableCell>{client._count.projects}</TableCell>
+                    <TableCell>{client._count.credentials}</TableCell>
+                    <TableCell className="pr-6 text-right">
+                      <ClientEditDialog client={forClientDialog(client)} />
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {!clients.length ? (
+                  <TableRow>
+                    <TableCell
+                      colSpan={5}
+                      className="h-24 text-center text-muted-foreground"
+                    >
+                      Aún no hay clientes.
+                    </TableCell>
+                  </TableRow>
+                ) : null}
+              </TableBody>
+            </Table>
+          </div>
+          <div className="px-6 pb-4 pt-2">
+            <Pagination
+              page={page}
+              pageSize={PAGE_SIZE}
+              total={total}
+              basePath="/admin/clientes"
+            />
+          </div>
         </CardContent>
       </Card>
 

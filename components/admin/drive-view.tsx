@@ -153,7 +153,7 @@ function FolderCard({
   const count = (folder._count?.children ?? 0) + (folder._count?.files ?? 0);
 
   return (
-    <div className="group flex items-center gap-3 rounded-lg border bg-background p-3 transition-colors hover:border-amber-200 hover:bg-amber-50/60">
+    <div className="group flex items-center gap-3 rounded-lg border bg-background p-3 transition-colors hover:border-amber-200 hover:bg-amber-50/60 dark:hover:border-amber-800 dark:hover:bg-amber-950/30">
       <Link
         href={`/admin/drive?folder=${folder.id}`}
         className="flex min-w-0 flex-1 items-center gap-3"
@@ -175,7 +175,7 @@ function FolderCard({
           ) : null}
         </div>
       </Link>
-      <div className="shrink-0 opacity-0 transition-opacity group-hover:opacity-100">
+      <div className="shrink-0 sm:opacity-0 transition-opacity sm:group-hover:opacity-100">
         <FolderEditDialog
           folder={folder}
           clients={clients}
@@ -226,7 +226,7 @@ function FileCard({
           {formatBytes(file.size)}
         </div>
       </div>
-      <div className="flex items-center gap-1 border-t px-2.5 py-1.5 opacity-0 transition-opacity group-hover:opacity-100">
+      <div className="flex items-center gap-1 border-t px-2.5 py-1.5 sm:opacity-0 transition-opacity sm:group-hover:opacity-100">
         {canPreview ? (
           <Button
             variant="ghost"
