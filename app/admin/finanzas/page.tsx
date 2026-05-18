@@ -1,8 +1,13 @@
-import { createReceivable, recordPayment } from "@/app/admin/actions";
+import Link from "next/link";
+import { AlertCircle, CheckCircle2, Clock } from "lucide-react";
+
+import { PaymentDialog, ReceivableDialog } from "@/components/admin/dialogs/receivable-dialog";
+import { forReceivableDialog } from "@/lib/admin/serialize";
+import { getPage, Pagination } from "@/components/admin/pagination";
+import { StatusBadge } from "@/components/admin/status-badge";
 import prisma from "@/lib/db/prisma";
 import { formatCurrency, formatDate } from "@/lib/admin/format";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import {
   Card,
   CardContent,
@@ -10,8 +15,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
 import {
   Table,
   TableBody,
@@ -20,30 +23,185 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Textarea } from "@/components/ui/textarea";
 
-export default async function FinancePage() {
-  const [clients, projects, receivables] = await Promise.all([
-    prisma.client.findMany({ orderBy: { name: "asc" } }),
-    prisma.project.findMany({ orderBy: { name: "asc" } }),
+const PAGE_SIZE = 10;
+
+export default async function FinancePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string; tab?: string }>;
+}) {
+  const { page: pageParam, tab } = await searchParams;
+  const page = getPage(pageParam);
+  const showAll = tab === "todos";
+
+  const [
+    clients,
+    projects,
+    pendingAgg,
+    collectedAgg,
+    overdueCount,
+    allReceivables,
+    paymentHistory,
+  ] = await Promise.all([
+    prisma.client.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }),
+    prisma.project.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }),
+    prisma.receivable.aggregate({
+      where: { status: { notIn: ["PAID", "CANCELLED"] } },
+      _sum: { amount: true, paidAmount: true },
+    }),
+    prisma.payment.aggregate({ _sum: { amount: true } }),
+    prisma.receivable.count({
+      where: {
+        status: { notIn: ["PAID", "CANCELLED"] },
+        dueDate: { lt: new Date() },
+      },
+    }),
     prisma.receivable.findMany({
       orderBy: [{ dueDate: "asc" }, { createdAt: "desc" }],
       include: {
-        client: { select: { name: true } },
-        project: { select: { name: true } },
-        payments: { orderBy: { paidAt: "desc" }, take: 2 },
+        client: { select: { id: true, name: true } },
+        project: { select: { id: true, name: true } },
+      },
+    }),
+    prisma.payment.findMany({
+      orderBy: { paidAt: "desc" },
+      take: 20,
+      include: {
+        receivable: {
+          select: {
+            title: true,
+            client: { select: { name: true } },
+          },
+        },
       },
     }),
   ]);
 
+  const visibleReceivables = showAll
+    ? allReceivables
+    : allReceivables.filter(
+        (r) =>
+          r.status !== "PAID" &&
+          r.status !== "CANCELLED" &&
+          Number(r.amount) - Number(r.paidAmount) > 0,
+      );
+
+  const total = visibleReceivables.length;
+  const receivables = visibleReceivables.slice(
+    (page - 1) * PAGE_SIZE,
+    page * PAGE_SIZE,
+  );
+
+  const pendingReceivablesForPayment = allReceivables.filter(
+    (r) => r.status !== "PAID" && r.status !== "CANCELLED",
+  );
+
+  const totalPending =
+    Number(pendingAgg._sum.amount ?? 0) -
+    Number(pendingAgg._sum.paidAmount ?? 0);
+  const totalCollected = Number(collectedAgg._sum.amount ?? 0);
+
   return (
-    <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
-      <Card className="rounded-lg">
+    <div className="space-y-6">
+      <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Finanzas</h1>
+          <p className="text-sm text-muted-foreground">
+            Hitos de cobro, pagos parciales y cuentas por cobrar.
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <PaymentDialog
+            receivables={pendingReceivablesForPayment.map((r) => ({
+              id: r.id,
+              title: r.title,
+              client: { name: r.client.name },
+            }))}
+          />
+          <ReceivableDialog clients={clients} projects={projects} mode="create" />
+        </div>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-3">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Por cobrar</CardTitle>
+            <Clock className="size-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {formatCurrency(totalPending.toFixed(2))}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Saldo pendiente en hitos activos
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total cobrado</CardTitle>
+            <CheckCircle2 className="size-4 text-emerald-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-emerald-600">
+              {formatCurrency(totalCollected.toFixed(2))}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Suma de todos los pagos registrados
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Vencidos</CardTitle>
+            <AlertCircle className="size-4 text-destructive" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-destructive">
+              {overdueCount}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Hitos con fecha de vencimiento pasada
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      <Card className="rounded-lg border-emerald-100 bg-emerald-50/30">
         <CardHeader>
-          <CardTitle>Cuentas por cobrar</CardTitle>
-          <CardDescription>
-            Hitos flexibles: entrada, avances, entregas finales o pagos únicos.
-          </CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>Hitos de cobro</CardTitle>
+              <CardDescription>
+                Entradas, avances, entregas finales o pagos únicos.
+              </CardDescription>
+            </div>
+            <div className="flex gap-1 rounded-lg border bg-background p-1">
+              <Link
+                href="/admin/finanzas"
+                className={cn(
+                  "rounded-md px-3 py-1 text-sm font-medium transition-colors",
+                  !showAll
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                Pendientes
+              </Link>
+              <Link
+                href="/admin/finanzas?tab=todos"
+                className={cn(
+                  "rounded-md px-3 py-1 text-sm font-medium transition-colors",
+                  showAll
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                Todos
+              </Link>
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
           <Table>
@@ -55,6 +213,7 @@ export default async function FinancePage() {
                 <TableHead>Monto</TableHead>
                 <TableHead>Pagado</TableHead>
                 <TableHead>Vence</TableHead>
+                <TableHead className="text-right">Acciones</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -68,7 +227,7 @@ export default async function FinancePage() {
                   </TableCell>
                   <TableCell>{item.client.name}</TableCell>
                   <TableCell>
-                    <Badge variant="outline">{item.status}</Badge>
+                    <StatusBadge value={item.status} />
                   </TableCell>
                   <TableCell>
                     {formatCurrency(item.amount.toString())}
@@ -76,177 +235,96 @@ export default async function FinancePage() {
                   <TableCell>
                     {formatCurrency(item.paidAmount.toString())}
                   </TableCell>
-                  <TableCell>{formatDate(item.dueDate)}</TableCell>
+                  <TableCell>
+                    {item.dueDate ? (
+                      <span
+                        className={
+                          !showAll &&
+                          item.dueDate < new Date() &&
+                          item.status !== "PAID"
+                            ? "font-medium text-destructive"
+                            : ""
+                        }
+                      >
+                        {formatDate(item.dueDate)}
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <ReceivableDialog
+                      receivable={forReceivableDialog(item)}
+                      clients={clients}
+                      projects={projects}
+                    />
+                  </TableCell>
                 </TableRow>
               ))}
               {!receivables.length ? (
                 <TableRow>
                   <TableCell
-                    colSpan={6}
+                    colSpan={7}
                     className="h-24 text-center text-muted-foreground"
                   >
-                    Aún no hay cuentas por cobrar.
+                    {showAll
+                      ? "Aún no hay hitos registrados."
+                      : "No hay cuentas por cobrar pendientes."}
                   </TableCell>
                 </TableRow>
               ) : null}
             </TableBody>
           </Table>
+          <Pagination
+            page={page}
+            pageSize={PAGE_SIZE}
+            total={total}
+            basePath="/admin/finanzas"
+            searchParams={{ tab: tab ?? "" }}
+          />
         </CardContent>
       </Card>
 
-      <div className="space-y-4">
+      {paymentHistory.length > 0 ? (
         <Card className="rounded-lg">
           <CardHeader>
-            <CardTitle>Nuevo hito de cobro</CardTitle>
-            <CardDescription>
-              Úsalo para entradas, avances o pagos finales.
-            </CardDescription>
+            <CardTitle>Historial de pagos</CardTitle>
+            <CardDescription>Últimos 20 pagos registrados.</CardDescription>
           </CardHeader>
           <CardContent>
-            <form action={createReceivable}>
-              <FieldGroup>
-                <Field>
-                  <FieldLabel htmlFor="clientId">Cliente</FieldLabel>
-                  <select
-                    id="clientId"
-                    name="clientId"
-                    className="h-10 rounded-md border bg-background px-3 text-sm"
-                    required
-                  >
-                    {clients.map((client) => (
-                      <option key={client.id} value={client.id}>
-                        {client.name}
-                      </option>
-                    ))}
-                  </select>
-                </Field>
-                <Field>
-                  <FieldLabel htmlFor="projectId">Proyecto</FieldLabel>
-                  <select
-                    id="projectId"
-                    name="projectId"
-                    className="h-10 rounded-md border bg-background px-3 text-sm"
-                  >
-                    <option value="none">Sin proyecto</option>
-                    {projects.map((project) => (
-                      <option key={project.id} value={project.id}>
-                        {project.name}
-                      </option>
-                    ))}
-                  </select>
-                </Field>
-                <Field>
-                  <FieldLabel htmlFor="title">Concepto</FieldLabel>
-                  <Input
-                    id="title"
-                    name="title"
-                    placeholder="Entrada proyecto web"
-                    required
-                  />
-                </Field>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <Field>
-                    <FieldLabel htmlFor="amount">Monto</FieldLabel>
-                    <Input
-                      id="amount"
-                      name="amount"
-                      type="number"
-                      step="0.01"
-                      required
-                    />
-                  </Field>
-                  <Field>
-                    <FieldLabel htmlFor="dueDate">Fecha esperada</FieldLabel>
-                    <Input id="dueDate" name="dueDate" type="date" />
-                  </Field>
-                </div>
-                <Field>
-                  <FieldLabel htmlFor="status">Estado</FieldLabel>
-                  <select
-                    id="status"
-                    name="status"
-                    defaultValue="PLANNED"
-                    className="h-10 rounded-md border bg-background px-3 text-sm"
-                  >
-                    <option value="PLANNED">Planificado</option>
-                    <option value="INVOICED">Facturado</option>
-                    <option value="PARTIALLY_PAID">Parcial</option>
-                    <option value="PAID">Pagado</option>
-                  </select>
-                </Field>
-                <Field>
-                  <FieldLabel htmlFor="description">Notas</FieldLabel>
-                  <Textarea id="description" name="description" rows={3} />
-                </Field>
-                <Button type="submit" disabled={!clients.length}>
-                  Crear hito
-                </Button>
-              </FieldGroup>
-            </form>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Hito</TableHead>
+                  <TableHead>Cliente</TableHead>
+                  <TableHead>Monto</TableHead>
+                  <TableHead>Método</TableHead>
+                  <TableHead>Fecha</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {paymentHistory.map((payment) => (
+                  <TableRow key={payment.id}>
+                    <TableCell className="font-medium">
+                      {payment.receivable.title}
+                    </TableCell>
+                    <TableCell>{payment.receivable.client.name}</TableCell>
+                    <TableCell className="font-medium text-emerald-600">
+                      {formatCurrency(payment.amount.toString())}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {payment.method ?? "—"}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {formatDate(payment.paidAt)}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           </CardContent>
         </Card>
-
-        <Card className="rounded-lg">
-          <CardHeader>
-            <CardTitle>Registrar pago</CardTitle>
-            <CardDescription>
-              Permite pagos parciales o completos.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form action={recordPayment}>
-              <FieldGroup>
-                <Field>
-                  <FieldLabel htmlFor="receivableId">Hito</FieldLabel>
-                  <select
-                    id="receivableId"
-                    name="receivableId"
-                    className="h-10 rounded-md border bg-background px-3 text-sm"
-                    required
-                  >
-                    {receivables
-                      .filter((item) => item.status !== "PAID")
-                      .map((item) => (
-                        <option key={item.id} value={item.id}>
-                          {item.title} · {item.client.name}
-                        </option>
-                      ))}
-                  </select>
-                </Field>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <Field>
-                    <FieldLabel htmlFor="amount">Monto pagado</FieldLabel>
-                    <Input
-                      id="amount"
-                      name="amount"
-                      type="number"
-                      step="0.01"
-                      required
-                    />
-                  </Field>
-                  <Field>
-                    <FieldLabel htmlFor="paidAt">Fecha</FieldLabel>
-                    <Input id="paidAt" name="paidAt" type="date" />
-                  </Field>
-                </div>
-                <Field>
-                  <FieldLabel htmlFor="method">Método</FieldLabel>
-                  <Input
-                    id="method"
-                    name="method"
-                    placeholder="Transferencia, efectivo..."
-                  />
-                </Field>
-                <Field>
-                  <FieldLabel htmlFor="reference">Referencia</FieldLabel>
-                  <Input id="reference" name="reference" />
-                </Field>
-                <Button type="submit">Registrar pago</Button>
-              </FieldGroup>
-            </form>
-          </CardContent>
-        </Card>
-      </div>
+      ) : null}
     </div>
   );
 }
