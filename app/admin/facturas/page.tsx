@@ -1,56 +1,69 @@
-import { createInvoice, sendInvoiceEmail } from "@/app/admin/actions";
-import { forInvoiceDialog } from "@/lib/admin/serialize";
-import { DatePickerField } from "@/components/admin/date-picker-field";
-import { InvoiceEditDialog } from "@/components/admin/dialogs/invoice-dialog";
-import { FormSelect } from "@/components/admin/form-select";
+import { sendInvoiceEmail } from "@/app/admin/actions";
+import {
+  CreateInvoiceDialog,
+  InvoiceEditDialog,
+} from "@/components/admin/dialogs/invoice-dialog";
 import { getPage, Pagination } from "@/components/admin/pagination";
 import { StatusBadge } from "@/components/admin/status-badge";
+import { forInvoiceDialog } from "@/lib/admin/serialize";
 import prisma from "@/lib/db/prisma";
 import { formatCurrency, formatDate } from "@/lib/admin/format";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import Link from "next/link";
 
-const PAGE_SIZE = 10;
+const PAGE_SIZE = 12;
+
+const STATUS_FILTERS = [
+  { value: "", label: "Todas" },
+  { value: "READY_TO_SEND", label: "Por enviar" },
+  { value: "SENT", label: "Enviadas" },
+  { value: "PAID", label: "Pagadas" },
+  { value: "CANCELLED", label: "Canceladas" },
+] as const;
 
 export default async function InvoicesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ page?: string }>;
+  searchParams: Promise<{ page?: string; status?: string }>;
 }) {
-  const { page: pageParam } = await searchParams;
+  const { page: pageParam, status: statusFilter } = await searchParams;
   const page = getPage(pageParam);
+
+  const whereStatus =
+    statusFilter && statusFilter !== ""
+      ? {
+          status: statusFilter as
+            | "READY_TO_SEND"
+            | "SENT"
+            | "PAID"
+            | "CANCELLED",
+        }
+      : {};
+
   const [clients, projects, freeReceivables, allReceivables, invoices, total] =
     await Promise.all([
-      prisma.client.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }),
-      prisma.project.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }),
-      // For the create form: only receivables not yet linked to an invoice
+      prisma.client.findMany({
+        orderBy: { name: "asc" },
+        select: { id: true, name: true },
+      }),
+      prisma.project.findMany({
+        orderBy: { name: "asc" },
+        select: { id: true, name: true },
+      }),
       prisma.receivable.findMany({
         where: { invoice: null },
         orderBy: { createdAt: "desc" },
         select: { id: true, title: true, client: { select: { name: true } } },
       }),
-      // For edit dialogs: all receivables (including already-linked ones)
       prisma.receivable.findMany({
         orderBy: { createdAt: "desc" },
         select: { id: true, title: true, client: { select: { name: true } } },
       }),
       prisma.invoice.findMany({
+        where: whereStatus,
         orderBy: { createdAt: "desc" },
         skip: (page - 1) * PAGE_SIZE,
         take: PAGE_SIZE,
@@ -62,220 +75,179 @@ export default async function InvoicesPage({
           emailLogs: { orderBy: { createdAt: "desc" }, take: 1 },
         },
       }),
-      prisma.invoice.count(),
+      prisma.invoice.count({ where: whereStatus }),
     ]);
 
-  const freeReceivableOptions = freeReceivables.map((item) => ({
-    id: item.id,
-    name: `${item.title} · ${item.client.name}`,
+  const freeReceivableOptions = freeReceivables.map((r) => ({
+    id: r.id,
+    name: `${r.title} · ${r.client.name}`,
   }));
-
-  const allReceivableOptions = allReceivables.map((item) => ({
-    id: item.id,
-    name: `${item.title} · ${item.client.name}`,
+  const allReceivableOptions = allReceivables.map((r) => ({
+    id: r.id,
+    name: `${r.title} · ${r.client.name}`,
   }));
 
   return (
-    <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
-      <Card className="rounded-lg border-amber-100 bg-amber-50/30">
-        <CardHeader>
-          <CardTitle>Facturas SRI</CardTitle>
-          <CardDescription>
-            Sube XML y RIDE descargados del facturador y reenvíalos con Resend.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Factura</TableHead>
-                <TableHead>Cliente</TableHead>
-                <TableHead>Total</TableHead>
-                <TableHead>Estado</TableHead>
-                <TableHead>Archivos</TableHead>
-                <TableHead>Enviar</TableHead>
-                <TableHead className="text-right">Acciones</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {invoices.map((invoice) => (
-                <TableRow key={invoice.id}>
-                  <TableCell>
-                    <div className="font-medium">
-                      {invoice.invoiceNumber ?? "Sin número"}
-                    </div>
-                    <div className="text-xs text-muted-foreground">
-                      {formatDate(invoice.issueDate)}
-                    </div>
-                  </TableCell>
-                  <TableCell>{invoice.client.name}</TableCell>
-                  <TableCell>
-                    {formatCurrency(invoice.total.toString())}
-                  </TableCell>
-                  <TableCell>
-                    <StatusBadge value={invoice.status} />
-                  </TableCell>
-                  <TableCell>
-                    <div className="text-xs text-emerald-700">
-                      XML: {invoice.xmlFile ? "✓" : "pendiente"}
-                    </div>
-                    <div className="text-xs text-blue-700">
-                      RIDE: {invoice.rideFile ? "✓" : "pendiente"}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <form
-                      action={sendInvoiceEmail}
-                      className="flex min-w-48 gap-2"
-                    >
-                      <input
-                        type="hidden"
-                        name="invoiceId"
-                        value={invoice.id}
-                      />
-                      <Input
-                        name="to"
-                        type="email"
-                        defaultValue={
-                          invoice.client.billingEmail ??
-                          invoice.client.email ??
-                          ""
-                        }
-                        placeholder="cliente@email.com"
-                        className="h-9"
-                        required
-                      />
-                      <Button type="submit" size="sm">
-                        Enviar
-                      </Button>
-                    </form>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <InvoiceEditDialog
-                      invoice={forInvoiceDialog(invoice)}
-                      clients={clients}
-                      projects={projects}
-                      receivables={allReceivableOptions}
-                    />
-                  </TableCell>
-                </TableRow>
-              ))}
-              {!invoices.length ? (
-                <TableRow>
-                  <TableCell
-                    colSpan={7}
-                    className="h-24 text-center text-muted-foreground"
-                  >
-                    Aún no hay facturas cargadas.
-                  </TableCell>
-                </TableRow>
-              ) : null}
-            </TableBody>
-          </Table>
-          <Pagination
-            page={page}
-            pageSize={PAGE_SIZE}
-            total={total}
-            basePath="/admin/facturas"
-          />
-        </CardContent>
-      </Card>
+    <div className="space-y-6">
+      <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">
+            Facturas SRI
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            XML autorizado, RIDE PDF y envío por email con Resend.
+          </p>
+        </div>
+        <CreateInvoiceDialog
+          clients={clients}
+          projects={projects}
+          receivables={freeReceivableOptions}
+        />
+      </div>
 
       <Card className="rounded-lg">
-        <CardHeader>
-          <CardTitle>Cargar factura</CardTitle>
-          <CardDescription>
-            Adjunta el XML autorizado y el RIDE PDF del Facturador SRI.
-          </CardDescription>
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <CardTitle>Facturas</CardTitle>
+            {/* Status filter tabs */}
+            <div className="flex gap-1 rounded-lg border bg-background p-1">
+              {STATUS_FILTERS.map((f) => (
+                <Link
+                  key={f.value}
+                  href={
+                    f.value
+                      ? `/admin/facturas?status=${f.value}`
+                      : "/admin/facturas"
+                  }
+                  className={cn(
+                    "rounded-md px-3 py-1 text-xs font-medium transition-colors",
+                    (statusFilter ?? "") === f.value
+                      ? "bg-primary text-primary-foreground"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  {f.label}
+                </Link>
+              ))}
+            </div>
+          </div>
         </CardHeader>
-        <CardContent>
-          <form action={createInvoice}>
-            <FieldGroup>
-              <Field>
-                <FieldLabel>Cliente</FieldLabel>
-                <FormSelect
-                  name="clientId"
-                  defaultValue={clients[0]?.id}
-                  options={clients.map((client) => ({
-                    value: client.id,
-                    label: client.name,
-                  }))}
-                />
-              </Field>
-              <Field>
-                <FieldLabel>Proyecto</FieldLabel>
-                <FormSelect
-                  name="projectId"
-                  defaultValue="none"
-                  options={[
-                    { value: "none", label: "Sin proyecto" },
-                    ...projects.map((project) => ({
-                      value: project.id,
-                      label: project.name,
-                    })),
-                  ]}
-                />
-              </Field>
-              <Field>
-                <FieldLabel>Hito relacionado</FieldLabel>
-                <FormSelect
-                  name="receivableId"
-                  defaultValue="none"
-                  options={[
-                    { value: "none", label: "Sin hito" },
-                    ...freeReceivableOptions.map((item) => ({
-                      value: item.id,
-                      label: item.name,
-                    })),
-                  ]}
-                />
-              </Field>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <Field>
-                  <FieldLabel>Número</FieldLabel>
-                  <Input name="invoiceNumber" />
-                </Field>
-                <Field>
-                  <FieldLabel>Fecha emisión</FieldLabel>
-                  <DatePickerField name="issueDate" />
-                </Field>
-              </div>
-              <Field>
-                <FieldLabel>Clave de acceso</FieldLabel>
-                <Input name="accessKey" />
-              </Field>
-              <div className="grid gap-3 sm:grid-cols-3">
-                <Field>
-                  <FieldLabel>Subtotal</FieldLabel>
-                  <Input name="subtotal" type="number" step="0.01" />
-                </Field>
-                <Field>
-                  <FieldLabel>IVA</FieldLabel>
-                  <Input name="taxAmount" type="number" step="0.01" />
-                </Field>
-                <Field>
-                  <FieldLabel>Total</FieldLabel>
-                  <Input name="total" type="number" step="0.01" required />
-                </Field>
-              </div>
-              <Field>
-                <FieldLabel>XML</FieldLabel>
-                <Input
-                  name="xml"
-                  type="file"
-                  accept=".xml,text/xml,application/xml"
-                />
-              </Field>
-              <Field>
-                <FieldLabel>RIDE PDF</FieldLabel>
-                <Input name="ride" type="file" accept=".pdf,application/pdf" />
-              </Field>
-              <input type="hidden" name="status" value="READY_TO_SEND" />
-              <Button type="submit" disabled={!clients.length}>
-                Guardar factura
-              </Button>
-            </FieldGroup>
-          </form>
+        <CardContent className="p-0">
+          {invoices.length === 0 ? (
+            <div className="py-16 text-center text-sm text-muted-foreground">
+              No hay facturas{statusFilter ? " con ese estado" : ""}.
+            </div>
+          ) : (
+            <div className="divide-y">
+              {invoices.map((invoice) => {
+                const lastEmail = invoice.emailLogs[0];
+                return (
+                  <div
+                    key={invoice.id}
+                    className="flex flex-col gap-3 px-6 py-4 sm:flex-row sm:items-center"
+                  >
+                    {/* Left: info */}
+                    <div className="min-w-0 flex-1 space-y-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <StatusBadge value={invoice.status} />
+                        <span className="font-medium">
+                          {invoice.invoiceNumber ?? "Sin número"}
+                        </span>
+                        {invoice.project ? (
+                          <span className="text-xs text-muted-foreground">
+                            · {invoice.project.name}
+                          </span>
+                        ) : null}
+                      </div>
+                      <div className="flex flex-wrap gap-3 text-sm text-muted-foreground">
+                        <span>{invoice.client.name}</span>
+                        <span className="font-medium text-foreground">
+                          {formatCurrency(invoice.total.toString())}
+                        </span>
+                        {invoice.issueDate ? (
+                          <span>{formatDate(invoice.issueDate)}</span>
+                        ) : null}
+                      </div>
+                      {/* Files status */}
+                      <div className="flex gap-3 text-xs">
+                        <span
+                          className={
+                            invoice.xmlFile
+                              ? "font-medium text-emerald-600"
+                              : "text-muted-foreground"
+                          }
+                        >
+                          XML {invoice.xmlFile ? "✓" : "pendiente"}
+                        </span>
+                        <span
+                          className={
+                            invoice.rideFile
+                              ? "font-medium text-blue-600"
+                              : "text-muted-foreground"
+                          }
+                        >
+                          RIDE {invoice.rideFile ? "✓" : "pendiente"}
+                        </span>
+                        {lastEmail ? (
+                          <span className="text-muted-foreground">
+                            Enviado {formatDate(lastEmail.sentAt)} →{" "}
+                            {lastEmail.to}
+                          </span>
+                        ) : null}
+                      </div>
+                    </div>
+
+                    {/* Right: send form + edit */}
+                    <div className="flex shrink-0 items-center gap-2">
+                      {invoice.xmlFile && invoice.rideFile ? (
+                        <form action={sendInvoiceEmail} className="flex gap-2">
+                          <input
+                            type="hidden"
+                            name="invoiceId"
+                            value={invoice.id}
+                          />
+                          <Input
+                            name="to"
+                            type="email"
+                            defaultValue={
+                              invoice.client.billingEmail ??
+                              invoice.client.email ??
+                              ""
+                            }
+                            placeholder="cliente@email.com"
+                            className="h-8 w-44 text-sm"
+                            required
+                          />
+                          <Button type="submit" size="sm" variant="outline">
+                            Enviar
+                          </Button>
+                        </form>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">
+                          Sube XML y RIDE para enviar
+                        </span>
+                      )}
+                      <InvoiceEditDialog
+                        invoice={forInvoiceDialog(invoice)}
+                        clients={clients}
+                        projects={projects}
+                        receivables={allReceivableOptions}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          <div className="px-6 pb-4">
+            <Pagination
+              page={page}
+              pageSize={PAGE_SIZE}
+              total={total}
+              basePath="/admin/facturas"
+              searchParams={{ status: statusFilter ?? "" }}
+            />
+          </div>
         </CardContent>
       </Card>
     </div>
