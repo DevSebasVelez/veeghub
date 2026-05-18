@@ -1,7 +1,12 @@
 import { createInvoice, sendInvoiceEmail } from "@/app/admin/actions";
+import { forInvoiceDialog } from "@/lib/admin/serialize";
+import { DatePickerField } from "@/components/admin/date-picker-field";
+import { InvoiceEditDialog } from "@/components/admin/dialogs/invoice-dialog";
+import { FormSelect } from "@/components/admin/form-select";
+import { getPage, Pagination } from "@/components/admin/pagination";
+import { StatusBadge } from "@/components/admin/status-badge";
 import prisma from "@/lib/db/prisma";
 import { formatCurrency, formatDate } from "@/lib/admin/format";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -20,32 +25,59 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Textarea } from "@/components/ui/textarea";
 
-export default async function InvoicesPage() {
-  const [clients, projects, receivables, invoices] = await Promise.all([
-    prisma.client.findMany({ orderBy: { name: "asc" } }),
-    prisma.project.findMany({ orderBy: { name: "asc" } }),
-    prisma.receivable.findMany({
-      where: { invoice: null },
-      orderBy: { createdAt: "desc" },
-      include: { client: true, project: true },
-    }),
-    prisma.invoice.findMany({
-      orderBy: { createdAt: "desc" },
-      include: {
-        client: true,
-        project: true,
-        xmlFile: true,
-        rideFile: true,
-        emailLogs: { orderBy: { createdAt: "desc" }, take: 1 },
-      },
-    }),
-  ]);
+const PAGE_SIZE = 10;
+
+export default async function InvoicesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string }>;
+}) {
+  const { page: pageParam } = await searchParams;
+  const page = getPage(pageParam);
+  const [clients, projects, freeReceivables, allReceivables, invoices, total] =
+    await Promise.all([
+      prisma.client.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }),
+      prisma.project.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }),
+      // For the create form: only receivables not yet linked to an invoice
+      prisma.receivable.findMany({
+        where: { invoice: null },
+        orderBy: { createdAt: "desc" },
+        select: { id: true, title: true, client: { select: { name: true } } },
+      }),
+      // For edit dialogs: all receivables (including already-linked ones)
+      prisma.receivable.findMany({
+        orderBy: { createdAt: "desc" },
+        select: { id: true, title: true, client: { select: { name: true } } },
+      }),
+      prisma.invoice.findMany({
+        orderBy: { createdAt: "desc" },
+        skip: (page - 1) * PAGE_SIZE,
+        take: PAGE_SIZE,
+        include: {
+          client: true,
+          project: true,
+          xmlFile: true,
+          rideFile: true,
+          emailLogs: { orderBy: { createdAt: "desc" }, take: 1 },
+        },
+      }),
+      prisma.invoice.count(),
+    ]);
+
+  const freeReceivableOptions = freeReceivables.map((item) => ({
+    id: item.id,
+    name: `${item.title} · ${item.client.name}`,
+  }));
+
+  const allReceivableOptions = allReceivables.map((item) => ({
+    id: item.id,
+    name: `${item.title} · ${item.client.name}`,
+  }));
 
   return (
     <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
-      <Card className="rounded-lg">
+      <Card className="rounded-lg border-amber-100 bg-amber-50/30">
         <CardHeader>
           <CardTitle>Facturas SRI</CardTitle>
           <CardDescription>
@@ -62,6 +94,7 @@ export default async function InvoicesPage() {
                 <TableHead>Estado</TableHead>
                 <TableHead>Archivos</TableHead>
                 <TableHead>Enviar</TableHead>
+                <TableHead className="text-right">Acciones</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -80,20 +113,20 @@ export default async function InvoicesPage() {
                     {formatCurrency(invoice.total.toString())}
                   </TableCell>
                   <TableCell>
-                    <Badge variant="outline">{invoice.status}</Badge>
+                    <StatusBadge value={invoice.status} />
                   </TableCell>
                   <TableCell>
-                    <div className="text-xs">
-                      XML: {invoice.xmlFile ? "ok" : "pendiente"}
+                    <div className="text-xs text-emerald-700">
+                      XML: {invoice.xmlFile ? "✓" : "pendiente"}
                     </div>
-                    <div className="text-xs">
-                      RIDE: {invoice.rideFile ? "ok" : "pendiente"}
+                    <div className="text-xs text-blue-700">
+                      RIDE: {invoice.rideFile ? "✓" : "pendiente"}
                     </div>
                   </TableCell>
                   <TableCell>
                     <form
                       action={sendInvoiceEmail}
-                      className="flex min-w-64 gap-2"
+                      className="flex min-w-48 gap-2"
                     >
                       <input
                         type="hidden"
@@ -117,12 +150,20 @@ export default async function InvoicesPage() {
                       </Button>
                     </form>
                   </TableCell>
+                  <TableCell className="text-right">
+                    <InvoiceEditDialog
+                      invoice={forInvoiceDialog(invoice)}
+                      clients={clients}
+                      projects={projects}
+                      receivables={allReceivableOptions}
+                    />
+                  </TableCell>
                 </TableRow>
               ))}
               {!invoices.length ? (
                 <TableRow>
                   <TableCell
-                    colSpan={6}
+                    colSpan={7}
                     className="h-24 text-center text-muted-foreground"
                   >
                     Aún no hay facturas cargadas.
@@ -131,6 +172,12 @@ export default async function InvoicesPage() {
               ) : null}
             </TableBody>
           </Table>
+          <Pagination
+            page={page}
+            pageSize={PAGE_SIZE}
+            total={total}
+            basePath="/admin/facturas"
+          />
         </CardContent>
       </Card>
 
@@ -145,123 +192,85 @@ export default async function InvoicesPage() {
           <form action={createInvoice}>
             <FieldGroup>
               <Field>
-                <FieldLabel htmlFor="clientId">Cliente</FieldLabel>
-                <select
-                  id="clientId"
+                <FieldLabel>Cliente</FieldLabel>
+                <FormSelect
                   name="clientId"
-                  className="h-10 rounded-md border bg-background px-3 text-sm"
-                  required
-                >
-                  {clients.map((client) => (
-                    <option key={client.id} value={client.id}>
-                      {client.name}
-                    </option>
-                  ))}
-                </select>
+                  defaultValue={clients[0]?.id}
+                  options={clients.map((client) => ({
+                    value: client.id,
+                    label: client.name,
+                  }))}
+                />
               </Field>
               <Field>
-                <FieldLabel htmlFor="projectId">Proyecto</FieldLabel>
-                <select
-                  id="projectId"
+                <FieldLabel>Proyecto</FieldLabel>
+                <FormSelect
                   name="projectId"
-                  className="h-10 rounded-md border bg-background px-3 text-sm"
-                >
-                  <option value="none">Sin proyecto</option>
-                  {projects.map((project) => (
-                    <option key={project.id} value={project.id}>
-                      {project.name}
-                    </option>
-                  ))}
-                </select>
+                  defaultValue="none"
+                  options={[
+                    { value: "none", label: "Sin proyecto" },
+                    ...projects.map((project) => ({
+                      value: project.id,
+                      label: project.name,
+                    })),
+                  ]}
+                />
               </Field>
               <Field>
-                <FieldLabel htmlFor="receivableId">Hito relacionado</FieldLabel>
-                <select
-                  id="receivableId"
+                <FieldLabel>Hito relacionado</FieldLabel>
+                <FormSelect
                   name="receivableId"
-                  className="h-10 rounded-md border bg-background px-3 text-sm"
-                >
-                  <option value="none">Sin hito</option>
-                  {receivables.map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {item.title} · {item.client.name}
-                    </option>
-                  ))}
-                </select>
+                  defaultValue="none"
+                  options={[
+                    { value: "none", label: "Sin hito" },
+                    ...freeReceivableOptions.map((item) => ({
+                      value: item.id,
+                      label: item.name,
+                    })),
+                  ]}
+                />
               </Field>
               <div className="grid gap-3 sm:grid-cols-2">
                 <Field>
-                  <FieldLabel htmlFor="invoiceNumber">Número</FieldLabel>
-                  <Input id="invoiceNumber" name="invoiceNumber" />
+                  <FieldLabel>Número</FieldLabel>
+                  <Input name="invoiceNumber" />
                 </Field>
                 <Field>
-                  <FieldLabel htmlFor="issueDate">Fecha emisión</FieldLabel>
-                  <Input id="issueDate" name="issueDate" type="date" />
+                  <FieldLabel>Fecha emisión</FieldLabel>
+                  <DatePickerField name="issueDate" />
                 </Field>
               </div>
               <Field>
-                <FieldLabel htmlFor="accessKey">Clave de acceso</FieldLabel>
-                <Input id="accessKey" name="accessKey" />
+                <FieldLabel>Clave de acceso</FieldLabel>
+                <Input name="accessKey" />
               </Field>
               <div className="grid gap-3 sm:grid-cols-3">
                 <Field>
-                  <FieldLabel htmlFor="subtotal">Subtotal</FieldLabel>
-                  <Input
-                    id="subtotal"
-                    name="subtotal"
-                    type="number"
-                    step="0.01"
-                  />
+                  <FieldLabel>Subtotal</FieldLabel>
+                  <Input name="subtotal" type="number" step="0.01" />
                 </Field>
                 <Field>
-                  <FieldLabel htmlFor="taxAmount">IVA</FieldLabel>
-                  <Input
-                    id="taxAmount"
-                    name="taxAmount"
-                    type="number"
-                    step="0.01"
-                  />
+                  <FieldLabel>IVA</FieldLabel>
+                  <Input name="taxAmount" type="number" step="0.01" />
                 </Field>
                 <Field>
-                  <FieldLabel htmlFor="total">Total</FieldLabel>
-                  <Input
-                    id="total"
-                    name="total"
-                    type="number"
-                    step="0.01"
-                    required
-                  />
+                  <FieldLabel>Total</FieldLabel>
+                  <Input name="total" type="number" step="0.01" required />
                 </Field>
               </div>
               <Field>
-                <FieldLabel htmlFor="xml">XML</FieldLabel>
+                <FieldLabel>XML</FieldLabel>
                 <Input
-                  id="xml"
                   name="xml"
                   type="file"
                   accept=".xml,text/xml,application/xml"
                 />
               </Field>
               <Field>
-                <FieldLabel htmlFor="ride">RIDE PDF</FieldLabel>
-                <Input
-                  id="ride"
-                  name="ride"
-                  type="file"
-                  accept=".pdf,application/pdf"
-                />
+                <FieldLabel>RIDE PDF</FieldLabel>
+                <Input name="ride" type="file" accept=".pdf,application/pdf" />
               </Field>
-              <Field>
-                <FieldLabel htmlFor="body">
-                  Mensaje por defecto al enviar
-                </FieldLabel>
-                <Textarea
-                  id="body"
-                  name="body"
-                  rows={3}
-                  placeholder="Se usa en el formulario de envío si luego lo personalizas."
-                />
-              </Field>
+              <input type="hidden" name="status" value="READY_TO_SEND" />
               <Button type="submit" disabled={!clients.length}>
                 Guardar factura
               </Button>
