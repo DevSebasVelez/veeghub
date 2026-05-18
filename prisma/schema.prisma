@@ -16,6 +16,54 @@ enum UserRole {
   ADMIN
 }
 
+enum ProjectStatus {
+  LEAD
+  ACTIVE
+  PAUSED
+  COMPLETED
+  ARCHIVED
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  BLOCKED
+  DONE
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum ReceivableStatus {
+  PLANNED
+  INVOICED
+  PARTIALLY_PAID
+  PAID
+  OVERDUE
+  CANCELLED
+}
+
+enum InvoiceStatus {
+  READY_TO_SEND
+  SENT
+  PAID
+  CANCELLED
+}
+
+enum CredentialKind {
+  LOGIN
+  API_KEY
+  DATABASE
+  HOSTING
+  SOCIAL_MEDIA
+  EMAIL
+  OTHER
+}
+
 model User {
   id            String   @id @default(cuid())
   name          String?
@@ -28,4 +76,232 @@ model User {
   updatedAt     DateTime @updatedAt
 
   @@index([role])
+}
+
+model Client {
+  id           String       @id @default(cuid())
+  name         String
+  legalName    String?
+  taxId        String?
+  email        String?
+  billingEmail String?
+  phone        String?
+  website      String?
+  address      String?
+  notes        String?
+  projects     Project[]
+  receivables  Receivable[]
+  invoices     Invoice[]
+  credentials  Credential[]
+  folders      DriveFolder[]
+  files        DriveFile[]
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  @@index([name])
+  @@index([taxId])
+}
+
+model Project {
+  id            String       @id @default(cuid())
+  name          String
+  slug          String       @unique
+  clientId      String?
+  client        Client?      @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  status        ProjectStatus @default(ACTIVE)
+  description   String?
+  stack         String?
+  repositoryUrl String?
+  productionUrl String?
+  stagingUrl    String?
+  budget        Decimal?     @db.Decimal(12, 2)
+  currency      String       @default("USD")
+  startDate     DateTime?
+  dueDate       DateTime?
+  completedAt   DateTime?
+  tasks         Task[]
+  receivables   Receivable[]
+  invoices      Invoice[]
+  credentials   Credential[]
+  folders       DriveFolder[]
+  files         DriveFile[]
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  @@index([clientId])
+  @@index([status])
+}
+
+model Task {
+  id          String       @id @default(cuid())
+  projectId   String
+  project     Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  title       String
+  description String?
+  status      TaskStatus   @default(TODO)
+  priority    TaskPriority @default(MEDIUM)
+  dueDate     DateTime?
+  completedAt DateTime?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@index([projectId])
+  @@index([status])
+  @@index([dueDate])
+}
+
+model Receivable {
+  id          String           @id @default(cuid())
+  clientId    String
+  client      Client           @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  projectId   String?
+  project     Project?         @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  title       String
+  description String?
+  amount      Decimal          @db.Decimal(12, 2)
+  paidAmount  Decimal          @default(0) @db.Decimal(12, 2)
+  currency    String           @default("USD")
+  dueDate     DateTime?
+  status      ReceivableStatus @default(PLANNED)
+  invoice     Invoice?
+  payments    Payment[]
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  @@index([clientId])
+  @@index([projectId])
+  @@index([status])
+  @@index([dueDate])
+}
+
+model Payment {
+  id           String     @id @default(cuid())
+  receivableId String
+  receivable   Receivable @relation(fields: [receivableId], references: [id], onDelete: Cascade)
+  amount       Decimal    @db.Decimal(12, 2)
+  paidAt       DateTime   @default(now())
+  method       String?
+  reference    String?
+  notes        String?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  @@index([receivableId])
+  @@index([paidAt])
+}
+
+model Invoice {
+  id            String          @id @default(cuid())
+  clientId      String
+  client        Client          @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  projectId     String?
+  project       Project?        @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  receivableId  String?         @unique
+  receivable    Receivable?     @relation(fields: [receivableId], references: [id], onDelete: SetNull)
+  invoiceNumber String?
+  accessKey     String?         @unique
+  subtotal      Decimal?        @db.Decimal(12, 2)
+  taxAmount     Decimal?        @db.Decimal(12, 2)
+  total         Decimal         @db.Decimal(12, 2)
+  currency      String          @default("USD")
+  issueDate     DateTime?
+  status        InvoiceStatus   @default(READY_TO_SEND)
+  xmlFileId     String?
+  xmlFile       DriveFile?      @relation("InvoiceXmlFile", fields: [xmlFileId], references: [id], onDelete: SetNull)
+  rideFileId    String?
+  rideFile      DriveFile?      @relation("InvoiceRideFile", fields: [rideFileId], references: [id], onDelete: SetNull)
+  emailLogs     EmailDelivery[]
+  sentAt        DateTime?
+  paidAt        DateTime?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  @@index([clientId])
+  @@index([projectId])
+  @@index([status])
+  @@index([issueDate])
+}
+
+model EmailDelivery {
+  id                String    @id @default(cuid())
+  invoiceId         String
+  invoice           Invoice   @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  to                String
+  cc                String?
+  subject           String
+  body              String
+  status            String    @default("SENT")
+  providerMessageId String?
+  error             String?
+  sentAt            DateTime?
+  createdAt         DateTime  @default(now())
+
+  @@index([invoiceId])
+  @@index([createdAt])
+}
+
+model DriveFolder {
+  id        String        @id @default(cuid())
+  name      String
+  parentId  String?
+  parent    DriveFolder?  @relation("DriveFolderTree", fields: [parentId], references: [id], onDelete: Cascade)
+  children  DriveFolder[] @relation("DriveFolderTree")
+  clientId  String?
+  client    Client?       @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  projectId String?
+  project   Project?      @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  files     DriveFile[]
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  @@index([parentId])
+  @@index([clientId])
+  @@index([projectId])
+  @@unique([parentId, name])
+}
+
+model DriveFile {
+  id                String     @id @default(cuid())
+  name              String
+  objectKey         String     @unique
+  mimeType          String
+  size              Int
+  folderId          String?
+  folder            DriveFolder? @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  clientId          String?
+  client            Client?    @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  projectId         String?
+  project           Project?   @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  invoiceXmlFor     Invoice[]  @relation("InvoiceXmlFile")
+  invoiceRideFor    Invoice[]  @relation("InvoiceRideFile")
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+
+  @@index([folderId])
+  @@index([clientId])
+  @@index([projectId])
+}
+
+model Credential {
+  id              String         @id @default(cuid())
+  clientId        String?
+  client          Client?        @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  projectId       String?
+  project         Project?       @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  title           String
+  kind            CredentialKind @default(LOGIN)
+  url             String?
+  username        String?
+  encryptedSecret String
+  secretIv        String
+  secretTag       String
+  secretPreview   String?
+  notes           String?
+  lastViewedAt    DateTime?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  @@index([clientId])
+  @@index([projectId])
+  @@index([kind])
 }
