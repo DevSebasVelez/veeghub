@@ -56,6 +56,7 @@ enum InvoiceStatus {
 
 enum CredentialKind {
   LOGIN
+  OAUTH
   API_KEY
   DATABASE
   HOSTING
@@ -292,9 +293,10 @@ model Credential {
   kind            CredentialKind @default(LOGIN)
   url             String?
   username        String?
-  encryptedSecret String
-  secretIv        String
-  secretTag       String
+  accessMethod    String?
+  encryptedSecret String?
+  secretIv        String?
+  secretTag       String?
   secretPreview   String?
   notes           String?
   lastViewedAt    DateTime?
