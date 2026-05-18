@@ -1,37 +1,50 @@
 import { z } from "zod";
 
-const optionalText = z
-  .string()
-  .trim()
-  .transform((value) => (value.length ? value : null));
+// Preprocess normalizes null/undefined to "" so downstream validators don't choke on missing form fields.
+const coerceStr = (val: unknown) => (val == null ? "" : String(val));
+
+const optionalText = z.preprocess(
+  coerceStr,
+  z
+    .string()
+    .trim()
+    .transform((v) => v || null),
+);
 
 const requiredText = z.string().trim().min(1, "Campo requerido");
 
-const optionalDate = z
-  .string()
-  .trim()
-  .transform((value) => (value ? new Date(value) : null));
+const optionalDate = z.preprocess(
+  coerceStr,
+  z
+    .string()
+    .trim()
+    .transform((v) => (v ? new Date(v) : null)),
+);
 
-const optionalId = z
-  .string()
-  .trim()
-  .transform((value) => (!value || value === "none" ? null : value));
+const optionalId = z.preprocess(
+  coerceStr,
+  z
+    .string()
+    .trim()
+    .transform((v) => (!v || v === "none" ? null : v)),
+);
 
 const money = z
-  .string()
-  .trim()
-  .min(1, "Ingresa un monto")
-  .transform((value) => Number(value.replace(",", ".")))
-  .refine((value) => Number.isFinite(value) && value >= 0, "Monto inválido");
+  .preprocess(coerceStr, z.string().trim().min(1, "Ingresa un monto"))
+  .transform((v) => Number(String(v).replace(",", ".")))
+  .refine((v) => Number.isFinite(v) && v >= 0, "Monto inválido");
 
-const optionalMoney = z
-  .string()
-  .trim()
-  .transform((value) => (value ? Number(value.replace(",", ".")) : null))
-  .refine(
-    (value) => value === null || (Number.isFinite(value) && value >= 0),
-    "Monto inválido",
-  );
+const optionalMoney = z.preprocess(
+  coerceStr,
+  z
+    .string()
+    .trim()
+    .transform((v) => (v ? Number(v.replace(",", ".")) : null))
+    .refine(
+      (v) => v === null || (Number.isFinite(v) && v >= 0),
+      "Monto inválido",
+    ),
+);
 
 export const clientSchema = z.object({
   name: requiredText,
@@ -53,9 +66,9 @@ export const projectSchema = z.object({
   stack: optionalText,
   repositoryUrl: optionalText,
   productionUrl: optionalText,
-  stagingUrl: optionalText.optional(),
+  stagingUrl: optionalText,
   budget: optionalMoney,
-  startDate: optionalDate.optional(),
+  startDate: optionalDate,
   dueDate: optionalDate,
 });
 
@@ -142,7 +155,7 @@ export const credentialSchema = z
     username: optionalText,
     accessMethod: optionalText,
     secret: optionalText,
-    existingSecret: optionalText.optional(),
+    existingSecret: optionalText,
     notes: optionalText,
   })
   .refine(

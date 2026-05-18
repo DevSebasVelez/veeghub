@@ -111,6 +111,8 @@ export function forInvoiceDialog(i: {
   total: { toString(): string };
   issueDate: Date | null;
   status: string;
+  xmlFileId?: string | null;
+  rideFileId?: string | null;
 }) {
   return {
     id: i.id,
@@ -124,6 +126,8 @@ export function forInvoiceDialog(i: {
     total: i.total.toString(),
     issueDate: i.issueDate?.toISOString() ?? null,
     status: i.status,
+    hasXml: !!i.xmlFileId,
+    hasRide: !!i.rideFileId,
   };
 }
 

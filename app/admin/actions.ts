@@ -300,9 +300,33 @@ export async function updateInvoice(id: string, formData: FormData) {
   await requireAdmin();
   const data = parseForm(invoiceSchema, formData);
 
+  const xml = formData.get("xml") as File | null;
+  const ride = formData.get("ride") as File | null;
+
+  const xmlFile = xml?.size
+    ? await uploadFileRecord({
+        file: xml,
+        clientId: data.clientId,
+        projectId: data.projectId,
+        prefix: "invoices/xml",
+      })
+    : null;
+  const rideFile = ride?.size
+    ? await uploadFileRecord({
+        file: ride,
+        clientId: data.clientId,
+        projectId: data.projectId,
+        prefix: "invoices/ride",
+      })
+    : null;
+
   await prisma.invoice.update({
     where: { id },
-    data,
+    data: {
+      ...data,
+      ...(xmlFile ? { xmlFileId: xmlFile.id } : {}),
+      ...(rideFile ? { rideFileId: rideFile.id } : {}),
+    },
   });
 
   revalidatePath("/admin");
@@ -630,14 +654,82 @@ export async function recordPaymentState(
   return actionState(() => recordPayment(formData));
 }
 
+export async function updateReceivableStatus(id: string, status: string) {
+  await requireAdmin();
+
+  await prisma.receivable.update({
+    where: { id },
+    data: { status: status as ReceivableStatus },
+  });
+
+  revalidatePath("/admin");
+  revalidatePath("/admin/finanzas");
+}
+
+export async function deletePayment(id: string) {
+  await requireAdmin();
+
+  await prisma.$transaction(async (tx) => {
+    const payment = await tx.payment.findUniqueOrThrow({ where: { id } });
+
+    const remaining = await tx.payment.aggregate({
+      where: { receivableId: payment.receivableId, id: { not: id } },
+      _sum: { amount: true },
+    });
+
+    const newPaidAmount = Number(remaining._sum.amount ?? 0);
+    const receivable = await tx.receivable.findUniqueOrThrow({
+      where: { id: payment.receivableId },
+    });
+    const receivableAmount = Number(receivable.amount);
+
+    let newStatus: ReceivableStatus;
+    if (newPaidAmount >= receivableAmount) {
+      newStatus = "PAID";
+    } else if (newPaidAmount > 0) {
+      newStatus = "PARTIALLY_PAID";
+    } else if (
+      receivable.status === "PAID" ||
+      receivable.status === "PARTIALLY_PAID"
+    ) {
+      newStatus = "PLANNED";
+    } else {
+      newStatus = receivable.status;
+    }
+
+    await tx.payment.delete({ where: { id } });
+    await tx.receivable.update({
+      where: { id: payment.receivableId },
+      data: { paidAmount: newPaidAmount, status: newStatus },
+    });
+  });
+
+  revalidatePath("/admin");
+  revalidatePath("/admin/finanzas");
+}
+
+export async function toggleTaskStatus(id: string, done: boolean) {
+  await requireAdmin();
+
+  await prisma.task.update({
+    where: { id },
+    data: {
+      status: done ? "DONE" : "TODO",
+      completedAt: done ? new Date() : null,
+    },
+  });
+
+  revalidatePath("/admin");
+  revalidatePath("/admin/proyectos");
+}
+
 export async function registerDriveFile(formData: FormData) {
   await requireAdmin();
 
   const name = String(formData.get("name") ?? "").trim();
   const objectKey = String(formData.get("objectKey") ?? "").trim();
   const mimeType =
-    String(formData.get("mimeType") ?? "").trim() ||
-    "application/octet-stream";
+    String(formData.get("mimeType") ?? "").trim() || "application/octet-stream";
   const size = parseInt(String(formData.get("size") ?? "0"), 10);
   const folderId = optionalId(formData, "folderId");
   const clientId = optionalId(formData, "clientId");
