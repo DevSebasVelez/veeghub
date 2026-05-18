@@ -1,266 +1,152 @@
+import { Fragment } from "react";
 import Link from "next/link";
+import { ChevronRight, HardDrive } from "lucide-react";
 
-import { createFolder, uploadDriveFile } from "@/app/admin/actions";
+import { CreateFolderDialog } from "@/components/admin/dialogs/folder-dialog";
+import { DriveUploader } from "@/components/admin/drive-uploader";
+import { DriveView } from "@/components/admin/drive-view";
+import { forDriveViewFile, forDriveViewFolder } from "@/lib/admin/serialize";
 import prisma from "@/lib/db/prisma";
-import { formatBytes, formatDate } from "@/lib/admin/format";
-import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+
+type BreadcrumbItem = {
+  id: string;
+  name: string;
+  parentId: string | null;
+  clientId: string | null;
+  projectId: string | null;
+};
+
+async function getBreadcrumb(folderId: string | null): Promise<BreadcrumbItem[]> {
+  const crumbs: BreadcrumbItem[] = [];
+  let currentId: string | null = folderId;
+
+  while (currentId) {
+    const folder = await prisma.driveFolder.findUnique({
+      where: { id: currentId },
+      select: {
+        id: true,
+        name: true,
+        parentId: true,
+        clientId: true,
+        projectId: true,
+      },
+    });
+    if (!folder) break;
+    crumbs.unshift(folder);
+    currentId = folder.parentId;
+  }
+
+  return crumbs;
+}
 
 export default async function DrivePage({
   searchParams,
 }: {
   searchParams: Promise<{ folder?: string }>;
 }) {
-  const { folder } = await searchParams;
-  const folderId = folder ?? null;
-  const [clients, projects, currentFolder, folders, files] = await Promise.all([
-    prisma.client.findMany({ orderBy: { name: "asc" } }),
-    prisma.project.findMany({ orderBy: { name: "asc" } }),
-    folderId
-      ? prisma.driveFolder.findUnique({
-          where: { id: folderId },
-          include: { parent: true },
-        })
-      : null,
+  const { folder: folderParam } = await searchParams;
+  const folderId = folderParam ?? null;
+
+  const [breadcrumb, folders, files, clients, projects] = await Promise.all([
+    getBreadcrumb(folderId),
     prisma.driveFolder.findMany({
       where: { parentId: folderId },
       orderBy: { name: "asc" },
-      include: { client: true, project: true },
+      include: {
+        client: { select: { id: true, name: true } },
+        project: { select: { id: true, name: true } },
+        _count: { select: { children: true, files: true } },
+      },
     }),
     prisma.driveFile.findMany({
       where: { folderId },
-      orderBy: { createdAt: "desc" },
-      include: { client: true, project: true },
+      orderBy: { name: "asc" },
+      include: {
+        client: { select: { id: true, name: true } },
+        project: { select: { id: true, name: true } },
+      },
+    }),
+    prisma.client.findMany({
+      orderBy: { name: "asc" },
+      select: { id: true, name: true },
+    }),
+    prisma.project.findMany({
+      orderBy: { name: "asc" },
+      select: { id: true, name: true },
     }),
   ]);
 
+  const currentFolder = breadcrumb[breadcrumb.length - 1] ?? null;
+
   return (
-    <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
-      <Card className="rounded-lg">
-        <CardHeader>
-          <CardTitle>Drive R2</CardTitle>
-          <CardDescription>
-            Carpetas y archivos asociados a clientes, proyectos o facturas.
-          </CardDescription>
-          <div className="text-sm text-muted-foreground">
-            {currentFolder ? (
-              <>
-                Carpeta actual: {currentFolder.name} ·{" "}
+    <div className="space-y-5">
+      <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+        <div className="space-y-1.5">
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Link
+              href="/admin/drive"
+              className={
+                breadcrumb.length === 0
+                  ? "flex items-center gap-1 font-medium text-foreground"
+                  : "flex items-center gap-1 hover:text-foreground"
+              }
+            >
+              <HardDrive className="size-3.5" />
+              Drive
+            </Link>
+            {breadcrumb.map((crumb, i) => (
+              <Fragment key={crumb.id}>
+                <ChevronRight className="size-3.5 shrink-0" />
                 <Link
-                  href="/admin/drive"
-                  className="underline underline-offset-4"
+                  href={`/admin/drive?folder=${crumb.id}`}
+                  className={
+                    i === breadcrumb.length - 1
+                      ? "max-w-48 truncate font-medium text-foreground"
+                      : "max-w-32 truncate hover:text-foreground"
+                  }
                 >
-                  volver a raíz
+                  {crumb.name}
                 </Link>
-              </>
-            ) : (
-              "Carpeta raíz"
-            )}
+              </Fragment>
+            ))}
           </div>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          <div>
-            <h2 className="mb-2 text-sm font-medium">Carpetas</h2>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Nombre</TableHead>
-                  <TableHead>Contexto</TableHead>
-                  <TableHead>Creada</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {folders.map((item) => (
-                  <TableRow key={item.id}>
-                    <TableCell>
-                      <Link
-                        href={`/admin/drive?folder=${item.id}`}
-                        className="font-medium underline-offset-4 hover:underline"
-                      >
-                        {item.name}
-                      </Link>
-                    </TableCell>
-                    <TableCell>
-                      {item.project?.name ?? item.client?.name ?? "General"}
-                    </TableCell>
-                    <TableCell>{formatDate(item.createdAt)}</TableCell>
-                  </TableRow>
-                ))}
-                {!folders.length ? (
-                  <TableRow>
-                    <TableCell
-                      colSpan={3}
-                      className="h-16 text-center text-muted-foreground"
-                    >
-                      Sin carpetas aquí.
-                    </TableCell>
-                  </TableRow>
-                ) : null}
-              </TableBody>
-            </Table>
-          </div>
+          <h1 className="text-2xl font-semibold tracking-tight">
+            {currentFolder?.name ?? "Drive"}
+          </h1>
+          {currentFolder ? (
+            <p className="text-sm text-muted-foreground">
+              {folders.length} carpeta{folders.length !== 1 ? "s" : ""},{" "}
+              {files.length} archivo{files.length !== 1 ? "s" : ""}
+            </p>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              Almacenamiento de archivos para proyectos y clientes.
+            </p>
+          )}
+        </div>
 
-          <div>
-            <h2 className="mb-2 text-sm font-medium">Archivos</h2>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Archivo</TableHead>
-                  <TableHead>Tamaño</TableHead>
-                  <TableHead>Contexto</TableHead>
-                  <TableHead>Acción</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {files.map((file) => (
-                  <TableRow key={file.id}>
-                    <TableCell>
-                      <div className="font-medium">{file.name}</div>
-                      <div className="text-xs text-muted-foreground">
-                        {file.mimeType}
-                      </div>
-                    </TableCell>
-                    <TableCell>{formatBytes(file.size)}</TableCell>
-                    <TableCell>
-                      {file.project?.name ?? file.client?.name ?? "General"}
-                    </TableCell>
-                    <TableCell>
-                      <Button asChild variant="outline" size="sm">
-                        <Link href={`/admin/drive/download/${file.id}`}>
-                          Descargar
-                        </Link>
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-                {!files.length ? (
-                  <TableRow>
-                    <TableCell
-                      colSpan={4}
-                      className="h-16 text-center text-muted-foreground"
-                    >
-                      Sin archivos aquí.
-                    </TableCell>
-                  </TableRow>
-                ) : null}
-              </TableBody>
-            </Table>
-          </div>
-        </CardContent>
-      </Card>
-
-      <div className="space-y-4">
-        <Card className="rounded-lg">
-          <CardHeader>
-            <CardTitle>Nueva carpeta</CardTitle>
-            <CardDescription>
-              Organiza por cliente, proyecto o tema.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form action={createFolder}>
-              <FieldGroup>
-                <input
-                  type="hidden"
-                  name="parentId"
-                  value={folderId ?? "none"}
-                />
-                <Field>
-                  <FieldLabel htmlFor="name">Nombre</FieldLabel>
-                  <Input id="name" name="name" required />
-                </Field>
-                <RelationFields clients={clients} projects={projects} />
-                <Button type="submit">Crear carpeta</Button>
-              </FieldGroup>
-            </form>
-          </CardContent>
-        </Card>
-
-        <Card className="rounded-lg">
-          <CardHeader>
-            <CardTitle>Subir archivo</CardTitle>
-            <CardDescription>
-              Se guarda en Cloudflare R2 y queda indexado en Veeghub.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form action={uploadDriveFile}>
-              <FieldGroup>
-                <input
-                  type="hidden"
-                  name="folderId"
-                  value={folderId ?? "none"}
-                />
-                <Field>
-                  <FieldLabel htmlFor="file">Archivo</FieldLabel>
-                  <Input id="file" name="file" type="file" required />
-                </Field>
-                <RelationFields clients={clients} projects={projects} />
-                <Button type="submit">Subir a R2</Button>
-              </FieldGroup>
-            </form>
-          </CardContent>
-        </Card>
+        <div className="flex shrink-0 items-start gap-2">
+          <CreateFolderDialog
+            parentId={folderId}
+            clients={clients}
+            projects={projects}
+            defaultClientId={currentFolder?.clientId}
+            defaultProjectId={currentFolder?.projectId}
+          />
+          <DriveUploader
+            folderId={folderId}
+            clientId={currentFolder?.clientId}
+            projectId={currentFolder?.projectId}
+          />
+        </div>
       </div>
-    </div>
-  );
-}
 
-function RelationFields({
-  clients,
-  projects,
-}: {
-  clients: Array<{ id: string; name: string }>;
-  projects: Array<{ id: string; name: string }>;
-}) {
-  return (
-    <>
-      <Field>
-        <FieldLabel htmlFor="clientId">Cliente</FieldLabel>
-        <select
-          id="clientId"
-          name="clientId"
-          className="h-10 rounded-md border bg-background px-3 text-sm"
-        >
-          <option value="none">General</option>
-          {clients.map((client) => (
-            <option key={client.id} value={client.id}>
-              {client.name}
-            </option>
-          ))}
-        </select>
-      </Field>
-      <Field>
-        <FieldLabel htmlFor="projectId">Proyecto</FieldLabel>
-        <select
-          id="projectId"
-          name="projectId"
-          className="h-10 rounded-md border bg-background px-3 text-sm"
-        >
-          <option value="none">Sin proyecto</option>
-          {projects.map((project) => (
-            <option key={project.id} value={project.id}>
-              {project.name}
-            </option>
-          ))}
-        </select>
-      </Field>
-    </>
+      <DriveView
+        folders={folders.map(forDriveViewFolder)}
+        files={files.map(forDriveViewFile)}
+        clients={clients}
+        projects={projects}
+      />
+    </div>
   );
 }
