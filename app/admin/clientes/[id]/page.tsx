@@ -1,9 +1,12 @@
+import { Fragment } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
   Building2,
+  ChevronRight,
   ExternalLink,
   FileText,
+  HardDrive,
   KeyRound,
   Mail,
   Phone,
@@ -11,10 +14,12 @@ import {
 
 import { ClientEditDialog } from "@/components/admin/dialogs/client-dialog";
 import { CredentialDialog } from "@/components/admin/dialogs/credential-dialog";
+import { CredentialViewDialog } from "@/components/admin/dialogs/credential-view-dialog";
 import { InvoiceEditDialog } from "@/components/admin/dialogs/invoice-dialog";
 import { ProjectDialog } from "@/components/admin/dialogs/project-dialog";
 import { ReceivableDialog } from "@/components/admin/dialogs/receivable-dialog";
 import { ClientAvatar } from "@/components/admin/entity-avatar";
+import { CommentSection } from "@/components/admin/comment-section";
 import { StatusBadge } from "@/components/admin/status-badge";
 import { InlineStatusSelect } from "@/components/admin/inline-status-select";
 import { DriveView } from "@/components/admin/drive-view";
@@ -47,12 +52,15 @@ export default async function ClientDetailPage({
     invoicesPage?: string;
     credentialsPage?: string;
     tab?: string;
+    folder?: string;
   }>;
 }) {
   const { id } = await params;
   const query = await searchParams;
   const invoicesPage = getPage(query.invoicesPage);
   const credentialsPage = getPage(query.credentialsPage);
+  const driveFolderId = query.folder ?? null;
+  const driveFolderBase = `/admin/clientes/${id}?tab=drive`;
 
   const client = await prisma.client.findUnique({
     where: { id },
@@ -64,6 +72,7 @@ export default async function ClientDetailPage({
           invoices: true,
           files: true,
           credentials: true,
+          comments: true,
         },
       },
     },
@@ -82,6 +91,7 @@ export default async function ClientDetailPage({
     driveFolders,
     credentials,
     credentialsTotal,
+    comments,
   ] = await Promise.all([
     prisma.client.findMany({
       orderBy: { name: "asc" },
@@ -116,7 +126,9 @@ export default async function ClientDetailPage({
     }),
     prisma.invoice.count({ where: { clientId: id } }),
     prisma.driveFile.findMany({
-      where: { clientId: id },
+      where: driveFolderId
+        ? { folderId: driveFolderId }
+        : { clientId: id, folderId: null },
       orderBy: { name: "asc" },
       include: {
         client: { select: { id: true, name: true } },
@@ -124,7 +136,9 @@ export default async function ClientDetailPage({
       },
     }),
     prisma.driveFolder.findMany({
-      where: { clientId: id },
+      where: driveFolderId
+        ? { parentId: driveFolderId }
+        : { clientId: id, parentId: null },
       orderBy: { name: "asc" },
       include: {
         client: { select: { id: true, name: true } },
@@ -140,7 +154,24 @@ export default async function ClientDetailPage({
       include: { client: true, project: true },
     }),
     prisma.credential.count({ where: { clientId: id } }),
+    prisma.comment.findMany({
+      where: { clientId: id },
+      orderBy: { createdAt: "desc" },
+    }),
   ]);
+
+  // Drive breadcrumb
+  const driveBreadcrumb: Array<{ id: string; name: string }> = [];
+  let cur: string | null = driveFolderId;
+  while (cur) {
+    const f = await prisma.driveFolder.findUnique({
+      where: { id: cur },
+      select: { id: true, name: true, parentId: true },
+    });
+    if (!f) break;
+    driveBreadcrumb.unshift({ id: f.id, name: f.name });
+    cur = f.parentId;
+  }
 
   const totalPending = receivables.reduce(
     (sum, r) => sum + Math.max(0, Number(r.amount) - Number(r.paidAmount)),
@@ -190,13 +221,13 @@ export default async function ClientDetailPage({
                     </span>
                   ) : null}
                 </div>
-                {/* Stats row */}
                 <div className="flex flex-wrap gap-2 pt-1">
                   {[
                     { label: "proyectos", value: client._count.projects },
                     { label: "hitos", value: client._count.receivables },
                     { label: "facturas", value: client._count.invoices },
                     { label: "archivos", value: client._count.files },
+                    { label: "notas", value: client._count.comments },
                   ].map(({ label, value }) => (
                     <span
                       key={label}
@@ -221,165 +252,188 @@ export default async function ClientDetailPage({
         </CardContent>
       </Card>
 
-      {/* Projects + Finance side by side */}
-      <div className="grid gap-5 lg:grid-cols-[1fr_360px]">
-        {/* Projects */}
-        <Card className="rounded-lg">
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
-              <CardTitle>Proyectos</CardTitle>
-              <ProjectDialog
-                clients={allClients}
-                mode="create"
-                fixedClientId={id}
-              />
-            </div>
-          </CardHeader>
-          <CardContent className="p-0 pb-3">
-            {projects.length === 0 ? (
-              <p className="px-5 py-8 text-center text-sm text-muted-foreground">
-                Sin proyectos.
-              </p>
-            ) : (
-              <div className="divide-y">
-                {projects.map((project) => {
-                  const done = project.tasks.filter(
-                    (t) => t.status === "DONE",
-                  ).length;
-                  const totalTasks = project.tasks.length;
-                  const pendingBalance = project.receivables.reduce(
-                    (sum, r) =>
-                      sum +
-                      Math.max(0, Number(r.amount) - Number(r.paidAmount)),
-                    0,
-                  );
-                  return (
-                    <div
-                      key={project.id}
-                      className="group flex items-center justify-between gap-3 px-5 py-3 transition-colors hover:bg-muted/30"
-                    >
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2">
-                          <StatusBadge value={project.status} />
-                          {pendingBalance > 0 ? (
-                            <span className="text-xs font-medium text-amber-600">
-                              {formatCurrency(pendingBalance.toFixed(2))}
-                            </span>
-                          ) : null}
-                        </div>
-                        <Link
-                          href={`/admin/proyectos/${project.id}`}
-                          className="mt-0.5 block truncate text-sm font-medium underline-offset-4 hover:underline"
-                        >
-                          {project.name}
-                        </Link>
-                        {totalTasks > 0 ? (
-                          <div className="text-xs text-muted-foreground">
-                            {done}/{totalTasks} tareas completadas
-                          </div>
-                        ) : null}
-                      </div>
-                      <div className="flex shrink-0 items-center gap-1 transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
-                        <ProjectDialog
-                          project={forProjectDialog(project)}
-                          clients={allClients}
-                        />
-                        <Button asChild variant="ghost" size="sm">
-                          <Link href={`/admin/proyectos/${project.id}`}>
-                            <ExternalLink className="size-3.5" />
-                          </Link>
-                        </Button>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Pending receivables */}
-        <Card className="rounded-lg">
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
-              <CardTitle>Hitos pendientes</CardTitle>
-              <ReceivableDialog
-                clients={allClients}
-                projects={allProjects}
-                mode="create"
-                fixedClientId={id}
-              />
-            </div>
-          </CardHeader>
-          <CardContent className="p-0 pb-3">
-            {receivables.length === 0 ? (
-              <p className="px-5 py-8 text-center text-sm text-muted-foreground">
-                Sin hitos pendientes.
-              </p>
-            ) : (
-              <div className="divide-y">
-                {receivables.map((r) => {
-                  const remaining = Number(r.amount) - Number(r.paidAmount);
-                  return (
-                    <div
-                      key={r.id}
-                      className="group flex items-center gap-3 px-5 py-3 transition-colors hover:bg-muted/30"
-                    >
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2">
-                          <InlineStatusSelect id={r.id} status={r.status} />
-                          {r.project?.name ? (
-                            <span className="truncate text-xs text-muted-foreground">
-                              {r.project.name}
-                            </span>
-                          ) : null}
-                        </div>
-                        <div className="mt-0.5 truncate text-sm font-medium">
-                          {r.title}
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          {formatCurrency(r.amount.toString())}
-                          {remaining < Number(r.amount) ? (
-                            <span className="ml-1 text-amber-600">
-                              · {formatCurrency(remaining.toFixed(2))} pendiente
-                            </span>
-                          ) : null}
-                          {r.dueDate ? ` · ${formatDate(r.dueDate)}` : ""}
-                        </div>
-                      </div>
-                      <div className="transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
-                        <ReceivableDialog
-                          receivable={forReceivableDialog(r)}
-                          clients={allClients}
-                          projects={allProjects}
-                        />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Tabs: Facturas, Drive, Credenciales */}
-      <Tabs defaultValue={query.tab ?? "invoices"} className="gap-4">
-        <TabsList>
-          <TabsTrigger value="invoices">
+      {/* Tabs */}
+      <Tabs defaultValue={query.tab ?? "resumen"} className="gap-0">
+        <TabsList className="mb-4 h-auto flex-wrap gap-1 rounded-lg p-1">
+          <TabsTrigger value="resumen" className="rounded-md">
+            Resumen
+          </TabsTrigger>
+          <TabsTrigger value="notas" className="rounded-md">
+            Notas
+            {client._count.comments > 0 ? ` (${client._count.comments})` : ""}
+          </TabsTrigger>
+          <TabsTrigger value="invoices" className="rounded-md">
             Facturas{invoicesTotal > 0 ? ` (${invoicesTotal})` : ""}
           </TabsTrigger>
-          <TabsTrigger value="drive">
+          <TabsTrigger value="drive" className="rounded-md">
             Drive{client._count.files > 0 ? ` (${client._count.files})` : ""}
           </TabsTrigger>
-          <TabsTrigger value="credentials">
-            Credenciales
-            {credentialsTotal > 0 ? ` (${credentialsTotal})` : ""}
+          <TabsTrigger value="credentials" className="rounded-md">
+            Credenciales{credentialsTotal > 0 ? ` (${credentialsTotal})` : ""}
           </TabsTrigger>
         </TabsList>
 
+        {/* Resumen tab */}
+        <TabsContent value="resumen" className="mt-0">
+          <div className="grid gap-5 lg:grid-cols-[1fr_360px]">
+            <Card className="rounded-lg">
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <CardTitle>Proyectos</CardTitle>
+                  <ProjectDialog
+                    clients={allClients}
+                    mode="create"
+                    fixedClientId={id}
+                  />
+                </div>
+              </CardHeader>
+              <CardContent className="p-0 pb-3">
+                {projects.length === 0 ? (
+                  <p className="px-5 py-8 text-center text-sm text-muted-foreground">
+                    Sin proyectos.
+                  </p>
+                ) : (
+                  <div className="divide-y">
+                    {projects.map((project) => {
+                      const done = project.tasks.filter(
+                        (t) => t.status === "DONE",
+                      ).length;
+                      const totalTasks = project.tasks.length;
+                      const pendingBalance = project.receivables.reduce(
+                        (sum, r) =>
+                          sum +
+                          Math.max(0, Number(r.amount) - Number(r.paidAmount)),
+                        0,
+                      );
+                      return (
+                        <div
+                          key={project.id}
+                          className="group flex items-center justify-between gap-3 px-5 py-3 transition-colors hover:bg-muted/30"
+                        >
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2">
+                              <StatusBadge value={project.status} />
+                              {pendingBalance > 0 ? (
+                                <span className="text-xs font-medium text-amber-600">
+                                  {formatCurrency(pendingBalance.toFixed(2))}
+                                </span>
+                              ) : null}
+                            </div>
+                            <Link
+                              href={`/admin/proyectos/${project.id}`}
+                              className="mt-0.5 block truncate text-sm font-medium underline-offset-4 hover:underline"
+                            >
+                              {project.name}
+                            </Link>
+                            {totalTasks > 0 ? (
+                              <div className="text-xs text-muted-foreground">
+                                {done}/{totalTasks} tareas completadas
+                              </div>
+                            ) : null}
+                          </div>
+                          <div className="flex shrink-0 items-center gap-1 transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
+                            <ProjectDialog
+                              project={forProjectDialog(project)}
+                              clients={allClients}
+                            />
+                            <Button asChild variant="ghost" size="sm">
+                              <Link href={`/admin/proyectos/${project.id}`}>
+                                <ExternalLink className="size-3.5" />
+                              </Link>
+                            </Button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card className="rounded-lg">
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <CardTitle>Hitos pendientes</CardTitle>
+                  <ReceivableDialog
+                    clients={allClients}
+                    projects={allProjects}
+                    mode="create"
+                    fixedClientId={id}
+                  />
+                </div>
+              </CardHeader>
+              <CardContent className="p-0 pb-3">
+                {receivables.length === 0 ? (
+                  <p className="px-5 py-8 text-center text-sm text-muted-foreground">
+                    Sin hitos pendientes.
+                  </p>
+                ) : (
+                  <div className="divide-y">
+                    {receivables.map((r) => {
+                      const remaining = Number(r.amount) - Number(r.paidAmount);
+                      return (
+                        <div
+                          key={r.id}
+                          className="group flex items-center gap-3 px-5 py-3 transition-colors hover:bg-muted/30"
+                        >
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2">
+                              <InlineStatusSelect id={r.id} status={r.status} />
+                              {r.project?.name ? (
+                                <span className="truncate text-xs text-muted-foreground">
+                                  {r.project.name}
+                                </span>
+                              ) : null}
+                            </div>
+                            <div className="mt-0.5 truncate text-sm font-medium">
+                              {r.title}
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              {formatCurrency(r.amount.toString())}
+                              {remaining < Number(r.amount) ? (
+                                <span className="ml-1 text-amber-600">
+                                  · {formatCurrency(remaining.toFixed(2))}{" "}
+                                  pendiente
+                                </span>
+                              ) : null}
+                              {r.dueDate ? ` · ${formatDate(r.dueDate)}` : ""}
+                            </div>
+                          </div>
+                          <div className="transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
+                            <ReceivableDialog
+                              receivable={forReceivableDialog(r)}
+                              clients={allClients}
+                              projects={allProjects}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+
+        {/* Notas tab */}
+        <TabsContent value="notas" className="mt-0">
+          <Card className="rounded-lg">
+            <CardContent className="p-5">
+              <CommentSection
+                comments={comments.map((c) => ({
+                  id: c.id,
+                  body: c.body,
+                  createdAt: c.createdAt.toISOString(),
+                }))}
+                clientId={id}
+              />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
         {/* Facturas tab */}
-        <TabsContent value="invoices">
+        <TabsContent value="invoices" className="mt-0">
           <Card className="rounded-lg">
             <CardContent className="p-0">
               {invoices.length === 0 ? (
@@ -449,28 +503,54 @@ export default async function ClientDetailPage({
         </TabsContent>
 
         {/* Drive tab */}
-        <TabsContent value="drive">
-          <div className="space-y-4">
+        <TabsContent value="drive" className="mt-0">
+          <div className="space-y-3">
+            {/* Breadcrumb */}
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <HardDrive className="size-3.5" />
+              <Link
+                href={`/admin/clientes/${id}?tab=drive`}
+                className={
+                  driveBreadcrumb.length === 0
+                    ? "font-medium text-foreground"
+                    : "hover:text-foreground"
+                }
+              >
+                Archivos
+              </Link>
+              {driveBreadcrumb.map((crumb, i) => (
+                <Fragment key={crumb.id}>
+                  <ChevronRight className="size-3.5 shrink-0" />
+                  <Link
+                    href={`${driveFolderBase}&folder=${crumb.id}`}
+                    className={
+                      i === driveBreadcrumb.length - 1
+                        ? "max-w-48 truncate font-medium text-foreground"
+                        : "max-w-32 truncate hover:text-foreground"
+                    }
+                  >
+                    {crumb.name}
+                  </Link>
+                </Fragment>
+              ))}
+            </div>
+
             <div className="flex items-center justify-end gap-2">
-              <CreateFolderDialog
-                parentId={null}
-                clients={allClients}
-                projects={allProjects}
-                defaultClientId={id}
-              />
-              <DriveUploader folderId={null} clientId={id} />
+              <CreateFolderDialog parentId={driveFolderId} clientId={id} />
+              <DriveUploader folderId={driveFolderId} clientId={id} />
             </div>
             <DriveView
               folders={driveFolders.map(forDriveViewFolder)}
               files={driveFiles.map(forDriveViewFile)}
               clients={allClients}
               projects={allProjects}
+              folderBase={driveFolderBase}
             />
           </div>
         </TabsContent>
 
         {/* Credenciales tab */}
-        <TabsContent value="credentials">
+        <TabsContent value="credentials" className="mt-0">
           <Card className="rounded-lg">
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
@@ -518,7 +598,19 @@ export default async function ClientDetailPage({
                           {cred.project ? ` · ${cred.project.name}` : ""}
                         </div>
                       </div>
-                      <div className="transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
+                      <div className="flex items-center gap-1 transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
+                        <CredentialViewDialog
+                          credential={{
+                            id: cred.id,
+                            title: cred.title,
+                            kind: cred.kind,
+                            url: cred.url,
+                            username: cred.username,
+                            accessMethod: cred.accessMethod,
+                            secretPreview: cred.secretPreview,
+                            notes: cred.notes,
+                          }}
+                        />
                         <CredentialDialog
                           credential={forCredentialDialog(cred)}
                           clients={allClients}

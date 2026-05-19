@@ -175,6 +175,74 @@ export function ReceivableDialog({
   );
 }
 
+export function SinglePaymentDialog({
+  receivable,
+}: {
+  receivable: { id: string; title: string; amount: string; remaining: string };
+}) {
+  const [open, setOpen] = useState(false);
+  const router = useRouter();
+
+  async function handleSave(formData: FormData) {
+    try {
+      await recordPayment(formData);
+      setOpen(false);
+      router.refresh();
+      toast.success("Pago registrado.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Error al guardar");
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button variant="outline" size="sm" className="h-7 gap-1 px-2 text-xs">
+          Cobrar
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Registrar pago</DialogTitle>
+          <DialogDescription className="truncate">
+            {receivable.title} · pendiente {receivable.remaining}
+          </DialogDescription>
+        </DialogHeader>
+        <form action={handleSave} className="space-y-4">
+          <input type="hidden" name="receivableId" value={receivable.id} />
+          <FieldGroup>
+            <Field>
+              <FieldLabel>Monto</FieldLabel>
+              <Input
+                name="amount"
+                type="number"
+                step="0.01"
+                placeholder={receivable.remaining}
+                required
+              />
+            </Field>
+            <Field>
+              <FieldLabel>Fecha</FieldLabel>
+              <DatePickerField name="paidAt" />
+            </Field>
+            <Field>
+              <FieldLabel>Método</FieldLabel>
+              <Input name="method" placeholder="Transferencia, efectivo..." />
+            </Field>
+            <Field>
+              <FieldLabel>Referencia</FieldLabel>
+              <Input name="reference" />
+            </Field>
+          </FieldGroup>
+          <Button type="submit" className="w-full">
+            Guardar pago
+          </Button>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export function PaymentDialog({
   receivables,
 }: {
