@@ -16,6 +16,7 @@ import { CreateFolderDialog } from "@/components/admin/dialogs/folder-dialog";
 import { QuickInvoiceDialog } from "@/components/admin/dialogs/invoice-dialog";
 import { ProjectDialog } from "@/components/admin/dialogs/project-dialog";
 import {
+  EditPaymentDialog,
   ReceivableDialog,
   SinglePaymentDialog,
 } from "@/components/admin/dialogs/receivable-dialog";
@@ -42,6 +43,29 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+
+const MONTH_NAMES = [
+  "Enero",
+  "Febrero",
+  "Marzo",
+  "Abril",
+  "Mayo",
+  "Junio",
+  "Julio",
+  "Agosto",
+  "Septiembre",
+  "Octubre",
+  "Noviembre",
+  "Diciembre",
+];
 
 const priorityColor: Record<string, string> = {
   URGENT: "text-destructive border-destructive/30 bg-destructive/10",
@@ -117,35 +141,51 @@ export default async function ProjectDetailPage({
 
   if (!project) notFound();
 
-  const [clients, projects, clientCtxCreate] = await Promise.all([
-    prisma.client.findMany({
-      orderBy: { name: "asc" },
-      select: { id: true, name: true },
-    }),
-    prisma.project.findMany({
-      orderBy: { name: "asc" },
-      select: { id: true, name: true },
-    }),
-    // Invoice context: open receivables for this project's client
-    project.clientId
-      ? prisma.client.findUnique({
-          where: { id: project.clientId },
-          select: {
-            id: true,
-            name: true,
-            projects: {
-              orderBy: { name: "asc" },
-              select: { id: true, name: true },
+  const [clients, projects, clientCtxCreate, projectPayments] =
+    await Promise.all([
+      prisma.client.findMany({
+        orderBy: { name: "asc" },
+        select: { id: true, name: true },
+      }),
+      prisma.project.findMany({
+        orderBy: { name: "asc" },
+        select: { id: true, name: true },
+      }),
+      // Invoice context: open receivables for this project's client
+      project.clientId
+        ? prisma.client.findUnique({
+            where: { id: project.clientId },
+            select: {
+              id: true,
+              name: true,
+              projects: {
+                orderBy: { name: "asc" },
+                select: { id: true, name: true },
+              },
+              receivables: {
+                where: { invoice: null, status: { notIn: ["CANCELLED"] } },
+                orderBy: { createdAt: "desc" },
+                select: { id: true, title: true, projectId: true },
+              },
             },
-            receivables: {
-              where: { invoice: null, status: { notIn: ["CANCELLED"] } },
-              orderBy: { createdAt: "desc" },
-              select: { id: true, title: true, projectId: true },
+          })
+        : Promise.resolve(null),
+      prisma.payment.findMany({
+        where: { receivable: { projectId: id } },
+        orderBy: { paidAt: "desc" },
+        include: {
+          receivable: {
+            select: {
+              id: true,
+              title: true,
+              invoice: {
+                select: { id: true, invoiceNumber: true, status: true },
+              },
             },
           },
-        })
-      : Promise.resolve(null),
-  ]);
+        },
+      }),
+    ]);
 
   const invoiceCtxCreate = clientCtxCreate ? [clientCtxCreate] : [];
 
@@ -191,6 +231,24 @@ export default async function ProjectDetailPage({
 
   const pendingBalance = project.receivables.reduce(
     (sum, r) => sum + Math.max(0, Number(r.amount) - Number(r.paidAmount)),
+    0,
+  );
+
+  const paymentsByMonth: Record<
+    string,
+    { key: string; total: number; payments: typeof projectPayments }
+  > = {};
+  for (const payment of projectPayments) {
+    const d = new Date(payment.paidAt);
+    const key = `${MONTH_NAMES[d.getMonth()]} ${d.getFullYear()}`;
+    if (!paymentsByMonth[key])
+      paymentsByMonth[key] = { key, total: 0, payments: [] };
+    paymentsByMonth[key].payments.push(payment);
+    paymentsByMonth[key].total += Number(payment.amount);
+  }
+  const projectPaymentGroups = Object.values(paymentsByMonth);
+  const projectPaymentsTotal = projectPayments.reduce(
+    (s, p) => s + Number(p.amount),
     0,
   );
 
@@ -503,105 +561,224 @@ export default async function ProjectDetailPage({
 
         {/* Pagos */}
         <TabsContent value="pagos" className="mt-0">
-          <Card className="rounded-lg">
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <CardTitle>Pagos</CardTitle>
-                <ReceivableDialog
-                  clients={clients}
-                  projects={projects}
-                  mode="create"
-                  fixedClientId={project.client?.id ?? undefined}
-                  fixedProjectId={id}
-                />
-              </div>
-            </CardHeader>
-            <CardContent className="p-0 pb-3">
-              {project.receivables.length === 0 ? (
-                <p className="px-5 py-8 text-center text-sm text-muted-foreground">
-                  Sin hitos de cobro.
-                </p>
-              ) : (
-                <div className="divide-y">
-                  {project.receivables.map((r) => {
-                    const remaining = Number(r.amount) - Number(r.paidAmount);
-                    const isPaid = remaining <= 0;
-                    return (
-                      <div
-                        key={r.id}
-                        className="group flex items-center gap-3 px-5 py-3 transition-colors hover:bg-muted/30"
-                      >
-                        <div className="min-w-0 flex-1">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <StatusBadge value={r.status} />
-                            {r.invoice ? (
-                              <Link
-                                href={`/admin/facturas/${r.invoice.id}`}
-                                className="inline-flex items-center gap-1 rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700 hover:bg-blue-100 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-400"
-                              >
-                                Factura
-                                {r.invoice.invoiceNumber
-                                  ? ` ${r.invoice.invoiceNumber}`
-                                  : ""}
-                                {r.invoice.status === "PAID" ? " ✓" : ""}
-                              </Link>
-                            ) : (
-                              <span className="rounded-full border border-dashed px-2 py-0.5 text-xs text-muted-foreground/60">
-                                Sin factura
-                              </span>
-                            )}
-                          </div>
-                          <div className="mt-0.5 truncate text-sm font-medium">
-                            {r.title}
-                          </div>
-                          <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
-                            <span>{formatCurrency(r.amount.toString())}</span>
-                            {remaining > 0 && remaining < Number(r.amount) ? (
-                              <span className="text-amber-600">
-                                · {formatCurrency(remaining.toFixed(2))}{" "}
-                                pendiente
-                              </span>
-                            ) : null}
-                            {isPaid ? (
-                              <span className="text-emerald-600">
-                                · Pagado ✓
-                              </span>
-                            ) : null}
-                          </div>
-                        </div>
-                        <div className="flex shrink-0 items-center gap-1 transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
-                          {!r.invoice && project.clientId ? (
-                            <QuickInvoiceDialog
-                              clientsWithContext={invoiceCtxCreate}
-                              fixedClientId={project.clientId}
-                              fixedProjectId={id}
-                              fixedReceivableId={r.id}
-                              receivableTitle={r.title}
-                            />
-                          ) : null}
-                          {!isPaid ? (
-                            <SinglePaymentDialog
-                              receivable={{
-                                id: r.id,
-                                title: r.title,
-                                amount: formatCurrency(r.amount.toString()),
-                                remaining: formatCurrency(remaining.toFixed(2)),
-                              }}
-                            />
-                          ) : null}
-                          <ReceivableDialog
-                            receivable={forReceivableDialog(r)}
-                            clients={clients}
-                            projects={projects}
-                          />
-                        </div>
-                      </div>
-                    );
-                  })}
+          <div className="space-y-5">
+            {/* Hitos card */}
+            <Card className="rounded-lg">
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <CardTitle>Hitos</CardTitle>
+                  <ReceivableDialog
+                    clients={clients}
+                    projects={projects}
+                    mode="create"
+                    fixedClientId={project.client?.id ?? undefined}
+                    fixedProjectId={id}
+                  />
                 </div>
+              </CardHeader>
+              <CardContent className="p-0 pb-3">
+                {project.receivables.length === 0 ? (
+                  <p className="px-5 py-8 text-center text-sm text-muted-foreground">
+                    Sin hitos de cobro.
+                  </p>
+                ) : (
+                  <div className="divide-y">
+                    {project.receivables.map((r) => {
+                      const remaining = Number(r.amount) - Number(r.paidAmount);
+                      const isPaid = remaining <= 0;
+                      return (
+                        <div
+                          key={r.id}
+                          className="group flex items-center gap-3 px-5 py-3 transition-colors hover:bg-muted/30"
+                        >
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <StatusBadge value={r.status} />
+                              {r.invoice ? (
+                                <Link
+                                  href={`/admin/facturas/${r.invoice.id}`}
+                                  className="inline-flex items-center gap-1 rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700 hover:bg-blue-100 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-400"
+                                >
+                                  Factura
+                                  {r.invoice.invoiceNumber
+                                    ? ` ${r.invoice.invoiceNumber}`
+                                    : ""}
+                                  {r.invoice.status === "PAID" ? " ✓" : ""}
+                                </Link>
+                              ) : (
+                                <span className="rounded-full border border-dashed px-2 py-0.5 text-xs text-muted-foreground/60">
+                                  Sin factura
+                                </span>
+                              )}
+                            </div>
+                            <div className="mt-0.5 truncate text-sm font-medium">
+                              {r.title}
+                            </div>
+                            <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+                              <span>{formatCurrency(r.amount.toString())}</span>
+                              {remaining > 0 && remaining < Number(r.amount) ? (
+                                <span className="text-amber-600">
+                                  · {formatCurrency(remaining.toFixed(2))}{" "}
+                                  pendiente
+                                </span>
+                              ) : null}
+                              {isPaid ? (
+                                <span className="text-emerald-600">
+                                  · Pagado ✓
+                                </span>
+                              ) : null}
+                            </div>
+                          </div>
+                          <div className="flex shrink-0 items-center gap-1 transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
+                            {!r.invoice && project.clientId ? (
+                              <QuickInvoiceDialog
+                                clientsWithContext={invoiceCtxCreate}
+                                fixedClientId={project.clientId}
+                                fixedProjectId={id}
+                                fixedReceivableId={r.id}
+                                receivableTitle={r.title}
+                              />
+                            ) : null}
+                            {!isPaid ? (
+                              <SinglePaymentDialog
+                                receivable={{
+                                  id: r.id,
+                                  title: r.title,
+                                  amount: formatCurrency(r.amount.toString()),
+                                  remaining: formatCurrency(
+                                    remaining.toFixed(2),
+                                  ),
+                                }}
+                              />
+                            ) : null}
+                            <ReceivableDialog
+                              receivable={forReceivableDialog(r)}
+                              clients={clients}
+                              projects={projects}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Pagos registrados */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+                  Pagos registrados
+                </h3>
+                {projectPaymentsTotal > 0 ? (
+                  <span className="text-sm text-muted-foreground">
+                    Total cobrado:{" "}
+                    <span className="font-semibold text-emerald-600">
+                      {formatCurrency(projectPaymentsTotal.toFixed(2))}
+                    </span>
+                  </span>
+                ) : null}
+              </div>
+
+              {projectPaymentGroups.length === 0 ? (
+                <Card className="rounded-lg">
+                  <CardContent className="py-12 text-center text-sm text-muted-foreground">
+                    Sin pagos registrados aún.
+                  </CardContent>
+                </Card>
+              ) : (
+                projectPaymentGroups.map((group) => (
+                  <Card key={group.key} className="rounded-lg">
+                    <CardHeader className="pb-2">
+                      <div className="flex items-center justify-between">
+                        <CardTitle className="text-base">{group.key}</CardTitle>
+                        <span className="text-sm font-semibold text-emerald-600">
+                          {formatCurrency(group.total.toFixed(2))}
+                        </span>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="p-0">
+                      <div className="overflow-x-auto">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead className="pl-5">Hito</TableHead>
+                              <TableHead>Método</TableHead>
+                              <TableHead>Referencia</TableHead>
+                              <TableHead className="text-right">
+                                Monto
+                              </TableHead>
+                              <TableHead>Factura</TableHead>
+                              <TableHead className="pr-5">Fecha</TableHead>
+                              <TableHead className="pr-5 text-right" />
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {group.payments.map((payment) => (
+                              <TableRow key={payment.id}>
+                                <TableCell className="pl-5 font-medium">
+                                  {payment.receivable.title}
+                                </TableCell>
+                                <TableCell className="text-sm text-muted-foreground">
+                                  {payment.method ?? (
+                                    <span className="italic opacity-40">—</span>
+                                  )}
+                                </TableCell>
+                                <TableCell className="text-sm text-muted-foreground">
+                                  {payment.reference ?? (
+                                    <span className="italic opacity-40">—</span>
+                                  )}
+                                </TableCell>
+                                <TableCell className="text-right font-medium text-emerald-600">
+                                  {formatCurrency(payment.amount.toString())}
+                                </TableCell>
+                                <TableCell>
+                                  {payment.receivable.invoice ? (
+                                    <Link
+                                      href={`/admin/facturas/${payment.receivable.invoice.id}`}
+                                      className="inline-flex items-center gap-1 rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700 hover:bg-blue-100 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-400"
+                                    >
+                                      {payment.receivable.invoice
+                                        .invoiceNumber ?? "Factura"}
+                                      {payment.receivable.invoice.status ===
+                                      "PAID"
+                                        ? " ✓"
+                                        : ""}
+                                    </Link>
+                                  ) : (
+                                    <span className="italic text-xs opacity-40">
+                                      —
+                                    </span>
+                                  )}
+                                </TableCell>
+                                <TableCell className="text-sm text-muted-foreground">
+                                  {formatDate(payment.paidAt)}
+                                </TableCell>
+                                <TableCell className="pr-5 text-right">
+                                  <EditPaymentDialog
+                                    payment={{
+                                      id: payment.id,
+                                      amount: payment.amount.toString(),
+                                      paidAt: payment.paidAt.toISOString(),
+                                      method: payment.method,
+                                      reference: payment.reference,
+                                      notes: payment.notes,
+                                      receivableTitle: payment.receivable.title,
+                                    }}
+                                  />
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))
               )}
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         </TabsContent>
 
         {/* Credenciales */}

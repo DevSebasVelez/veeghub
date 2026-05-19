@@ -5,6 +5,7 @@ import { deletePayment } from "@/app/admin/actions";
 import { ConfirmationDialog } from "@/components/admin/confirmation-dialog";
 import { InlineStatusSelect } from "@/components/admin/inline-status-select";
 import {
+  EditPaymentDialog,
   PaymentDialog,
   ReceivableDialog,
 } from "@/components/admin/dialogs/receivable-dialog";
@@ -115,6 +116,7 @@ export default async function FinancePage({
             id: true,
             title: true,
             client: { select: { name: true } },
+            project: { select: { id: true, name: true } },
           },
         },
       },
@@ -478,6 +480,7 @@ export default async function FinancePage({
                       <TableHeader>
                         <TableRow>
                           <TableHead className="pl-6">Hito</TableHead>
+                          <TableHead>Proyecto</TableHead>
                           <TableHead>Cliente</TableHead>
                           <TableHead>Método</TableHead>
                           <TableHead>Referencia</TableHead>
@@ -491,6 +494,11 @@ export default async function FinancePage({
                           <TableRow key={payment.id}>
                             <TableCell className="pl-6 font-medium">
                               {payment.receivable.title}
+                            </TableCell>
+                            <TableCell className="text-sm text-muted-foreground">
+                              {payment.receivable.project?.name ?? (
+                                <span className="italic opacity-40">—</span>
+                              )}
                             </TableCell>
                             <TableCell className="text-sm text-muted-foreground">
                               {payment.receivable.client.name}
@@ -508,12 +516,25 @@ export default async function FinancePage({
                               {formatDate(payment.paidAt)}
                             </TableCell>
                             <TableCell className="pr-6 text-right">
-                              <DeletePaymentButton
-                                id={payment.id}
-                                amount={formatCurrency(
-                                  payment.amount.toString(),
-                                )}
-                              />
+                              <div className="flex items-center justify-end gap-1">
+                                <EditPaymentDialog
+                                  payment={{
+                                    id: payment.id,
+                                    amount: payment.amount.toString(),
+                                    paidAt: payment.paidAt.toISOString(),
+                                    method: payment.method,
+                                    reference: payment.reference,
+                                    notes: payment.notes,
+                                    receivableTitle: payment.receivable.title,
+                                  }}
+                                />
+                                <DeletePaymentButton
+                                  id={payment.id}
+                                  amount={formatCurrency(
+                                    payment.amount.toString(),
+                                  )}
+                                />
+                              </div>
                             </TableCell>
                           </TableRow>
                         ))}

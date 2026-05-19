@@ -18,6 +18,7 @@ import {
   formErrorMessage,
   parseForm,
   paymentSchema,
+  paymentUpdateSchema,
   projectSchema,
   receivableSchema,
   taskSchema,
@@ -849,6 +850,53 @@ export async function deletePayment(id: string) {
     }
 
     await tx.payment.delete({ where: { id } });
+    await tx.receivable.update({
+      where: { id: payment.receivableId },
+      data: { paidAmount: newPaidAmount, status: newStatus },
+    });
+  });
+
+  revalidatePath("/admin");
+  revalidatePath("/admin/finanzas");
+}
+
+export async function updatePayment(id: string, formData: FormData) {
+  await requireAdmin();
+  const data = parseForm(paymentUpdateSchema, formData);
+
+  await prisma.$transaction(async (tx) => {
+    const payment = await tx.payment.findUniqueOrThrow({ where: { id } });
+
+    await tx.payment.update({
+      where: { id },
+      data: {
+        amount: data.amount,
+        paidAt: data.paidAt ?? payment.paidAt,
+        method: data.method ?? null,
+        reference: data.reference ?? null,
+        notes: data.notes ?? null,
+      },
+    });
+
+    const aggregate = await tx.payment.aggregate({
+      where: { receivableId: payment.receivableId },
+      _sum: { amount: true },
+    });
+
+    const newPaidAmount = Number(aggregate._sum.amount ?? 0);
+    const receivable = await tx.receivable.findUniqueOrThrow({
+      where: { id: payment.receivableId },
+    });
+
+    let newStatus: ReceivableStatus;
+    if (newPaidAmount >= Number(receivable.amount)) {
+      newStatus = "PAID";
+    } else if (newPaidAmount > 0) {
+      newStatus = "PARTIALLY_PAID";
+    } else {
+      newStatus = "PLANNED";
+    }
+
     await tx.receivable.update({
       where: { id: payment.receivableId },
       data: { paidAmount: newPaidAmount, status: newStatus },

@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import {
   createReceivable,
   recordPayment,
+  updatePayment,
   updateReceivable,
 } from "@/app/admin/actions";
 import {
@@ -14,6 +15,7 @@ import {
   relationOptions,
   type EntityOption,
 } from "@/components/admin/dialogs/_base";
+import { Pencil } from "lucide-react";
 import { DatePickerField } from "@/components/admin/date-picker-field";
 import { FormSelect } from "@/components/admin/form-select";
 import { Button } from "@/components/ui/button";
@@ -236,6 +238,85 @@ export function SinglePaymentDialog({
           </FieldGroup>
           <Button type="submit" className="w-full">
             Guardar pago
+          </Button>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+export function EditPaymentDialog({
+  payment,
+}: {
+  payment: {
+    id: string;
+    amount: string;
+    paidAt: string;
+    method: string | null;
+    reference: string | null;
+    notes: string | null;
+    receivableTitle: string;
+  };
+}) {
+  const [open, setOpen] = useState(false);
+  const router = useRouter();
+
+  async function handleSave(formData: FormData) {
+    try {
+      await updatePayment(payment.id, formData);
+      setOpen(false);
+      router.refresh();
+      toast.success("Pago actualizado.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Error al guardar");
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button variant="ghost" size="sm" className="size-7 p-0">
+          <Pencil className="size-3.5" />
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Editar pago</DialogTitle>
+          <DialogDescription className="truncate">
+            {payment.receivableTitle}
+          </DialogDescription>
+        </DialogHeader>
+        <form action={handleSave} className="space-y-4">
+          <FieldGroup>
+            <Field>
+              <FieldLabel>Monto</FieldLabel>
+              <Input
+                name="amount"
+                type="number"
+                step="0.01"
+                defaultValue={payment.amount}
+                required
+              />
+            </Field>
+            <Field>
+              <FieldLabel>Fecha</FieldLabel>
+              <DatePickerField name="paidAt" defaultValue={payment.paidAt} />
+            </Field>
+            <Field>
+              <FieldLabel>Método</FieldLabel>
+              <Input
+                name="method"
+                defaultValue={payment.method ?? ""}
+                placeholder="Transferencia, efectivo..."
+              />
+            </Field>
+            <Field>
+              <FieldLabel>Referencia</FieldLabel>
+              <Input name="reference" defaultValue={payment.reference ?? ""} />
+            </Field>
+          </FieldGroup>
+          <Button type="submit" className="w-full">
+            Guardar cambios
           </Button>
         </form>
       </DialogContent>

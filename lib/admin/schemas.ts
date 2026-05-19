@@ -107,6 +107,14 @@ export const paymentSchema = z.object({
   notes: optionalText,
 });
 
+export const paymentUpdateSchema = z.object({
+  amount: money,
+  paidAt: optionalDate,
+  method: optionalText,
+  reference: optionalText,
+  notes: optionalText,
+});
+
 export const invoiceSchema = z.object({
   clientId: requiredText,
   projectId: optionalId,
