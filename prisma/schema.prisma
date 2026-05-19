@@ -96,6 +96,7 @@ model Client {
   credentials  Credential[]
   folders      DriveFolder[]
   files        DriveFile[]
+  comments     Comment[]
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
 
@@ -126,6 +127,7 @@ model Project {
   credentials   Credential[]
   folders       DriveFolder[]
   files         DriveFile[]
+  comments      Comment[]
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
 
@@ -306,4 +308,18 @@ model Credential {
   @@index([clientId])
   @@index([projectId])
   @@index([kind])
+}
+
+model Comment {
+  id        String   @id @default(cuid())
+  body      String
+  clientId  String?
+  client    Client?  @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  projectId String?
+  project   Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([clientId])
+  @@index([projectId])
 }
