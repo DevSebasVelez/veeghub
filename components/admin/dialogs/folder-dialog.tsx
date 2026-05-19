@@ -104,16 +104,12 @@ export function FolderEditDialog({
 
 export function CreateFolderDialog({
   parentId,
-  clients,
-  projects,
-  defaultClientId,
-  defaultProjectId,
+  clientId,
+  projectId,
 }: {
   parentId: string | null;
-  clients: EntityOption[];
-  projects: EntityOption[];
-  defaultClientId?: string | null;
-  defaultProjectId?: string | null;
+  clientId?: string | null;
+  projectId?: string | null;
 }) {
   const [open, setOpen] = useState(false);
   const router = useRouter();
@@ -141,33 +137,23 @@ export function CreateFolderDialog({
         <DialogHeader>
           <DialogTitle>Nueva carpeta</DialogTitle>
           <DialogDescription>
-            Organiza por cliente, proyecto o tema.
+            Ingresa el nombre de la carpeta.
           </DialogDescription>
         </DialogHeader>
         <form action={handleSave} className="space-y-4">
-          <FieldGroup>
-            <input type="hidden" name="parentId" value={parentId ?? "none"} />
-            <Field>
-              <FieldLabel>Nombre</FieldLabel>
-              <Input name="name" required autoFocus />
-            </Field>
-            <Field>
-              <FieldLabel>Cliente</FieldLabel>
-              <FormSelect
-                name="clientId"
-                defaultValue={defaultClientId ?? "none"}
-                options={relationOptions(clients, "General")}
-              />
-            </Field>
-            <Field>
-              <FieldLabel>Proyecto</FieldLabel>
-              <FormSelect
-                name="projectId"
-                defaultValue={defaultProjectId ?? "none"}
-                options={relationOptions(projects, "Sin proyecto")}
-              />
-            </Field>
-          </FieldGroup>
+          <input type="hidden" name="parentId" value={parentId ?? "none"} />
+          {clientId ? (
+            <input type="hidden" name="clientId" value={clientId} />
+          ) : null}
+          {projectId ? (
+            <input type="hidden" name="projectId" value={projectId} />
+          ) : null}
+          <Input
+            name="name"
+            required
+            autoFocus
+            placeholder="Nombre de la carpeta"
+          />
           <Button type="submit" className="w-full">
             Crear carpeta
           </Button>

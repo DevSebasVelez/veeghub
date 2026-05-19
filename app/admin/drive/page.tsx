@@ -218,10 +218,8 @@ export default async function DrivePage({
           <div className="flex shrink-0 items-start gap-2">
             <CreateFolderDialog
               parentId={folderId}
-              clients={clients}
-              projects={projects}
-              defaultClientId={contextClientId}
-              defaultProjectId={contextProjectId}
+              clientId={contextClientId}
+              projectId={contextProjectId}
             />
             <DriveUploader
               folderId={folderId}
