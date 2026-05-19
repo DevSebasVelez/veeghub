@@ -8,6 +8,7 @@ import { DriveFileEditDialog } from "@/components/admin/dialogs/drive-file-dialo
 import { ProjectDialog } from "@/components/admin/dialogs/project-dialog";
 import { ReceivableDialog } from "@/components/admin/dialogs/receivable-dialog";
 import { TaskDialog } from "@/components/admin/dialogs/task-dialog";
+import { ProjectAvatar } from "@/components/admin/entity-avatar";
 import { StatusBadge } from "@/components/admin/status-badge";
 import { TaskCheckbox } from "@/components/admin/task-checkbox";
 import {
@@ -112,51 +113,57 @@ export default async function ProjectDetailPage({
       <Card className="rounded-lg border-blue-100 bg-blue-50/40 dark:border-blue-900/40 dark:bg-blue-950/20">
         <CardContent className="p-5">
           <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-            <div className="space-y-2">
-              <div className="flex flex-wrap items-center gap-2">
-                <StatusBadge value={project.status} />
-                {project.client ? (
-                  <Link
-                    href={`/admin/clientes/${project.client.id}`}
-                    className="text-sm text-muted-foreground hover:underline underline-offset-4"
-                  >
-                    {project.client.name}
-                  </Link>
-                ) : null}
-                {project.stack ? (
-                  <span className="rounded-full border px-2 py-0.5 text-xs text-muted-foreground">
-                    {project.stack}
-                  </span>
-                ) : null}
-              </div>
-              <h1 className="text-2xl font-semibold tracking-tight">
-                {project.name}
-              </h1>
-              {project.description ? (
-                <p className="max-w-2xl text-sm text-muted-foreground">
-                  {project.description}
-                </p>
-              ) : null}
-              <div className="flex flex-wrap items-center gap-4 pt-1 text-sm text-muted-foreground">
-                {project.budget ? (
-                  <span>
-                    Presupuesto:{" "}
-                    <span className="font-medium text-foreground">
-                      {formatCurrency(project.budget.toString())}
+            <div className="flex items-start gap-4">
+              <ProjectAvatar name={project.name} size="lg" />
+              <div className="space-y-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <StatusBadge value={project.status} />
+                  {project.client ? (
+                    <Link
+                      href={`/admin/clientes/${project.client.id}`}
+                      className="text-sm text-muted-foreground underline-offset-4 hover:underline"
+                    >
+                      {project.client.name}
+                    </Link>
+                  ) : null}
+                  {project.stack ? (
+                    <span className="rounded-full border px-2 py-0.5 text-xs text-muted-foreground">
+                      {project.stack}
                     </span>
-                  </span>
+                  ) : null}
+                </div>
+                <h1 className="text-2xl font-semibold tracking-tight">
+                  {project.name}
+                </h1>
+                {project.description ? (
+                  <p className="max-w-2xl text-sm text-muted-foreground">
+                    {project.description}
+                  </p>
                 ) : null}
-                {project.dueDate ? (
-                  <span className="flex items-center gap-1">
-                    <CalendarDays className="size-3.5" />
-                    Entrega: {formatDate(project.dueDate)}
-                  </span>
-                ) : null}
-                {pendingBalance > 0 ? (
-                  <span className="font-medium text-amber-600">
-                    {formatCurrency(pendingBalance.toFixed(2))} por cobrar
-                  </span>
-                ) : null}
+                {/* Stats row */}
+                <div className="flex flex-wrap items-center gap-2 pt-0.5">
+                  {project.budget ? (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-background/70 px-2.5 py-0.5 text-xs ring-1 ring-border">
+                      <span className="text-muted-foreground">Presupuesto</span>
+                      <span className="font-semibold text-foreground">
+                        {formatCurrency(project.budget.toString())}
+                      </span>
+                    </span>
+                  ) : null}
+                  {project.dueDate ? (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-background/70 px-2.5 py-0.5 text-xs ring-1 ring-border">
+                      <CalendarDays className="size-3 text-muted-foreground" />
+                      <span className="font-medium">
+                        {formatDate(project.dueDate)}
+                      </span>
+                    </span>
+                  ) : null}
+                  {pendingBalance > 0 ? (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-semibold text-amber-700 ring-1 ring-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:ring-amber-800">
+                      {formatCurrency(pendingBalance.toFixed(2))} por cobrar
+                    </span>
+                  ) : null}
+                </div>
               </div>
             </div>
             <div className="flex shrink-0 gap-2">
@@ -199,7 +206,11 @@ export default async function ProjectDetailPage({
                     </span>
                   ) : null}
                 </div>
-                <TaskDialog projects={projects} mode="create" fixedProjectId={id} />
+                <TaskDialog
+                  projects={projects}
+                  mode="create"
+                  fixedProjectId={id}
+                />
               </div>
               {project.tasks.length > 0 ? (
                 <Progress value={progress} className="mt-2 h-1.5" />
@@ -255,7 +266,7 @@ export default async function ProjectDetailPage({
                               {formatDate(task.dueDate)}
                             </span>
                           ) : null}
-                          <div className="sm:opacity-0 transition-opacity sm:group-hover:opacity-100">
+                          <div className="transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
                             <TaskDialog
                               task={forTaskDialog(task)}
                               projects={projects}
@@ -288,7 +299,7 @@ export default async function ProjectDetailPage({
                               {task.title}
                             </div>
                           </div>
-                          <div className="sm:opacity-0 transition-opacity sm:group-hover:opacity-100">
+                          <div className="transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
                             <TaskDialog
                               task={forTaskDialog(task)}
                               projects={projects}
@@ -310,7 +321,7 @@ export default async function ProjectDetailPage({
               <CardHeader className="pb-3">
                 <CardTitle className="flex items-center gap-2 text-base">
                   <FolderOpen className="size-4" />
-                  Archivos
+                  Archivos recientes
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -330,7 +341,11 @@ export default async function ProjectDetailPage({
                       </div>
                       <div className="flex items-center gap-1">
                         <Button asChild size="sm" variant="ghost">
-                          <Link href={`/admin/drive/download/${file.id}`}>
+                          <Link
+                            href={`/admin/drive/download/${file.id}`}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
                             <ExternalLink className="size-3.5" />
                           </Link>
                         </Button>
@@ -364,7 +379,7 @@ export default async function ProjectDetailPage({
                 />
               </div>
             </CardHeader>
-            <CardContent className="space-y-2 p-0 pb-4 px-4">
+            <CardContent className="space-y-2 p-0 px-4 pb-4">
               {project.receivables.length === 0 ? (
                 <p className="py-4 text-center text-sm text-muted-foreground">
                   Sin hitos de cobro.
@@ -406,25 +421,29 @@ export default async function ProjectDetailPage({
           </Card>
 
           {/* Credentials */}
-          {project.credentials.length > 0 ? (
-            <Card className="rounded-lg">
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="flex items-center gap-2 text-base">
-                    <KeyRound className="size-4" />
-                    Credenciales
-                  </CardTitle>
-                  <CredentialDialog
-                    clients={clients}
-                    projects={projects}
-                    mode="create"
-                    fixedClientId={project.client?.id ?? undefined}
-                    fixedProjectId={id}
-                  />
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                {project.credentials.map((cred) => (
+          <Card className="rounded-lg">
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <KeyRound className="size-4" />
+                  Credenciales
+                </CardTitle>
+                <CredentialDialog
+                  clients={clients}
+                  projects={projects}
+                  mode="create"
+                  fixedClientId={project.client?.id ?? undefined}
+                  fixedProjectId={id}
+                />
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {project.credentials.length === 0 ? (
+                <p className="text-center text-sm text-muted-foreground">
+                  Sin credenciales registradas.
+                </p>
+              ) : (
+                project.credentials.map((cred) => (
                   <div
                     key={cred.id}
                     className="flex items-center justify-between rounded-lg border p-3"
@@ -443,33 +462,10 @@ export default async function ProjectDetailPage({
                       projects={projects}
                     />
                   </div>
-                ))}
-              </CardContent>
-            </Card>
-          ) : (
-            <Card className="rounded-lg">
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="flex items-center gap-2 text-base">
-                    <KeyRound className="size-4" />
-                    Credenciales
-                  </CardTitle>
-                  <CredentialDialog
-                    clients={clients}
-                    projects={projects}
-                    mode="create"
-                    fixedClientId={project.client?.id ?? undefined}
-                    fixedProjectId={id}
-                  />
-                </div>
-              </CardHeader>
-              <CardContent>
-                <p className="text-center text-sm text-muted-foreground">
-                  Sin credenciales registradas.
-                </p>
-              </CardContent>
-            </Card>
-          )}
+                ))
+              )}
+            </CardContent>
+          </Card>
         </div>
       </div>
     </div>

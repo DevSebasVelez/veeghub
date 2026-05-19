@@ -4,6 +4,7 @@ import {
   ClientEditDialog,
   CreateClientDialog,
 } from "@/components/admin/dialogs/client-dialog";
+import { ClientAvatar } from "@/components/admin/entity-avatar";
 import { forClientDialog } from "@/lib/admin/serialize";
 import { getPage, Pagination } from "@/components/admin/pagination";
 import prisma from "@/lib/db/prisma";
@@ -18,6 +19,15 @@ import {
 } from "@/components/ui/table";
 
 const PAGE_SIZE = 15;
+
+function CountPill({ value }: { value: number }) {
+  if (value === 0) return <span className="text-muted-foreground/40">—</span>;
+  return (
+    <span className="inline-flex items-center justify-center rounded-full bg-muted px-2 py-0.5 text-xs font-medium tabular-nums">
+      {value}
+    </span>
+  );
+}
 
 export default async function ClientsPage({
   searchParams,
@@ -64,36 +74,41 @@ export default async function ClientsPage({
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="pl-6">Cliente</TableHead>
+                  <TableHead className="pl-5">Cliente</TableHead>
                   <TableHead>Razón social / RUC</TableHead>
                   <TableHead>Email facturación</TableHead>
                   <TableHead className="text-center">Proyectos</TableHead>
                   <TableHead className="text-center">Hitos</TableHead>
                   <TableHead className="text-center">Facturas</TableHead>
                   <TableHead className="text-center">Credenciales</TableHead>
-                  <TableHead className="pr-6 text-right">Acciones</TableHead>
+                  <TableHead className="pr-5 text-right">Acciones</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {clients.map((client) => (
                   <TableRow key={client.id} className="group">
-                    <TableCell className="pl-6">
-                      <Link
-                        href={`/admin/clientes/${client.id}`}
-                        className="font-medium underline-offset-4 hover:underline"
-                      >
-                        {client.name}
-                      </Link>
-                      {client.email ? (
-                        <div className="text-xs text-muted-foreground">
-                          {client.email}
+                    <TableCell className="pl-5">
+                      <div className="flex items-center gap-3">
+                        <ClientAvatar name={client.name} size="sm" />
+                        <div className="min-w-0">
+                          <Link
+                            href={`/admin/clientes/${client.id}`}
+                            className="font-medium underline-offset-4 hover:underline"
+                          >
+                            {client.name}
+                          </Link>
+                          {client.email ? (
+                            <div className="truncate text-xs text-muted-foreground">
+                              {client.email}
+                            </div>
+                          ) : null}
                         </div>
-                      ) : null}
+                      </div>
                     </TableCell>
                     <TableCell className="text-sm">
                       <div>
                         {client.legalName ?? (
-                          <span className="text-muted-foreground/50">—</span>
+                          <span className="text-muted-foreground/40">—</span>
                         )}
                       </div>
                       {client.taxId ? (
@@ -107,36 +122,20 @@ export default async function ClientsPage({
                         <span className="opacity-40">—</span>
                       )}
                     </TableCell>
-                    <TableCell className="text-center text-sm font-medium">
-                      {client._count.projects > 0 ? (
-                        client._count.projects
-                      ) : (
-                        <span className="text-muted-foreground/40">—</span>
-                      )}
+                    <TableCell className="text-center">
+                      <CountPill value={client._count.projects} />
                     </TableCell>
-                    <TableCell className="text-center text-sm font-medium">
-                      {client._count.receivables > 0 ? (
-                        client._count.receivables
-                      ) : (
-                        <span className="text-muted-foreground/40">—</span>
-                      )}
+                    <TableCell className="text-center">
+                      <CountPill value={client._count.receivables} />
                     </TableCell>
-                    <TableCell className="text-center text-sm font-medium">
-                      {client._count.invoices > 0 ? (
-                        client._count.invoices
-                      ) : (
-                        <span className="text-muted-foreground/40">—</span>
-                      )}
+                    <TableCell className="text-center">
+                      <CountPill value={client._count.invoices} />
                     </TableCell>
-                    <TableCell className="text-center text-sm font-medium">
-                      {client._count.credentials > 0 ? (
-                        client._count.credentials
-                      ) : (
-                        <span className="text-muted-foreground/40">—</span>
-                      )}
+                    <TableCell className="text-center">
+                      <CountPill value={client._count.credentials} />
                     </TableCell>
-                    <TableCell className="pr-6 text-right">
-                      <div className="sm:opacity-0 transition-opacity sm:group-hover:opacity-100">
+                    <TableCell className="pr-5 text-right">
+                      <div className="transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
                         <ClientEditDialog client={forClientDialog(client)} />
                       </div>
                     </TableCell>

@@ -14,6 +14,7 @@ import { CredentialDialog } from "@/components/admin/dialogs/credential-dialog";
 import { InvoiceEditDialog } from "@/components/admin/dialogs/invoice-dialog";
 import { ProjectDialog } from "@/components/admin/dialogs/project-dialog";
 import { ReceivableDialog } from "@/components/admin/dialogs/receivable-dialog";
+import { ClientAvatar } from "@/components/admin/entity-avatar";
 import { StatusBadge } from "@/components/admin/status-badge";
 import { InlineStatusSelect } from "@/components/admin/inline-status-select";
 import { DriveView } from "@/components/admin/drive-view";
@@ -152,60 +153,67 @@ export default async function ClientDetailPage({
 
   return (
     <div className="space-y-5">
-      {/* Compact header */}
+      {/* Header */}
       <Card className="rounded-lg border-sky-100 bg-sky-50/50 dark:border-sky-900/40 dark:bg-sky-950/20">
         <CardContent className="p-5">
-          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-            <div className="space-y-1.5">
-              <div className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                Cliente
-              </div>
-              <h1 className="text-2xl font-semibold tracking-tight">
-                {client.name}
-              </h1>
-              <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
-                {client.legalName ? (
-                  <span className="flex items-center gap-1.5">
-                    <Building2 className="size-3.5 shrink-0" />
-                    {client.legalName}
-                    {client.taxId ? ` · ${client.taxId}` : ""}
-                  </span>
-                ) : null}
-                {client.email ? (
-                  <a
-                    href={`mailto:${client.email}`}
-                    className="flex items-center gap-1.5 hover:text-foreground"
-                  >
-                    <Mail className="size-3.5 shrink-0" />
-                    {client.email}
-                  </a>
-                ) : null}
-                {client.phone ? (
-                  <span className="flex items-center gap-1.5">
-                    <Phone className="size-3.5 shrink-0" />
-                    {client.phone}
-                  </span>
-                ) : null}
-              </div>
-              {/* Inline stats */}
-              <div className="flex flex-wrap gap-x-4 gap-y-1 pt-1 text-xs text-muted-foreground">
-                <span>
-                  <span className="font-semibold text-foreground">{client._count.projects}</span> proyectos
-                </span>
-                <span>
-                  <span className="font-semibold text-foreground">{client._count.receivables}</span> hitos
-                </span>
-                <span>
-                  <span className="font-semibold text-foreground">{client._count.invoices}</span> facturas
-                </span>
-                <span>
-                  <span className="font-semibold text-foreground">{client._count.files}</span> archivos
-                </span>
-                {totalPending > 0 ? (
-                  <span className="font-semibold text-amber-600">
-                    {formatCurrency(totalPending.toFixed(2))} pendiente
-                  </span>
-                ) : null}
+          <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+            <div className="flex items-start gap-4">
+              <ClientAvatar name={client.name} size="lg" />
+              <div className="space-y-1.5">
+                <div className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                  Cliente
+                </div>
+                <h1 className="text-2xl font-semibold tracking-tight">
+                  {client.name}
+                </h1>
+                <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
+                  {client.legalName ? (
+                    <span className="flex items-center gap-1.5">
+                      <Building2 className="size-3.5 shrink-0" />
+                      {client.legalName}
+                      {client.taxId ? ` · ${client.taxId}` : ""}
+                    </span>
+                  ) : null}
+                  {client.email ? (
+                    <a
+                      href={`mailto:${client.email}`}
+                      className="flex items-center gap-1.5 hover:text-foreground"
+                    >
+                      <Mail className="size-3.5 shrink-0" />
+                      {client.email}
+                    </a>
+                  ) : null}
+                  {client.phone ? (
+                    <span className="flex items-center gap-1.5">
+                      <Phone className="size-3.5 shrink-0" />
+                      {client.phone}
+                    </span>
+                  ) : null}
+                </div>
+                {/* Stats row */}
+                <div className="flex flex-wrap gap-2 pt-1">
+                  {[
+                    { label: "proyectos", value: client._count.projects },
+                    { label: "hitos", value: client._count.receivables },
+                    { label: "facturas", value: client._count.invoices },
+                    { label: "archivos", value: client._count.files },
+                  ].map(({ label, value }) => (
+                    <span
+                      key={label}
+                      className="inline-flex items-center gap-1 rounded-full bg-background/70 px-2.5 py-0.5 text-xs ring-1 ring-border"
+                    >
+                      <span className="font-semibold text-foreground">
+                        {value}
+                      </span>
+                      <span className="text-muted-foreground">{label}</span>
+                    </span>
+                  ))}
+                  {totalPending > 0 ? (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-semibold text-amber-700 ring-1 ring-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:ring-amber-800">
+                      {formatCurrency(totalPending.toFixed(2))} pendiente
+                    </span>
+                  ) : null}
+                </div>
               </div>
             </div>
             <ClientEditDialog client={forClientDialog(client)} />
@@ -241,7 +249,8 @@ export default async function ClientDetailPage({
                   const totalTasks = project.tasks.length;
                   const pendingBalance = project.receivables.reduce(
                     (sum, r) =>
-                      sum + Math.max(0, Number(r.amount) - Number(r.paidAmount)),
+                      sum +
+                      Math.max(0, Number(r.amount) - Number(r.paidAmount)),
                     0,
                   );
                   return (
@@ -260,7 +269,7 @@ export default async function ClientDetailPage({
                         </div>
                         <Link
                           href={`/admin/proyectos/${project.id}`}
-                          className="mt-0.5 block truncate text-sm font-medium hover:underline underline-offset-4"
+                          className="mt-0.5 block truncate text-sm font-medium underline-offset-4 hover:underline"
                         >
                           {project.name}
                         </Link>
@@ -270,7 +279,7 @@ export default async function ClientDetailPage({
                           </div>
                         ) : null}
                       </div>
-                      <div className="flex shrink-0 items-center gap-1 sm:opacity-0 transition-opacity sm:group-hover:opacity-100">
+                      <div className="flex shrink-0 items-center gap-1 transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
                         <ProjectDialog
                           project={forProjectDialog(project)}
                           clients={allClients}
@@ -338,7 +347,7 @@ export default async function ClientDetailPage({
                           {r.dueDate ? ` · ${formatDate(r.dueDate)}` : ""}
                         </div>
                       </div>
-                      <div className="sm:opacity-0 transition-opacity sm:group-hover:opacity-100">
+                      <div className="transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
                         <ReceivableDialog
                           receivable={forReceivableDialog(r)}
                           clients={allClients}
@@ -414,7 +423,7 @@ export default async function ClientDetailPage({
                           </span>
                         </div>
                       </div>
-                      <div className="sm:opacity-0 transition-opacity sm:group-hover:opacity-100">
+                      <div className="transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
                         <InvoiceEditDialog
                           invoice={forInvoiceDialog(invoice)}
                           clients={allClients}
@@ -509,7 +518,7 @@ export default async function ClientDetailPage({
                           {cred.project ? ` · ${cred.project.name}` : ""}
                         </div>
                       </div>
-                      <div className="sm:opacity-0 transition-opacity sm:group-hover:opacity-100">
+                      <div className="transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
                         <CredentialDialog
                           credential={forCredentialDialog(cred)}
                           clients={allClients}

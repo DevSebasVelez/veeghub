@@ -3,13 +3,14 @@ import { ArrowRight, CalendarDays } from "lucide-react";
 
 import { ProjectDialog } from "@/components/admin/dialogs/project-dialog";
 import { TaskDialog } from "@/components/admin/dialogs/task-dialog";
+import { ProjectAvatar } from "@/components/admin/entity-avatar";
 import { getPage, Pagination } from "@/components/admin/pagination";
 import { StatusBadge } from "@/components/admin/status-badge";
 import { forProjectDialog } from "@/lib/admin/serialize";
 import prisma from "@/lib/db/prisma";
 import { formatCurrency, formatDate } from "@/lib/admin/format";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 
 const PAGE_SIZE = 12;
@@ -54,7 +55,7 @@ export default async function ProjectsPage({
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Proyectos</h1>
           <p className="text-sm text-muted-foreground">
-            Gestión centralizada de proyectos, tareas y cobros.
+            {total} proyecto{total !== 1 ? "s" : ""} en total.
           </p>
         </div>
         <div className="flex gap-2">
@@ -83,32 +84,29 @@ export default async function ProjectsPage({
               key={project.id}
               className="group flex flex-col rounded-lg transition-shadow hover:shadow-md"
             >
-              <CardHeader className="pb-3">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0 flex-1">
-                    <div className="mb-1.5 flex items-center gap-2">
-                      <StatusBadge value={project.status} />
-                      {project.client?.name ? (
-                        <span className="truncate text-xs text-muted-foreground">
-                          {project.client.name}
-                        </span>
-                      ) : null}
-                    </div>
-                    <CardTitle className="truncate text-base">
-                      <Link
-                        href={`/admin/proyectos/${project.id}`}
-                        className="hover:underline underline-offset-4"
-                      >
-                        {project.name}
-                      </Link>
-                    </CardTitle>
+              <div className="flex items-start gap-3 p-4 pb-3">
+                <ProjectAvatar name={project.name} size="md" />
+                <div className="min-w-0 flex-1">
+                  <div className="mb-1 flex flex-wrap items-center gap-1.5">
+                    <StatusBadge value={project.status} />
+                    {project.client?.name ? (
+                      <span className="truncate text-xs text-muted-foreground">
+                        {project.client.name}
+                      </span>
+                    ) : null}
                   </div>
-                  <ProjectDialog
-                    project={forProjectDialog(project)}
-                    clients={clients}
-                  />
+                  <Link
+                    href={`/admin/proyectos/${project.id}`}
+                    className="line-clamp-2 text-sm font-semibold leading-snug underline-offset-4 hover:underline"
+                  >
+                    {project.name}
+                  </Link>
                 </div>
-              </CardHeader>
+                <ProjectDialog
+                  project={forProjectDialog(project)}
+                  clients={clients}
+                />
+              </div>
 
               <CardContent className="flex flex-1 flex-col gap-3 pt-0">
                 {totalTasks > 0 ? (
@@ -123,7 +121,7 @@ export default async function ProjectsPage({
                   </div>
                 ) : null}
 
-                <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
                   {pendingBalance > 0 ? (
                     <span className="font-medium text-amber-600">
                       {formatCurrency(pendingBalance.toFixed(2))} pendiente
