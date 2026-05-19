@@ -3,16 +3,18 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Plus } from "lucide-react";
+import { Plus, Receipt } from "lucide-react";
 
-import { createInvoice, updateInvoice } from "@/app/admin/actions";
 import {
-  EditTrigger,
-  relationOptions,
-  type EntityOption,
-} from "@/components/admin/dialogs/_base";
+  createInvoiceWithKeys,
+  updateInvoiceWithKeys,
+} from "@/app/admin/actions";
+import { EditTrigger } from "@/components/admin/dialogs/_base";
 import { DatePickerField } from "@/components/admin/date-picker-field";
-import { FormSelect } from "@/components/admin/form-select";
+import {
+  InvoiceFileUploader,
+  type UploadedFile,
+} from "@/components/admin/invoice-file-uploader";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -24,15 +26,24 @@ import {
 } from "@/components/ui/dialog";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
-const statusOptions = [
-  { value: "READY_TO_SEND", label: "Por enviar" },
-  { value: "SENT", label: "Enviada" },
-  { value: "PAID", label: "Pagada" },
-  { value: "CANCELLED", label: "Cancelada" },
-];
+// ── Types ──────────────────────────────────────────────────────────────────
 
-type InvoiceProps = {
+export type ClientWithContext = {
+  id: string;
+  name: string;
+  projects: { id: string; name: string }[];
+  receivables: { id: string; title: string; projectId: string | null }[];
+};
+
+type InvoiceData = {
   id: string;
   clientId: string;
   projectId: string | null;
@@ -44,55 +55,180 @@ type InvoiceProps = {
   total: string;
   issueDate: string | null;
   status: string;
-  hasXml?: boolean;
-  hasRide?: boolean;
+  xmlFileName?: string | null;
+  rideFileName?: string | null;
 };
 
-function InvoiceFields({
+// ── Shared form body ───────────────────────────────────────────────────────
+
+function InvoiceFormBody({
   invoice,
-  clients,
-  projects,
-  receivables,
+  clientsWithContext,
+  fixedClientId,
+  fixedProjectId,
+  fixedReceivableId,
   isEdit,
+  onXmlUpload,
+  onXmlClear,
+  onRideUpload,
+  onRideClear,
+  onBusy,
 }: {
-  invoice?: InvoiceProps;
-  clients: EntityOption[];
-  projects: EntityOption[];
-  receivables: EntityOption[];
+  invoice?: InvoiceData;
+  clientsWithContext: ClientWithContext[];
+  fixedClientId?: string | null;
+  fixedProjectId?: string | null;
+  fixedReceivableId?: string | null;
   isEdit: boolean;
+  uploading: boolean;
+  onXmlUpload: (f: UploadedFile) => void;
+  onXmlClear: () => void;
+  onRideUpload: (f: UploadedFile) => void;
+  onRideClear: () => void;
+  onBusy: (busy: boolean) => void;
 }) {
+  const initialClientId =
+    fixedClientId ?? invoice?.clientId ?? clientsWithContext[0]?.id ?? "";
+  const initialProjectId = fixedProjectId ?? invoice?.projectId ?? "none";
+  const initialReceivableId =
+    fixedReceivableId ?? invoice?.receivableId ?? "none";
+
+  const [clientId, setClientId] = useState(initialClientId);
+  const [projectId, setProjectId] = useState(initialProjectId);
+
+  function handleProjectChange(val: string) {
+    setProjectId(val);
+    if (!fixedReceivableId) setReceivableId("none");
+  }
+  const [receivableId, setReceivableId] = useState(initialReceivableId);
+
+  const clientCtx = clientsWithContext.find((c) => c.id === clientId);
+  const availableProjects = clientCtx?.projects ?? [];
+  // Filter receivables by selected project (when none → show all)
+  const availableReceivables = (clientCtx?.receivables ?? []).filter(
+    (r) => projectId === "none" || r.projectId === projectId,
+  );
+
+  function handleClientChange(val: string) {
+    setClientId(val);
+    if (!fixedProjectId) setProjectId("none");
+    if (!fixedReceivableId) setReceivableId("none");
+  }
+
+  const showClientSelect = !fixedClientId;
+  const showProjectSelect = !fixedProjectId;
+  const showReceivableSelect = !fixedReceivableId;
+
+  const fixedClient = fixedClientId
+    ? clientsWithContext.find((c) => c.id === fixedClientId)
+    : null;
+  const fixedReceivable = fixedReceivableId
+    ? availableReceivables.find((r) => r.id === fixedReceivableId)
+    : null;
+
   return (
     <FieldGroup>
-      <Field>
-        <FieldLabel>Cliente</FieldLabel>
-        <FormSelect
-          name="clientId"
-          defaultValue={invoice?.clientId ?? clients[0]?.id}
-          options={clients.map((c) => ({ value: c.id, label: c.name }))}
-        />
-      </Field>
-      <Field>
-        <FieldLabel>Proyecto</FieldLabel>
-        <FormSelect
-          name="projectId"
-          defaultValue={invoice?.projectId ?? "none"}
-          options={relationOptions(projects, "Sin proyecto")}
-        />
-      </Field>
-      <Field>
-        <FieldLabel>Hito relacionado</FieldLabel>
-        <FormSelect
-          name="receivableId"
-          defaultValue={invoice?.receivableId ?? "none"}
-          options={relationOptions(receivables, "Sin hito")}
-        />
-      </Field>
+      {/* Hidden values for fixed context */}
+      {fixedClientId ? (
+        <input type="hidden" name="clientId" value={fixedClientId} />
+      ) : null}
+      {fixedProjectId ? (
+        <input type="hidden" name="projectId" value={fixedProjectId} />
+      ) : null}
+      {fixedReceivableId ? (
+        <input type="hidden" name="receivableId" value={fixedReceivableId} />
+      ) : null}
+
+      {/* Hidden values for controlled selects */}
+      {showClientSelect ? (
+        <input type="hidden" name="clientId" value={clientId} />
+      ) : null}
+      {showProjectSelect ? (
+        <input type="hidden" name="projectId" value={projectId} />
+      ) : null}
+      {showReceivableSelect ? (
+        <input type="hidden" name="receivableId" value={receivableId} />
+      ) : null}
+
+      {/* Client */}
+      {showClientSelect ? (
+        <Field>
+          <FieldLabel>Cliente</FieldLabel>
+          <Select value={clientId} onValueChange={handleClientChange}>
+            <SelectTrigger className="h-10 w-full">
+              <SelectValue placeholder="Selecciona cliente" />
+            </SelectTrigger>
+            <SelectContent>
+              {clientsWithContext.map((c) => (
+                <SelectItem key={c.id} value={c.id}>
+                  {c.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
+      ) : fixedClient ? (
+        <div className="space-y-0.5">
+          <p className="text-xs font-medium text-muted-foreground">Cliente</p>
+          <p className="text-sm font-medium">{fixedClient.name}</p>
+        </div>
+      ) : null}
+
+      {/* Project */}
+      {showProjectSelect ? (
+        <Field>
+          <FieldLabel>Proyecto</FieldLabel>
+          <Select value={projectId} onValueChange={handleProjectChange}>
+            <SelectTrigger className="h-10 w-full">
+              <SelectValue placeholder="Sin proyecto" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">Sin proyecto</SelectItem>
+              {availableProjects.map((p) => (
+                <SelectItem key={p.id} value={p.id}>
+                  {p.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
+      ) : null}
+
+      {/* Receivable */}
+      {showReceivableSelect ? (
+        <Field>
+          <FieldLabel>Hito relacionado</FieldLabel>
+          <Select value={receivableId} onValueChange={setReceivableId}>
+            <SelectTrigger className="h-10 w-full">
+              <SelectValue placeholder="Sin hito" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">Sin hito</SelectItem>
+              {availableReceivables.map((r) => (
+                <SelectItem key={r.id} value={r.id}>
+                  {r.title}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
+      ) : fixedReceivable ? (
+        <div className="space-y-0.5">
+          <p className="text-xs font-medium text-muted-foreground">
+            Hito relacionado
+          </p>
+          <p className="text-sm font-medium">{fixedReceivable.title}</p>
+        </div>
+      ) : null}
+
+      {/* Invoice metadata */}
       <div className="grid gap-3 sm:grid-cols-2">
         <Field>
           <FieldLabel>Número de factura</FieldLabel>
           <Input
             name="invoiceNumber"
             defaultValue={invoice?.invoiceNumber ?? ""}
+            placeholder="001-001-000000001"
           />
         </Field>
         <Field>
@@ -100,10 +236,16 @@ function InvoiceFields({
           <DatePickerField name="issueDate" defaultValue={invoice?.issueDate} />
         </Field>
       </div>
+
       <Field>
         <FieldLabel>Clave de acceso SRI</FieldLabel>
-        <Input name="accessKey" defaultValue={invoice?.accessKey ?? ""} />
+        <Input
+          name="accessKey"
+          defaultValue={invoice?.accessKey ?? ""}
+          placeholder="49 dígitos"
+        />
       </Field>
+
       <div className="grid gap-3 sm:grid-cols-3">
         <Field>
           <FieldLabel>Subtotal</FieldLabel>
@@ -111,6 +253,7 @@ function InvoiceFields({
             name="subtotal"
             type="number"
             step="0.01"
+            min="0"
             defaultValue={invoice?.subtotal ?? ""}
           />
         </Field>
@@ -120,157 +263,151 @@ function InvoiceFields({
             name="taxAmount"
             type="number"
             step="0.01"
+            min="0"
             defaultValue={invoice?.taxAmount ?? ""}
           />
         </Field>
         <Field>
-          <FieldLabel>Total</FieldLabel>
+          <FieldLabel>Total *</FieldLabel>
           <Input
             name="total"
             type="number"
             step="0.01"
+            min="0"
             defaultValue={invoice?.total ?? ""}
             required
           />
         </Field>
       </div>
-      {isEdit && (
+
+      {isEdit ? (
         <Field>
           <FieldLabel>Estado</FieldLabel>
-          <FormSelect
+          <Select
             name="status"
             defaultValue={invoice?.status ?? "READY_TO_SEND"}
-            options={statusOptions}
-          />
+          >
+            <SelectTrigger className="h-10 w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="READY_TO_SEND">Por enviar</SelectItem>
+              <SelectItem value="SENT">Enviada</SelectItem>
+              <SelectItem value="PAID">Pagada</SelectItem>
+              <SelectItem value="CANCELLED">Cancelada</SelectItem>
+            </SelectContent>
+          </Select>
         </Field>
+      ) : (
+        <input type="hidden" name="status" value="READY_TO_SEND" />
       )}
+
+      {/* File uploads */}
       <div className="grid gap-3 sm:grid-cols-2">
-        <Field>
-          <FieldLabel>
-            XML autorizado
-            {invoice?.hasXml ? (
-              <span className="ml-2 text-xs font-normal text-emerald-600">
-                ✓ subido
-              </span>
-            ) : null}
-          </FieldLabel>
-          <Input
-            name="xml"
-            type="file"
-            accept=".xml,text/xml,application/xml"
-          />
-          {isEdit && invoice?.hasXml ? (
-            <p className="text-xs text-muted-foreground">
-              Dejar vacío para conservar el actual
-            </p>
-          ) : null}
-        </Field>
-        <Field>
-          <FieldLabel>
-            RIDE PDF
-            {invoice?.hasRide ? (
-              <span className="ml-2 text-xs font-normal text-blue-600">
-                ✓ subido
-              </span>
-            ) : null}
-          </FieldLabel>
-          <Input name="ride" type="file" accept=".pdf,application/pdf" />
-          {isEdit && invoice?.hasRide ? (
-            <p className="text-xs text-muted-foreground">
-              Dejar vacío para conservar el actual
-            </p>
-          ) : null}
-        </Field>
+        <InvoiceFileUploader
+          label="XML autorizado"
+          accept=".xml,text/xml,application/xml"
+          existingName={invoice?.xmlFileName}
+          onUpload={onXmlUpload}
+          onClear={onXmlClear}
+          onBusy={onBusy}
+        />
+        <InvoiceFileUploader
+          label="RIDE PDF"
+          accept=".pdf,application/pdf"
+          existingName={invoice?.rideFileName}
+          onUpload={onRideUpload}
+          onClear={onRideClear}
+          onBusy={onBusy}
+        />
       </div>
-      {!isEdit && <input type="hidden" name="status" value="READY_TO_SEND" />}
     </FieldGroup>
   );
 }
 
-export function InvoiceEditDialog({
-  invoice,
-  clients,
-  projects,
-  receivables,
-}: {
-  invoice: InvoiceProps;
-  clients: EntityOption[];
-  projects: EntityOption[];
-  receivables: EntityOption[];
-}) {
-  const [open, setOpen] = useState(false);
-  const router = useRouter();
-
-  async function handleSave(formData: FormData) {
-    try {
-      await updateInvoice(invoice.id, formData);
-      setOpen(false);
-      router.refresh();
-      toast.success("Factura actualizada.");
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Error al guardar");
-    }
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <EditTrigger />
-      </DialogTrigger>
-      <DialogContent className="max-h-[90svh] overflow-y-auto sm:max-w-2xl">
-        <DialogHeader>
-          <DialogTitle>Editar factura</DialogTitle>
-          <DialogDescription>
-            Ajusta metadata, estado y reemplaza archivos XML/RIDE.
-          </DialogDescription>
-        </DialogHeader>
-        <form action={handleSave} className="space-y-4">
-          <InvoiceFields
-            invoice={invoice}
-            clients={clients}
-            projects={projects}
-            receivables={receivables}
-            isEdit
-          />
-          <Button type="submit" className="w-full">
-            Guardar cambios
-          </Button>
-        </form>
-      </DialogContent>
-    </Dialog>
-  );
-}
+// ── Create dialog ──────────────────────────────────────────────────────────
 
 export function CreateInvoiceDialog({
-  clients,
-  projects,
-  receivables,
+  clientsWithContext,
+  fixedClientId,
+  fixedProjectId,
+  fixedReceivableId,
+  trigger,
 }: {
-  clients: EntityOption[];
-  projects: EntityOption[];
-  receivables: EntityOption[];
+  clientsWithContext: ClientWithContext[];
+  fixedClientId?: string | null;
+  fixedProjectId?: string | null;
+  fixedReceivableId?: string | null;
+  trigger?: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
+  const [xml, setXml] = useState<UploadedFile | null>(null);
+  const [ride, setRide] = useState<UploadedFile | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const router = useRouter();
 
-  async function handleSave(formData: FormData) {
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (busy) {
+      toast.error("Espera a que termine la subida de archivos.");
+      return;
+    }
+
+    setSubmitting(true);
     try {
-      await createInvoice(formData);
+      const fd = new FormData(e.currentTarget);
+      if (xml) {
+        fd.set("xmlObjectKey", xml.objectKey);
+        fd.set("xmlName", xml.name);
+        fd.set("xmlMimeType", xml.mimeType);
+        fd.set("xmlSize", String(xml.size));
+      }
+      if (ride) {
+        fd.set("rideObjectKey", ride.objectKey);
+        fd.set("rideName", ride.name);
+        fd.set("rideMimeType", ride.mimeType);
+        fd.set("rideSize", String(ride.size));
+      }
+      await createInvoiceWithKeys(fd);
       setOpen(false);
+      setXml(null);
+      setRide(null);
       router.refresh();
       toast.success("Factura registrada.");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Error al guardar");
+    } finally {
+      setSubmitting(false);
     }
   }
 
+  function handleOpenChange(val: boolean) {
+    setOpen(val);
+    if (!val) {
+      setXml(null);
+      setRide(null);
+      setBusy(false);
+    }
+  }
+
+  // busy tracker for two uploaders
+  const [busyCount, setBusyCount] = useState(0);
+  const isUploading = busyCount > 0;
+
+  function trackBusy(uploading: boolean) {
+    setBusyCount((n) => Math.max(0, n + (uploading ? 1 : -1)));
+  }
+
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
-        <Button size="sm">
-          <Plus className="size-4" />
-          Nueva factura
-        </Button>
+        {trigger ?? (
+          <Button size="sm">
+            <Plus className="size-4" />
+            Nueva factura
+          </Button>
+        )}
       </DialogTrigger>
       <DialogContent className="max-h-[90svh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
@@ -279,18 +416,168 @@ export function CreateInvoiceDialog({
             Adjunta el XML autorizado y el RIDE PDF del Facturador SRI.
           </DialogDescription>
         </DialogHeader>
-        <form action={handleSave} className="space-y-4">
-          <InvoiceFields
-            clients={clients}
-            projects={projects}
-            receivables={receivables}
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <InvoiceFormBody
+            clientsWithContext={clientsWithContext}
+            fixedClientId={fixedClientId}
+            fixedProjectId={fixedProjectId}
+            fixedReceivableId={fixedReceivableId}
             isEdit={false}
+            uploading={isUploading}
+            onXmlUpload={setXml}
+            onXmlClear={() => setXml(null)}
+            onRideUpload={setRide}
+            onRideClear={() => setRide(null)}
+            onBusy={trackBusy}
           />
-          <Button type="submit" disabled={!clients.length} className="w-full">
-            Registrar factura
+          <Button
+            type="submit"
+            className="w-full"
+            disabled={submitting || isUploading || !clientsWithContext.length}
+          >
+            {isUploading
+              ? "Subiendo archivos..."
+              : submitting
+                ? "Guardando..."
+                : "Registrar factura"}
           </Button>
         </form>
       </DialogContent>
     </Dialog>
+  );
+}
+
+// ── Edit dialog ────────────────────────────────────────────────────────────
+
+export function InvoiceEditDialog({
+  invoice,
+  clientsWithContext,
+}: {
+  invoice: InvoiceData;
+  clientsWithContext: ClientWithContext[];
+}) {
+  const [open, setOpen] = useState(false);
+  const [xml, setXml] = useState<UploadedFile | null>(null);
+  const [ride, setRide] = useState<UploadedFile | null>(null);
+  const [busyCount, setBusyCount] = useState(0);
+  const [submitting, setSubmitting] = useState(false);
+  const router = useRouter();
+
+  const isUploading = busyCount > 0;
+
+  function trackBusy(uploading: boolean) {
+    setBusyCount((n) => Math.max(0, n + (uploading ? 1 : -1)));
+  }
+
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (isUploading) {
+      toast.error("Espera a que termine la subida de archivos.");
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const fd = new FormData(e.currentTarget);
+      if (xml) {
+        fd.set("xmlObjectKey", xml.objectKey);
+        fd.set("xmlName", xml.name);
+        fd.set("xmlMimeType", xml.mimeType);
+        fd.set("xmlSize", String(xml.size));
+      }
+      if (ride) {
+        fd.set("rideObjectKey", ride.objectKey);
+        fd.set("rideName", ride.name);
+        fd.set("rideMimeType", ride.mimeType);
+        fd.set("rideSize", String(ride.size));
+      }
+      await updateInvoiceWithKeys(invoice.id, fd);
+      setOpen(false);
+      router.refresh();
+      toast.success("Factura actualizada.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Error al guardar");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  function handleOpenChange(val: boolean) {
+    setOpen(val);
+    if (!val) {
+      setXml(null);
+      setRide(null);
+      setBusyCount(0);
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogTrigger asChild>
+        <EditTrigger />
+      </DialogTrigger>
+      <DialogContent className="max-h-[90svh] overflow-y-auto sm:max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>Editar factura</DialogTitle>
+          <DialogDescription>
+            Ajusta datos y reemplaza archivos XML/RIDE subiendo nuevos.
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <InvoiceFormBody
+            invoice={invoice}
+            clientsWithContext={clientsWithContext}
+            isEdit
+            uploading={isUploading}
+            onXmlUpload={setXml}
+            onXmlClear={() => setXml(null)}
+            onRideUpload={setRide}
+            onRideClear={() => setRide(null)}
+            onBusy={trackBusy}
+          />
+          <Button
+            type="submit"
+            className="w-full"
+            disabled={submitting || isUploading}
+          >
+            {isUploading
+              ? "Subiendo archivos..."
+              : submitting
+                ? "Guardando..."
+                : "Guardar cambios"}
+          </Button>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ── Quick invoice from receivable ──────────────────────────────────────────
+
+export function QuickInvoiceDialog({
+  clientsWithContext,
+  fixedClientId,
+  fixedProjectId,
+  fixedReceivableId,
+}: {
+  clientsWithContext: ClientWithContext[];
+  fixedClientId: string;
+  fixedProjectId?: string | null;
+  fixedReceivableId: string;
+  receivableTitle: string;
+}) {
+  return (
+    <CreateInvoiceDialog
+      clientsWithContext={clientsWithContext}
+      fixedClientId={fixedClientId}
+      fixedProjectId={fixedProjectId}
+      fixedReceivableId={fixedReceivableId}
+      trigger={
+        <Button variant="outline" size="sm" className="h-7 gap-1 px-2 text-xs">
+          <Receipt className="size-3" />
+          Facturar
+        </Button>
+      }
+    />
   );
 }
