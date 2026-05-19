@@ -227,6 +227,7 @@ export async function recordPayment(formData: FormData) {
   await prisma.$transaction(async (tx) => {
     const receivable = await tx.receivable.findUniqueOrThrow({
       where: { id: data.receivableId },
+      include: { invoice: { select: { id: true, status: true } } },
     });
     const paidAmount = Number(receivable.paidAmount) + data.amount;
     const status = (
@@ -234,19 +235,26 @@ export async function recordPayment(formData: FormData) {
     ) as ReceivableStatus;
 
     await tx.payment.create({
-      data: {
-        ...data,
-        paidAt: data.paidAt ?? new Date(),
-      },
+      data: { ...data, paidAt: data.paidAt ?? new Date() },
     });
 
     await tx.receivable.update({
       where: { id: data.receivableId },
-      data: {
-        paidAmount,
-        status,
-      },
+      data: { paidAmount, status },
     });
+
+    // Auto-sync linked invoice to PAID when hito is fully paid
+    if (
+      status === "PAID" &&
+      receivable.invoice &&
+      receivable.invoice.status !== "PAID" &&
+      receivable.invoice.status !== "CANCELLED"
+    ) {
+      await tx.invoice.update({
+        where: { id: receivable.invoice.id },
+        data: { status: "PAID", paidAt: data.paidAt ?? new Date() },
+      });
+    }
   });
 
   revalidatePath("/admin");
@@ -414,6 +422,7 @@ export async function sendInvoiceEmail(formData: FormData) {
 
   revalidatePath("/admin");
   revalidatePath("/admin/facturas");
+  revalidatePath(`/admin/facturas/${invoiceId}`);
 }
 
 export async function createFolder(formData: FormData) {
@@ -529,6 +538,127 @@ export async function revealCredential(id: string) {
     secretTag: credential.secretTag,
   });
 }
+
+// ── Invoice with pre-uploaded R2 keys ─────────────────────────────────────
+
+function fileMetaFromForm(
+  formData: FormData,
+  prefix: string,
+): { objectKey: string; name: string; mimeType: string; size: number } | null {
+  const objectKey = text(formData, `${prefix}ObjectKey`);
+  const name = text(formData, `${prefix}Name`);
+  const mimeType = text(formData, `${prefix}MimeType`);
+  const sizeRaw = text(formData, `${prefix}Size`);
+  if (!objectKey || !name || !mimeType || !sizeRaw) return null;
+  const size = parseInt(sizeRaw, 10);
+  if (!Number.isFinite(size) || size <= 0) return null;
+  return { objectKey, name, mimeType, size };
+}
+
+async function registerFileKey({
+  objectKey,
+  name,
+  mimeType,
+  size,
+  clientId,
+  projectId,
+}: {
+  objectKey: string;
+  name: string;
+  mimeType: string;
+  size: number;
+  clientId: string | null;
+  projectId: string | null;
+}) {
+  return prisma.driveFile.create({
+    data: { name, objectKey, mimeType, size, clientId, projectId },
+  });
+}
+
+export async function createInvoiceWithKeys(formData: FormData) {
+  await requireAdmin();
+  const data = parseForm(invoiceSchema, formData);
+
+  const xmlMeta = fileMetaFromForm(formData, "xml");
+  const rideMeta = fileMetaFromForm(formData, "ride");
+
+  const [xmlFile, rideFile] = await Promise.all([
+    xmlMeta
+      ? registerFileKey({
+          ...xmlMeta,
+          clientId: data.clientId,
+          projectId: data.projectId,
+        })
+      : null,
+    rideMeta
+      ? registerFileKey({
+          ...rideMeta,
+          clientId: data.clientId,
+          projectId: data.projectId,
+        })
+      : null,
+  ]);
+
+  await prisma.invoice.create({
+    data: {
+      ...data,
+      xmlFileId: xmlFile?.id ?? null,
+      rideFileId: rideFile?.id ?? null,
+    },
+  });
+
+  if (data.receivableId) {
+    await prisma.receivable.update({
+      where: { id: data.receivableId },
+      data: { status: "INVOICED" },
+    });
+  }
+
+  revalidatePath("/admin/facturas");
+  if (data.clientId) revalidatePath(`/admin/clientes/${data.clientId}`);
+  if (data.projectId) revalidatePath(`/admin/proyectos/${data.projectId}`);
+}
+
+export async function updateInvoiceWithKeys(id: string, formData: FormData) {
+  await requireAdmin();
+  const data = parseForm(invoiceSchema, formData);
+
+  const xmlMeta = fileMetaFromForm(formData, "xml");
+  const rideMeta = fileMetaFromForm(formData, "ride");
+
+  const [xmlFile, rideFile] = await Promise.all([
+    xmlMeta
+      ? registerFileKey({
+          ...xmlMeta,
+          clientId: data.clientId,
+          projectId: data.projectId,
+        })
+      : null,
+    rideMeta
+      ? registerFileKey({
+          ...rideMeta,
+          clientId: data.clientId,
+          projectId: data.projectId,
+        })
+      : null,
+  ]);
+
+  await prisma.invoice.update({
+    where: { id },
+    data: {
+      ...data,
+      ...(xmlFile ? { xmlFileId: xmlFile.id } : {}),
+      ...(rideFile ? { rideFileId: rideFile.id } : {}),
+    },
+  });
+
+  revalidatePath("/admin/facturas");
+  revalidatePath(`/admin/facturas/${id}`);
+  if (data.clientId) revalidatePath(`/admin/clientes/${data.clientId}`);
+  if (data.projectId) revalidatePath(`/admin/proyectos/${data.projectId}`);
+}
+
+// ── Comments ───────────────────────────────────────────────────────────────
 
 export async function createComment(formData: FormData) {
   await requireAdmin();
