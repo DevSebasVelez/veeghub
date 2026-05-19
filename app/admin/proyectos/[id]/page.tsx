@@ -7,9 +7,12 @@ import {
   ExternalLink,
   HardDrive,
   KeyRound,
+  Trash2,
 } from "lucide-react";
 import { FaGithub } from "react-icons/fa6";
 
+import { deletePayment } from "@/app/admin/actions";
+import { ConfirmationDialog } from "@/components/admin/confirmation-dialog";
 import { CredentialDialog } from "@/components/admin/dialogs/credential-dialog";
 import { CredentialViewDialog } from "@/components/admin/dialogs/credential-view-dialog";
 import { CreateFolderDialog } from "@/components/admin/dialogs/folder-dialog";
@@ -756,17 +759,39 @@ export default async function ProjectDetailPage({
                                   {formatDate(payment.paidAt)}
                                 </TableCell>
                                 <TableCell className="pr-5 text-right">
-                                  <EditPaymentDialog
-                                    payment={{
-                                      id: payment.id,
-                                      amount: payment.amount.toString(),
-                                      paidAt: payment.paidAt.toISOString(),
-                                      method: payment.method,
-                                      reference: payment.reference,
-                                      notes: payment.notes,
-                                      receivableTitle: payment.receivable.title,
-                                    }}
-                                  />
+                                  <div className="flex items-center justify-end gap-1">
+                                    <EditPaymentDialog
+                                      payment={{
+                                        id: payment.id,
+                                        amount: payment.amount.toString(),
+                                        paidAt: payment.paidAt.toISOString(),
+                                        method: payment.method,
+                                        reference: payment.reference,
+                                        notes: payment.notes,
+                                        receivableTitle:
+                                          payment.receivable.title,
+                                      }}
+                                    />
+                                    <ConfirmationDialog
+                                      trigger={
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          className="size-7 p-0 text-destructive hover:text-destructive"
+                                        >
+                                          <Trash2 className="size-3.5" />
+                                        </Button>
+                                      }
+                                      title="Eliminar pago"
+                                      description={`¿Eliminar el pago de ${formatCurrency(payment.amount.toString())}? El saldo del hito se recalculará.`}
+                                      confirmLabel="Eliminar"
+                                      destructive
+                                      onConfirm={async () => {
+                                        "use server";
+                                        await deletePayment(payment.id);
+                                      }}
+                                    />
+                                  </div>
                                 </TableCell>
                               </TableRow>
                             ))}
