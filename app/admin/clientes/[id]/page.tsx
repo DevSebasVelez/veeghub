@@ -15,7 +15,11 @@ import {
 import { ClientEditDialog } from "@/components/admin/dialogs/client-dialog";
 import { CredentialDialog } from "@/components/admin/dialogs/credential-dialog";
 import { CredentialViewDialog } from "@/components/admin/dialogs/credential-view-dialog";
-import { InvoiceEditDialog } from "@/components/admin/dialogs/invoice-dialog";
+import {
+  CreateInvoiceDialog,
+  InvoiceEditDialog,
+  QuickInvoiceDialog,
+} from "@/components/admin/dialogs/invoice-dialog";
 import { ProjectDialog } from "@/components/admin/dialogs/project-dialog";
 import { ReceivableDialog } from "@/components/admin/dialogs/receivable-dialog";
 import { ClientAvatar } from "@/components/admin/entity-avatar";
@@ -115,7 +119,10 @@ export default async function ClientDetailPage({
     prisma.receivable.findMany({
       where: { clientId: id, status: { notIn: ["PAID", "CANCELLED"] } },
       orderBy: [{ dueDate: "asc" }, { createdAt: "desc" }],
-      include: { project: { select: { name: true } } },
+      include: {
+        project: { select: { name: true, id: true } },
+        invoice: { select: { id: true } },
+      },
     }),
     prisma.invoice.findMany({
       where: { clientId: id },
@@ -173,14 +180,48 @@ export default async function ClientDetailPage({
     cur = f.parentId;
   }
 
+  // Invoice context for this client
+  const [clientCtxCreate, clientCtxEdit] = await Promise.all([
+    prisma.client.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        name: true,
+        projects: {
+          orderBy: { name: "asc" },
+          select: { id: true, name: true },
+        },
+        receivables: {
+          where: { invoice: null, status: { notIn: ["CANCELLED"] } },
+          orderBy: { createdAt: "desc" },
+          select: { id: true, title: true, projectId: true },
+        },
+      },
+    }),
+    prisma.client.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        name: true,
+        projects: {
+          orderBy: { name: "asc" },
+          select: { id: true, name: true },
+        },
+        receivables: {
+          orderBy: { createdAt: "desc" },
+          select: { id: true, title: true, projectId: true },
+        },
+      },
+    }),
+  ]);
+
+  const invoiceCtxCreate = clientCtxCreate ? [clientCtxCreate] : [];
+  const invoiceCtxEdit = clientCtxEdit ? [clientCtxEdit] : [];
+
   const totalPending = receivables.reduce(
     (sum, r) => sum + Math.max(0, Number(r.amount) - Number(r.paidAmount)),
     0,
   );
-  const allReceivableOptions = receivables.map((r) => ({
-    id: r.id,
-    name: r.title,
-  }));
 
   return (
     <div className="space-y-5">
@@ -377,13 +418,25 @@ export default async function ClientDetailPage({
                           className="group flex items-center gap-3 px-5 py-3 transition-colors hover:bg-muted/30"
                         >
                           <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-2">
+                            <div className="flex flex-wrap items-center gap-2">
                               <InlineStatusSelect id={r.id} status={r.status} />
                               {r.project?.name ? (
                                 <span className="truncate text-xs text-muted-foreground">
                                   {r.project.name}
                                 </span>
                               ) : null}
+                              {r.invoice ? (
+                                <Link
+                                  href={`/admin/facturas/${r.invoice.id}`}
+                                  className="inline-flex items-center gap-1 rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700 hover:bg-blue-100 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-400"
+                                >
+                                  Facturado
+                                </Link>
+                              ) : (
+                                <span className="rounded-full border border-dashed px-2 py-0.5 text-xs text-muted-foreground/60">
+                                  Sin factura
+                                </span>
+                              )}
                             </div>
                             <div className="mt-0.5 truncate text-sm font-medium">
                               {r.title}
@@ -399,7 +452,16 @@ export default async function ClientDetailPage({
                               {r.dueDate ? ` · ${formatDate(r.dueDate)}` : ""}
                             </div>
                           </div>
-                          <div className="transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
+                          <div className="flex items-center gap-1 transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
+                            {!r.invoice ? (
+                              <QuickInvoiceDialog
+                                clientsWithContext={invoiceCtxCreate}
+                                fixedClientId={id}
+                                fixedProjectId={r.project?.id ?? null}
+                                fixedReceivableId={r.id}
+                                receivableTitle={r.title}
+                              />
+                            ) : null}
                             <ReceivableDialog
                               receivable={forReceivableDialog(r)}
                               clients={allClients}
@@ -435,6 +497,15 @@ export default async function ClientDetailPage({
         {/* Facturas tab */}
         <TabsContent value="invoices" className="mt-0">
           <Card className="rounded-lg">
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base">Facturas</CardTitle>
+                <CreateInvoiceDialog
+                  clientsWithContext={invoiceCtxCreate}
+                  fixedClientId={id}
+                />
+              </div>
+            </CardHeader>
             <CardContent className="p-0">
               {invoices.length === 0 ? (
                 <p className="py-10 text-center text-sm text-muted-foreground">
@@ -480,9 +551,7 @@ export default async function ClientDetailPage({
                       <div className="transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
                         <InvoiceEditDialog
                           invoice={forInvoiceDialog(invoice)}
-                          clients={allClients}
-                          projects={allProjects}
-                          receivables={allReceivableOptions}
+                          clientsWithContext={invoiceCtxEdit}
                         />
                       </div>
                     </div>

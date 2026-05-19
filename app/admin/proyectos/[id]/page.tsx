@@ -13,6 +13,7 @@ import { FaGithub } from "react-icons/fa6";
 import { CredentialDialog } from "@/components/admin/dialogs/credential-dialog";
 import { CredentialViewDialog } from "@/components/admin/dialogs/credential-view-dialog";
 import { CreateFolderDialog } from "@/components/admin/dialogs/folder-dialog";
+import { QuickInvoiceDialog } from "@/components/admin/dialogs/invoice-dialog";
 import { ProjectDialog } from "@/components/admin/dialogs/project-dialog";
 import {
   ReceivableDialog,
@@ -97,7 +98,10 @@ export default async function ProjectDetailPage({
         orderBy: [{ status: "asc" }, { priority: "asc" }, { dueDate: "asc" }],
       },
       receivables: {
-        include: { client: true },
+        include: {
+          client: true,
+          invoice: { select: { id: true, invoiceNumber: true, status: true } },
+        },
         orderBy: { createdAt: "desc" },
       },
       credentials: {
@@ -113,7 +117,7 @@ export default async function ProjectDetailPage({
 
   if (!project) notFound();
 
-  const [clients, projects] = await Promise.all([
+  const [clients, projects, clientCtxCreate] = await Promise.all([
     prisma.client.findMany({
       orderBy: { name: "asc" },
       select: { id: true, name: true },
@@ -122,7 +126,28 @@ export default async function ProjectDetailPage({
       orderBy: { name: "asc" },
       select: { id: true, name: true },
     }),
+    // Invoice context: open receivables for this project's client
+    project.clientId
+      ? prisma.client.findUnique({
+          where: { id: project.clientId },
+          select: {
+            id: true,
+            name: true,
+            projects: {
+              orderBy: { name: "asc" },
+              select: { id: true, name: true },
+            },
+            receivables: {
+              where: { invoice: null, status: { notIn: ["CANCELLED"] } },
+              orderBy: { createdAt: "desc" },
+              select: { id: true, title: true, projectId: true },
+            },
+          },
+        })
+      : Promise.resolve(null),
   ]);
+
+  const invoiceCtxCreate = clientCtxCreate ? [clientCtxCreate] : [];
 
   // Drive data — contextual folder navigation
   const driveFolderId = driveFolderParam ?? null;
@@ -275,8 +300,8 @@ export default async function ProjectDetailPage({
             Archivos
             {project._count.files > 0 ? ` (${project._count.files})` : ""}
           </TabsTrigger>
-          <TabsTrigger value="cobros" className="rounded-md">
-            Cobros
+          <TabsTrigger value="pagos" className="rounded-md">
+            Pagos
             {project.receivables.length > 0
               ? ` (${project.receivables.length})`
               : ""}
@@ -476,12 +501,12 @@ export default async function ProjectDetailPage({
           </div>
         </TabsContent>
 
-        {/* Cobros */}
-        <TabsContent value="cobros" className="mt-0">
+        {/* Pagos */}
+        <TabsContent value="pagos" className="mt-0">
           <Card className="rounded-lg">
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
-                <CardTitle>Cobros</CardTitle>
+                <CardTitle>Pagos</CardTitle>
                 <ReceivableDialog
                   clients={clients}
                   projects={projects}
@@ -507,8 +532,24 @@ export default async function ProjectDetailPage({
                         className="group flex items-center gap-3 px-5 py-3 transition-colors hover:bg-muted/30"
                       >
                         <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2">
+                          <div className="flex flex-wrap items-center gap-2">
                             <StatusBadge value={r.status} />
+                            {r.invoice ? (
+                              <Link
+                                href={`/admin/facturas/${r.invoice.id}`}
+                                className="inline-flex items-center gap-1 rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700 hover:bg-blue-100 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-400"
+                              >
+                                Factura
+                                {r.invoice.invoiceNumber
+                                  ? ` ${r.invoice.invoiceNumber}`
+                                  : ""}
+                                {r.invoice.status === "PAID" ? " ✓" : ""}
+                              </Link>
+                            ) : (
+                              <span className="rounded-full border border-dashed px-2 py-0.5 text-xs text-muted-foreground/60">
+                                Sin factura
+                              </span>
+                            )}
                           </div>
                           <div className="mt-0.5 truncate text-sm font-medium">
                             {r.title}
@@ -522,14 +563,22 @@ export default async function ProjectDetailPage({
                               </span>
                             ) : null}
                             {isPaid ? (
-                              <span className="text-emerald-600">· Pagado</span>
-                            ) : null}
-                            {r.client?.name ? (
-                              <span>· {r.client.name}</span>
+                              <span className="text-emerald-600">
+                                · Pagado ✓
+                              </span>
                             ) : null}
                           </div>
                         </div>
                         <div className="flex shrink-0 items-center gap-1 transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
+                          {!r.invoice && project.clientId ? (
+                            <QuickInvoiceDialog
+                              clientsWithContext={invoiceCtxCreate}
+                              fixedClientId={project.clientId}
+                              fixedProjectId={id}
+                              fixedReceivableId={r.id}
+                              receivableTitle={r.title}
+                            />
+                          ) : null}
                           {!isPaid ? (
                             <SinglePaymentDialog
                               receivable={{

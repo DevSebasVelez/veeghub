@@ -1,3 +1,6 @@
+import Link from "next/link";
+import { ExternalLink } from "lucide-react";
+
 import { sendInvoiceEmail } from "@/app/admin/actions";
 import {
   CreateInvoiceDialog,
@@ -12,7 +15,6 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import Link from "next/link";
 
 const PAGE_SIZE = 12;
 
@@ -43,24 +45,40 @@ export default async function InvoicesPage({
         }
       : {};
 
-  const [clients, projects, freeReceivables, allReceivables, invoices, total] =
+  const [clientsWithContext, clientsForEdit, invoices, total] =
     await Promise.all([
+      // For create: only open receivables (no invoice yet)
       prisma.client.findMany({
         orderBy: { name: "asc" },
-        select: { id: true, name: true },
+        select: {
+          id: true,
+          name: true,
+          projects: {
+            orderBy: { name: "asc" },
+            select: { id: true, name: true },
+          },
+          receivables: {
+            where: { invoice: null, status: { notIn: ["CANCELLED"] } },
+            orderBy: { createdAt: "desc" },
+            select: { id: true, title: true, projectId: true },
+          },
+        },
       }),
-      prisma.project.findMany({
+      // For edit: all receivables
+      prisma.client.findMany({
         orderBy: { name: "asc" },
-        select: { id: true, name: true },
-      }),
-      prisma.receivable.findMany({
-        where: { invoice: null },
-        orderBy: { createdAt: "desc" },
-        select: { id: true, title: true, client: { select: { name: true } } },
-      }),
-      prisma.receivable.findMany({
-        orderBy: { createdAt: "desc" },
-        select: { id: true, title: true, client: { select: { name: true } } },
+        select: {
+          id: true,
+          name: true,
+          projects: {
+            orderBy: { name: "asc" },
+            select: { id: true, name: true },
+          },
+          receivables: {
+            orderBy: { createdAt: "desc" },
+            select: { id: true, title: true, projectId: true },
+          },
+        },
       }),
       prisma.invoice.findMany({
         where: whereStatus,
@@ -78,15 +96,6 @@ export default async function InvoicesPage({
       prisma.invoice.count({ where: whereStatus }),
     ]);
 
-  const freeReceivableOptions = freeReceivables.map((r) => ({
-    id: r.id,
-    name: `${r.title} · ${r.client.name}`,
-  }));
-  const allReceivableOptions = allReceivables.map((r) => ({
-    id: r.id,
-    name: `${r.title} · ${r.client.name}`,
-  }));
-
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
@@ -98,19 +107,14 @@ export default async function InvoicesPage({
             XML autorizado, RIDE PDF y envío por email con Resend.
           </p>
         </div>
-        <CreateInvoiceDialog
-          clients={clients}
-          projects={projects}
-          receivables={freeReceivableOptions}
-        />
+        <CreateInvoiceDialog clientsWithContext={clientsWithContext} />
       </div>
 
       <Card className="rounded-lg">
         <CardHeader className="pb-3">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <CardTitle>Facturas</CardTitle>
-            {/* Status filter tabs */}
-            <div className="flex flex-wrap gap-1 rounded-lg border bg-background p-1 w-fit">
+            <div className="flex flex-wrap gap-1 rounded-lg border bg-background p-1">
               {STATUS_FILTERS.map((f) => (
                 <Link
                   key={f.value}
@@ -141,18 +145,27 @@ export default async function InvoicesPage({
             <div className="divide-y">
               {invoices.map((invoice) => {
                 const lastEmail = invoice.emailLogs[0];
+                const clientForEdit = clientsForEdit.find(
+                  (c) => c.id === invoice.clientId,
+                );
+                const editCtx = clientForEdit
+                  ? [clientForEdit]
+                  : clientsForEdit;
+
                 return (
                   <div
                     key={invoice.id}
                     className="flex flex-col gap-3 px-6 py-4 sm:flex-row sm:items-center"
                   >
-                    {/* Left: info */}
                     <div className="min-w-0 flex-1 space-y-1">
                       <div className="flex flex-wrap items-center gap-2">
                         <StatusBadge value={invoice.status} />
-                        <span className="font-medium">
+                        <Link
+                          href={`/admin/facturas/${invoice.id}`}
+                          className="font-medium underline-offset-4 hover:underline"
+                        >
                           {invoice.invoiceNumber ?? "Sin número"}
-                        </span>
+                        </Link>
                         {invoice.project ? (
                           <span className="text-xs text-muted-foreground">
                             · {invoice.project.name}
@@ -168,7 +181,6 @@ export default async function InvoicesPage({
                           <span>{formatDate(invoice.issueDate)}</span>
                         ) : null}
                       </div>
-                      {/* Files status */}
                       <div className="flex gap-3 text-xs">
                         <span
                           className={
@@ -197,8 +209,7 @@ export default async function InvoicesPage({
                       </div>
                     </div>
 
-                    {/* Right: send form + edit */}
-                    <div className="flex flex-wrap shrink-0 items-center gap-2">
+                    <div className="flex shrink-0 flex-wrap items-center gap-2">
                       {invoice.xmlFile && invoice.rideFile ? (
                         <form action={sendInvoiceEmail} className="flex gap-2">
                           <input
@@ -227,11 +238,19 @@ export default async function InvoicesPage({
                           Sube XML y RIDE para enviar
                         </span>
                       )}
+                      <Button
+                        asChild
+                        variant="ghost"
+                        size="icon"
+                        className="size-8"
+                      >
+                        <Link href={`/admin/facturas/${invoice.id}`}>
+                          <ExternalLink className="size-4" />
+                        </Link>
+                      </Button>
                       <InvoiceEditDialog
                         invoice={forInvoiceDialog(invoice)}
-                        clients={clients}
-                        projects={projects}
-                        receivables={allReceivableOptions}
+                        clientsWithContext={editCtx}
                       />
                     </div>
                   </div>
