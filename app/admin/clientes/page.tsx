@@ -7,7 +7,7 @@ import {
 import { forClientDialog } from "@/lib/admin/serialize";
 import { getPage, Pagination } from "@/components/admin/pagination";
 import prisma from "@/lib/db/prisma";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import {
   Table,
   TableBody,
@@ -51,7 +51,8 @@ export default async function ClientsPage({
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Clientes</h1>
           <p className="text-sm text-muted-foreground">
-            {total} cliente{total !== 1 ? "s" : ""} registrado{total !== 1 ? "s" : ""}.
+            {total} cliente{total !== 1 ? "s" : ""} registrado
+            {total !== 1 ? "s" : ""}.
           </p>
         </div>
         <CreateClientDialog />
@@ -90,7 +91,11 @@ export default async function ClientsPage({
                       ) : null}
                     </TableCell>
                     <TableCell className="text-sm">
-                      <div>{client.legalName ?? <span className="text-muted-foreground/50">—</span>}</div>
+                      <div>
+                        {client.legalName ?? (
+                          <span className="text-muted-foreground/50">—</span>
+                        )}
+                      </div>
                       {client.taxId ? (
                         <div className="text-xs text-muted-foreground">
                           {client.taxId}
@@ -103,22 +108,30 @@ export default async function ClientsPage({
                       )}
                     </TableCell>
                     <TableCell className="text-center text-sm font-medium">
-                      {client._count.projects > 0 ? client._count.projects : (
+                      {client._count.projects > 0 ? (
+                        client._count.projects
+                      ) : (
                         <span className="text-muted-foreground/40">—</span>
                       )}
                     </TableCell>
                     <TableCell className="text-center text-sm font-medium">
-                      {client._count.receivables > 0 ? client._count.receivables : (
+                      {client._count.receivables > 0 ? (
+                        client._count.receivables
+                      ) : (
                         <span className="text-muted-foreground/40">—</span>
                       )}
                     </TableCell>
                     <TableCell className="text-center text-sm font-medium">
-                      {client._count.invoices > 0 ? client._count.invoices : (
+                      {client._count.invoices > 0 ? (
+                        client._count.invoices
+                      ) : (
                         <span className="text-muted-foreground/40">—</span>
                       )}
                     </TableCell>
                     <TableCell className="text-center text-sm font-medium">
-                      {client._count.credentials > 0 ? client._count.credentials : (
+                      {client._count.credentials > 0 ? (
+                        client._count.credentials
+                      ) : (
                         <span className="text-muted-foreground/40">—</span>
                       )}
                     </TableCell>

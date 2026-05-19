@@ -12,7 +12,7 @@ import {
   FaFolder,
   FaImage,
 } from "react-icons/fa6";
-import { Download, Eye, Grid2X2, List, Pencil, Trash2 } from "lucide-react";
+import { Download, Eye, Grid2X2, List, Trash2, X } from "lucide-react";
 
 import { deleteFolder, deleteDriveFile } from "@/app/admin/actions";
 import { ConfirmationDialog } from "@/components/admin/confirmation-dialog";
@@ -21,9 +21,8 @@ import { FolderEditDialog } from "@/components/admin/dialogs/folder-dialog";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
+  DialogClose,
   DialogContent,
-  DialogDescription,
-  DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
@@ -62,6 +61,12 @@ type FileItem = {
 type Client = { id: string; name: string };
 type Project = { id: string; name: string };
 
+function folderHref(base: string, folderId: string) {
+  return base.includes("?")
+    ? `${base}&folder=${folderId}`
+    : `${base}?folder=${folderId}`;
+}
+
 function fileIcon(mimeType: string, size: "sm" | "lg" = "sm") {
   const cls = size === "lg" ? "size-10" : "size-5";
   if (mimeType.startsWith("image/"))
@@ -99,45 +104,73 @@ function FilePreviewModal({
 
   return (
     <Dialog open={!!file} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-h-[92svh] max-w-4xl overflow-hidden">
-        <DialogHeader>
-          <DialogTitle className="truncate">{file.name}</DialogTitle>
-          <DialogDescription>
-            {file.mimeType} · {formatBytes(file.size)}
-          </DialogDescription>
-        </DialogHeader>
-        <div className="flex flex-col items-center gap-4 overflow-auto">
-          {isImage ? (
-            <img
-              src={downloadUrl}
-              alt={file.name}
-              className="max-h-[60vh] max-w-full rounded-lg object-contain"
-            />
-          ) : isPdf ? (
-            <iframe
-              src={downloadUrl}
-              className="h-[60vh] w-full rounded-lg border"
-              title={file.name}
-            />
-          ) : (
-            <div className="flex flex-col items-center gap-3 py-10">
-              {fileIcon(file.mimeType, "lg")}
-              <p className="text-sm text-muted-foreground">
-                Vista previa no disponible
-              </p>
-            </div>
-          )}
-          <div className="flex gap-2">
-            <Button asChild>
-              <a href={downloadUrl} download={file.name}>
-                <Download className="size-4" />
+      <DialogContent className="flex h-[95svh] max-h-[95svh] w-[95vw] max-w-[95vw] sm:max-w-[95vw] flex-col gap-0 p-0 [&>button:last-child]:hidden">
+        {/* Header bar */}
+        <div className="flex shrink-0 items-center gap-3 border-b px-4 py-3">
+          <div className="min-w-0 flex-1">
+            <DialogTitle className="truncate text-sm font-semibold">
+              {file.name}
+            </DialogTitle>
+            <p className="text-xs text-muted-foreground">
+              {file.mimeType} · {formatBytes(file.size)}
+            </p>
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            <Button variant="outline" size="sm" asChild>
+              <a
+                href={`${downloadUrl}?download=1`}
+                target="_blank"
+                rel="noreferrer"
+              >
+                <Download className="size-3.5" />
                 Descargar
               </a>
             </Button>
-            <Button variant="outline" onClick={onClose}>
-              Cerrar
-            </Button>
+            <DialogClose asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-8"
+                onClick={onClose}
+              >
+                <X className="size-4" />
+              </Button>
+            </DialogClose>
           </div>
+        </div>
+
+        {/* Preview area */}
+        <div className="min-h-0 flex-1 overflow-auto">
+          {isImage ? (
+            <div className="flex h-full items-center justify-center bg-muted/20 p-6">
+              <img
+                src={downloadUrl}
+                alt={file.name}
+                className="max-h-full max-w-full object-contain"
+              />
+            </div>
+          ) : isPdf ? (
+            <iframe
+              src={downloadUrl}
+              className="h-full w-full"
+              title={file.name}
+            />
+          ) : (
+            <div className="flex h-full flex-col items-center justify-center gap-3 text-muted-foreground">
+              {fileIcon(file.mimeType, "lg")}
+              <p className="text-sm">Vista previa no disponible</p>
+              <Button asChild variant="outline" size="sm">
+                <a
+                  href={`${downloadUrl}?download=1`}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  <Download className="size-3.5" />
+                  Descargar archivo
+                </a>
+              </Button>
+            </div>
+          )}
         </div>
       </DialogContent>
     </Dialog>
@@ -149,56 +182,57 @@ function FolderCard({
   clients,
   projects,
   onDelete,
+  base,
 }: {
   folder: FolderItem;
   clients: Client[];
   projects: Project[];
   onDelete: () => void;
+  base: string;
 }) {
-  const subtitle = folder.project?.name ?? folder.client?.name ?? null;
   const count = (folder._count?.children ?? 0) + (folder._count?.files ?? 0);
+  const href = folderHref(base, folder.id);
 
   return (
-    <div className="group flex items-center gap-3 rounded-lg border bg-background p-3 transition-colors hover:border-amber-200 hover:bg-amber-50/60 dark:hover:border-amber-800 dark:hover:bg-amber-950/30">
+    <div className="group relative flex flex-col overflow-hidden rounded-lg border bg-background transition-colors hover:border-amber-200 hover:shadow-sm dark:hover:border-amber-800">
       <Link
-        href={`/admin/drive?folder=${folder.id}`}
-        className="flex min-w-0 flex-1 items-center gap-3"
+        href={href}
+        className="flex h-28 items-center justify-center bg-amber-50/60 transition-colors hover:bg-amber-100/60 dark:bg-amber-950/30 dark:hover:bg-amber-900/30"
       >
-        <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-amber-100 text-amber-600 dark:bg-amber-950 dark:text-amber-400">
-          <FaFolder className="size-4" />
-        </div>
-        <div className="min-w-0">
-          <div className="truncate text-sm font-medium">{folder.name}</div>
-          {subtitle ? (
-            <div className="truncate text-xs text-muted-foreground">
-              {subtitle}
-            </div>
-          ) : null}
-          {count > 0 ? (
-            <div className="text-xs text-muted-foreground">
-              {count} elemento{count !== 1 ? "s" : ""}
-            </div>
-          ) : null}
-        </div>
+        <FaFolder className="size-10 text-amber-500 dark:text-amber-400" />
       </Link>
-      <div className="flex shrink-0 items-center gap-1 sm:opacity-0 transition-opacity sm:group-hover:opacity-100">
-        <FolderEditDialog
-          folder={folder}
-          clients={clients}
-          projects={projects}
-        />
-        <ConfirmationDialog
-          trigger={
-            <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive">
-              <Trash2 className="size-3.5" />
-            </Button>
-          }
-          title="Eliminar carpeta"
-          description={`¿Eliminar "${folder.name}"? Se eliminarán también sus archivos y subcarpetas.`}
-          confirmLabel="Eliminar"
-          destructive
-          onConfirm={onDelete}
-        />
+      <div className="flex min-w-0 flex-1 flex-col gap-0.5 p-2.5">
+        <div className="truncate text-sm font-medium" title={folder.name}>
+          {folder.name}
+        </div>
+        <div className="text-xs text-muted-foreground">
+          {count > 0 ? `${count} elemento${count !== 1 ? "s" : ""}` : "Vacía"}
+        </div>
+      </div>
+      <div className="flex items-center gap-1 border-t px-2.5 py-1.5 transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
+        <div className="ml-auto flex items-center gap-1">
+          <FolderEditDialog
+            folder={folder}
+            clients={clients}
+            projects={projects}
+          />
+          <ConfirmationDialog
+            trigger={
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 text-destructive hover:text-destructive"
+              >
+                <Trash2 className="size-3.5" />
+              </Button>
+            }
+            title="Eliminar carpeta"
+            description={`¿Eliminar "${folder.name}"? Se eliminarán también sus archivos y subcarpetas.`}
+            confirmLabel="Eliminar"
+            destructive
+            onConfirm={onDelete}
+          />
+        </div>
       </div>
     </div>
   );
@@ -223,21 +257,32 @@ function FileCard({
 
   return (
     <div className="group relative flex flex-col overflow-hidden rounded-lg border bg-background transition-colors hover:border-primary/30 hover:shadow-sm">
-      <button
-        type="button"
-        onClick={canPreview ? onPreview : undefined}
-        className={`flex h-28 items-center justify-center bg-muted/40 ${canPreview ? "cursor-pointer" : "cursor-default"}`}
-      >
-        {isImage ? (
-          <img
-            src={downloadUrl}
-            alt={file.name}
-            className="h-full w-full object-cover"
-          />
-        ) : (
-          fileIcon(file.mimeType, "lg")
-        )}
-      </button>
+      {canPreview ? (
+        <button
+          type="button"
+          onClick={onPreview}
+          className="flex h-28 cursor-pointer items-center justify-center bg-muted/40"
+        >
+          {isImage ? (
+            <img
+              src={downloadUrl}
+              alt={file.name}
+              className="h-full w-full object-cover"
+            />
+          ) : (
+            fileIcon(file.mimeType, "lg")
+          )}
+        </button>
+      ) : (
+        <a
+          href={downloadUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="flex h-28 cursor-pointer items-center justify-center bg-muted/40 transition-colors hover:bg-muted/60"
+        >
+          {fileIcon(file.mimeType, "lg")}
+        </a>
+      )}
       <div className="flex min-w-0 flex-1 flex-col gap-0.5 p-2.5">
         <div className="truncate text-sm font-medium" title={file.name}>
           {file.name}
@@ -246,7 +291,7 @@ function FileCard({
           {formatBytes(file.size)}
         </div>
       </div>
-      <div className="flex items-center gap-1 border-t px-2.5 py-1.5 sm:opacity-0 transition-opacity sm:group-hover:opacity-100">
+      <div className="flex items-center gap-1 border-t px-2.5 py-1.5 transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
         {canPreview ? (
           <Button
             variant="ghost"
@@ -258,7 +303,11 @@ function FileCard({
           </Button>
         ) : null}
         <Button variant="ghost" size="sm" className="h-7 px-2" asChild>
-          <a href={downloadUrl} download={file.name}>
+          <a
+            href={`${downloadUrl}?download=1`}
+            target="_blank"
+            rel="noreferrer"
+          >
             <Download className="size-3.5" />
           </a>
         </Button>
@@ -270,7 +319,11 @@ function FileCard({
           />
           <ConfirmationDialog
             trigger={
-              <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 text-destructive hover:text-destructive"
+              >
                 <Trash2 className="size-3.5" />
               </Button>
             }
@@ -294,6 +347,7 @@ function GridView({
   onPreview,
   onDeleteFolder,
   onDeleteFile,
+  folderBase,
 }: {
   folders: FolderItem[];
   files: FileItem[];
@@ -302,6 +356,7 @@ function GridView({
   onPreview: (f: FileItem) => void;
   onDeleteFolder: (id: string) => void;
   onDeleteFile: (id: string) => void;
+  folderBase: string;
 }) {
   return (
     <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
@@ -312,6 +367,7 @@ function GridView({
           clients={clients}
           projects={projects}
           onDelete={() => onDeleteFolder(folder.id)}
+          base={folderBase}
         />
       ))}
       {files.map((file) => (
@@ -336,6 +392,7 @@ function ListView({
   onPreview,
   onDeleteFolder,
   onDeleteFile,
+  folderBase,
 }: {
   folders: FolderItem[];
   files: FileItem[];
@@ -344,6 +401,7 @@ function ListView({
   onPreview: (f: FileItem) => void;
   onDeleteFolder: (id: string) => void;
   onDeleteFile: (id: string) => void;
+  folderBase: string;
 }) {
   const downloadUrl = (id: string) => `/admin/drive/download/${id}`;
 
@@ -362,24 +420,19 @@ function ListView({
           <TableRow key={folder.id} className="group">
             <TableCell>
               <Link
-                href={`/admin/drive?folder=${folder.id}`}
+                href={folderHref(folderBase, folder.id)}
                 className="flex items-center gap-2 font-medium hover:underline"
               >
                 <FaFolder className="size-4 shrink-0 text-amber-500" />
                 {folder.name}
               </Link>
-              {(folder.project?.name ?? folder.client?.name) ? (
-                <div className="ml-6 text-xs text-muted-foreground">
-                  {folder.project?.name ?? folder.client?.name}
-                </div>
-              ) : null}
             </TableCell>
             <TableCell className="text-muted-foreground">—</TableCell>
             <TableCell className="text-sm text-muted-foreground">
               {folder.project?.name ?? folder.client?.name ?? "General"}
             </TableCell>
             <TableCell className="text-right">
-              <div className="flex items-center justify-end gap-1 sm:opacity-0 transition-opacity sm:group-hover:opacity-100">
+              <div className="flex items-center justify-end gap-1 transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
                 <FolderEditDialog
                   folder={folder}
                   clients={clients}
@@ -387,7 +440,11 @@ function ListView({
                 />
                 <ConfirmationDialog
                   trigger={
-                    <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-destructive hover:text-destructive"
+                    >
                       <Trash2 className="size-4" />
                     </Button>
                   }
@@ -416,7 +473,7 @@ function ListView({
               {file.project?.name ?? file.client?.name ?? "General"}
             </TableCell>
             <TableCell className="text-right">
-              <div className="flex items-center justify-end gap-1 sm:opacity-0 transition-opacity sm:group-hover:opacity-100">
+              <div className="flex items-center justify-end gap-1 transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
                 {isPreviewable(file.mimeType) ? (
                   <Button
                     variant="ghost"
@@ -427,7 +484,11 @@ function ListView({
                   </Button>
                 ) : null}
                 <Button variant="ghost" size="sm" asChild>
-                  <a href={downloadUrl(file.id)} download={file.name}>
+                  <a
+                    href={`${downloadUrl(file.id)}?download=1`}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
                     <Download className="size-4" />
                   </a>
                 </Button>
@@ -438,7 +499,11 @@ function ListView({
                 />
                 <ConfirmationDialog
                   trigger={
-                    <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-destructive hover:text-destructive"
+                    >
                       <Trash2 className="size-4" />
                     </Button>
                   }
@@ -472,11 +537,13 @@ export function DriveView({
   files,
   clients,
   projects,
+  folderBase = "/admin/drive",
 }: {
   folders: FolderItem[];
   files: FileItem[];
   clients: Client[];
   projects: Project[];
+  folderBase?: string;
 }) {
   const router = useRouter();
   const [view, setView] = useState<"grid" | "list">("grid");
@@ -539,6 +606,7 @@ export function DriveView({
           onPreview={setPreview}
           onDeleteFolder={handleDeleteFolder}
           onDeleteFile={handleDeleteFile}
+          folderBase={folderBase}
         />
       ) : (
         <ListView
@@ -549,6 +617,7 @@ export function DriveView({
           onPreview={setPreview}
           onDeleteFolder={handleDeleteFolder}
           onDeleteFile={handleDeleteFile}
+          folderBase={folderBase}
         />
       )}
 

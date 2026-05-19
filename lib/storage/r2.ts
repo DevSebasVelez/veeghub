@@ -84,7 +84,10 @@ export async function getR2UploadUrl({
   );
 }
 
-export async function getR2DownloadUrl(key: string) {
+export async function getR2DownloadUrl(
+  key: string,
+  options?: { filename?: string },
+) {
   const { bucket } = getR2Config();
 
   return getSignedUrl(
@@ -92,6 +95,11 @@ export async function getR2DownloadUrl(key: string) {
     new GetObjectCommand({
       Bucket: bucket,
       Key: key,
+      ...(options?.filename
+        ? {
+            ResponseContentDisposition: `attachment; filename="${options.filename.replace(/"/g, '\\"')}"`,
+          }
+        : {}),
     }),
     { expiresIn: 60 * 5 },
   );
