@@ -4,8 +4,8 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
-import { updateClient } from "@/app/admin/actions";
-import { EditTrigger } from "@/components/admin/dialogs/_base";
+import { createClient, updateClient } from "@/app/admin/actions";
+import { CreateTrigger, EditTrigger } from "@/components/admin/dialogs/_base";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -31,6 +31,69 @@ type Props = {
   address: string | null;
   notes: string | null;
 };
+
+function ClientFields({ client }: { client?: Props }) {
+  return (
+    <FieldGroup>
+      <Field>
+        <FieldLabel>Nombre visible</FieldLabel>
+        <Input name="name" defaultValue={client?.name ?? ""} required />
+      </Field>
+      <Field>
+        <FieldLabel>Razón social</FieldLabel>
+        <Input name="legalName" defaultValue={client?.legalName ?? ""} />
+      </Field>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field>
+          <FieldLabel>RUC o cédula</FieldLabel>
+          <Input name="taxId" defaultValue={client?.taxId ?? ""} />
+        </Field>
+        <Field>
+          <FieldLabel>Teléfono</FieldLabel>
+          <Input name="phone" defaultValue={client?.phone ?? ""} />
+        </Field>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field>
+          <FieldLabel>Email principal</FieldLabel>
+          <Input
+            name="email"
+            type="email"
+            defaultValue={client?.email ?? ""}
+          />
+        </Field>
+        <Field>
+          <FieldLabel>Email facturación</FieldLabel>
+          <Input
+            name="billingEmail"
+            type="email"
+            defaultValue={client?.billingEmail ?? ""}
+          />
+        </Field>
+      </div>
+      <Field>
+        <FieldLabel>Sitio web</FieldLabel>
+        <Input
+          name="website"
+          type="url"
+          defaultValue={client?.website ?? ""}
+        />
+      </Field>
+      <Field>
+        <FieldLabel>Dirección</FieldLabel>
+        <Textarea
+          name="address"
+          defaultValue={client?.address ?? ""}
+          rows={2}
+        />
+      </Field>
+      <Field>
+        <FieldLabel>Notas</FieldLabel>
+        <Textarea name="notes" defaultValue={client?.notes ?? ""} rows={3} />
+      </Field>
+    </FieldGroup>
+  );
+}
 
 export function ClientEditDialog({ client }: { client: Props }) {
   const [open, setOpen] = useState(false);
@@ -60,70 +123,47 @@ export function ClientEditDialog({ client }: { client: Props }) {
           </DialogDescription>
         </DialogHeader>
         <form action={handleSave} className="space-y-4">
-          <FieldGroup>
-            <Field>
-              <FieldLabel>Nombre visible</FieldLabel>
-              <Input name="name" defaultValue={client.name} required />
-            </Field>
-            <Field>
-              <FieldLabel>Razón social</FieldLabel>
-              <Input name="legalName" defaultValue={client.legalName ?? ""} />
-            </Field>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <Field>
-                <FieldLabel>RUC o cédula</FieldLabel>
-                <Input name="taxId" defaultValue={client.taxId ?? ""} />
-              </Field>
-              <Field>
-                <FieldLabel>Teléfono</FieldLabel>
-                <Input name="phone" defaultValue={client.phone ?? ""} />
-              </Field>
-            </div>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <Field>
-                <FieldLabel>Email principal</FieldLabel>
-                <Input
-                  name="email"
-                  type="email"
-                  defaultValue={client.email ?? ""}
-                />
-              </Field>
-              <Field>
-                <FieldLabel>Email facturación</FieldLabel>
-                <Input
-                  name="billingEmail"
-                  type="email"
-                  defaultValue={client.billingEmail ?? ""}
-                />
-              </Field>
-            </div>
-            <Field>
-              <FieldLabel>Sitio web</FieldLabel>
-              <Input
-                name="website"
-                type="url"
-                defaultValue={client.website ?? ""}
-              />
-            </Field>
-            <Field>
-              <FieldLabel>Dirección</FieldLabel>
-              <Textarea
-                name="address"
-                defaultValue={client.address ?? ""}
-                rows={2}
-              />
-            </Field>
-            <Field>
-              <FieldLabel>Notas</FieldLabel>
-              <Textarea
-                name="notes"
-                defaultValue={client.notes ?? ""}
-                rows={3}
-              />
-            </Field>
-          </FieldGroup>
+          <ClientFields client={client} />
           <Button type="submit" className="w-full">
             Guardar cambios
+          </Button>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+export function CreateClientDialog() {
+  const [open, setOpen] = useState(false);
+  const router = useRouter();
+
+  async function handleSave(formData: FormData) {
+    try {
+      await createClient(formData);
+      setOpen(false);
+      router.refresh();
+      toast.success("Cliente creado.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Error al guardar");
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <CreateTrigger label="Nuevo cliente" />
+      </DialogTrigger>
+      <DialogContent className="max-h-[90svh] overflow-y-auto sm:max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>Nuevo cliente</DialogTitle>
+          <DialogDescription>
+            Guarda datos comerciales y de envío de facturas.
+          </DialogDescription>
+        </DialogHeader>
+        <form action={handleSave} className="space-y-4">
+          <ClientFields />
+          <Button type="submit" className="w-full">
+            Crear cliente
           </Button>
         </form>
       </DialogContent>

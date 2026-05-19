@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import {
   BadgeDollarSign,
   BriefcaseBusiness,
+  CheckSquare,
   FileText,
   Folder,
   KeyRound,
@@ -29,6 +30,7 @@ const navItems = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
   { href: "/admin/clientes", label: "Clientes", icon: Users },
   { href: "/admin/proyectos", label: "Proyectos", icon: BriefcaseBusiness },
+  { href: "/admin/tareas", label: "Tareas", icon: CheckSquare },
   { href: "/admin/finanzas", label: "Finanzas", icon: BadgeDollarSign },
   { href: "/admin/facturas", label: "Facturas", icon: FileText },
   { href: "/admin/reportes", label: "Reportes", icon: FaChartLine },

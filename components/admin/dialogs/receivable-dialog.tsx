@@ -54,11 +54,15 @@ export function ReceivableDialog({
   clients,
   projects,
   mode = "edit",
+  fixedClientId,
+  fixedProjectId,
 }: {
   receivable?: ReceivableProps;
   clients: EntityOption[];
   projects: EntityOption[];
   mode?: "create" | "edit";
+  fixedClientId?: string;
+  fixedProjectId?: string;
 }) {
   const [open, setOpen] = useState(false);
   const router = useRouter();
@@ -94,22 +98,30 @@ export function ReceivableDialog({
         </DialogHeader>
         <form action={handleSave} className="space-y-4">
           <FieldGroup>
-            <Field>
-              <FieldLabel>Cliente</FieldLabel>
-              <FormSelect
-                name="clientId"
-                defaultValue={receivable?.clientId ?? clients[0]?.id}
-                options={clients.map((c) => ({ value: c.id, label: c.name }))}
-              />
-            </Field>
-            <Field>
-              <FieldLabel>Proyecto</FieldLabel>
-              <FormSelect
-                name="projectId"
-                defaultValue={receivable?.projectId ?? "none"}
-                options={relationOptions(projects, "Sin proyecto")}
-              />
-            </Field>
+            {fixedClientId ? (
+              <input type="hidden" name="clientId" value={fixedClientId} />
+            ) : (
+              <Field>
+                <FieldLabel>Cliente</FieldLabel>
+                <FormSelect
+                  name="clientId"
+                  defaultValue={receivable?.clientId ?? clients[0]?.id}
+                  options={clients.map((c) => ({ value: c.id, label: c.name }))}
+                />
+              </Field>
+            )}
+            {fixedProjectId ? (
+              <input type="hidden" name="projectId" value={fixedProjectId} />
+            ) : (
+              <Field>
+                <FieldLabel>Proyecto</FieldLabel>
+                <FormSelect
+                  name="projectId"
+                  defaultValue={receivable?.projectId ?? "none"}
+                  options={relationOptions(projects, "Sin proyecto")}
+                />
+              </Field>
+            )}
             <Field>
               <FieldLabel>Concepto</FieldLabel>
               <Input

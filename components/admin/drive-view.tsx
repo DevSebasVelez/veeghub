@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import {
   FaFile,
   FaFileCode,
@@ -10,8 +12,10 @@ import {
   FaFolder,
   FaImage,
 } from "react-icons/fa6";
-import { Download, Eye, Grid2X2, List } from "lucide-react";
+import { Download, Eye, Grid2X2, List, Pencil, Trash2 } from "lucide-react";
 
+import { deleteFolder, deleteDriveFile } from "@/app/admin/actions";
+import { ConfirmationDialog } from "@/components/admin/confirmation-dialog";
 import { DriveFileEditDialog } from "@/components/admin/dialogs/drive-file-dialog";
 import { FolderEditDialog } from "@/components/admin/dialogs/folder-dialog";
 import { Button } from "@/components/ui/button";
@@ -144,10 +148,12 @@ function FolderCard({
   folder,
   clients,
   projects,
+  onDelete,
 }: {
   folder: FolderItem;
   clients: Client[];
   projects: Project[];
+  onDelete: () => void;
 }) {
   const subtitle = folder.project?.name ?? folder.client?.name ?? null;
   const count = (folder._count?.children ?? 0) + (folder._count?.files ?? 0);
@@ -158,8 +164,8 @@ function FolderCard({
         href={`/admin/drive?folder=${folder.id}`}
         className="flex min-w-0 flex-1 items-center gap-3"
       >
-        <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-amber-100 text-amber-600">
-          <FaFolder className="size-5" />
+        <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-amber-100 text-amber-600 dark:bg-amber-950 dark:text-amber-400">
+          <FaFolder className="size-4" />
         </div>
         <div className="min-w-0">
           <div className="truncate text-sm font-medium">{folder.name}</div>
@@ -175,11 +181,23 @@ function FolderCard({
           ) : null}
         </div>
       </Link>
-      <div className="shrink-0 sm:opacity-0 transition-opacity sm:group-hover:opacity-100">
+      <div className="flex shrink-0 items-center gap-1 sm:opacity-0 transition-opacity sm:group-hover:opacity-100">
         <FolderEditDialog
           folder={folder}
           clients={clients}
           projects={projects}
+        />
+        <ConfirmationDialog
+          trigger={
+            <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive">
+              <Trash2 className="size-3.5" />
+            </Button>
+          }
+          title="Eliminar carpeta"
+          description={`¿Eliminar "${folder.name}"? Se eliminarán también sus archivos y subcarpetas.`}
+          confirmLabel="Eliminar"
+          destructive
+          onConfirm={onDelete}
         />
       </div>
     </div>
@@ -191,11 +209,13 @@ function FileCard({
   clients,
   projects,
   onPreview,
+  onDelete,
 }: {
   file: FileItem;
   clients: Client[];
   projects: Project[];
   onPreview: () => void;
+  onDelete: () => void;
 }) {
   const downloadUrl = `/admin/drive/download/${file.id}`;
   const canPreview = isPreviewable(file.mimeType);
@@ -242,11 +262,23 @@ function FileCard({
             <Download className="size-3.5" />
           </a>
         </Button>
-        <div className="ml-auto">
+        <div className="ml-auto flex items-center gap-1">
           <DriveFileEditDialog
             file={file}
             clients={clients}
             projects={projects}
+          />
+          <ConfirmationDialog
+            trigger={
+              <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive">
+                <Trash2 className="size-3.5" />
+              </Button>
+            }
+            title="Eliminar archivo"
+            description={`¿Eliminar "${file.name}"?`}
+            confirmLabel="Eliminar"
+            destructive
+            onConfirm={onDelete}
           />
         </div>
       </div>
@@ -260,12 +292,16 @@ function GridView({
   clients,
   projects,
   onPreview,
+  onDeleteFolder,
+  onDeleteFile,
 }: {
   folders: FolderItem[];
   files: FileItem[];
   clients: Client[];
   projects: Project[];
   onPreview: (f: FileItem) => void;
+  onDeleteFolder: (id: string) => void;
+  onDeleteFile: (id: string) => void;
 }) {
   return (
     <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
@@ -275,6 +311,7 @@ function GridView({
           folder={folder}
           clients={clients}
           projects={projects}
+          onDelete={() => onDeleteFolder(folder.id)}
         />
       ))}
       {files.map((file) => (
@@ -284,6 +321,7 @@ function GridView({
           clients={clients}
           projects={projects}
           onPreview={() => onPreview(file)}
+          onDelete={() => onDeleteFile(file.id)}
         />
       ))}
     </div>
@@ -296,12 +334,16 @@ function ListView({
   clients,
   projects,
   onPreview,
+  onDeleteFolder,
+  onDeleteFile,
 }: {
   folders: FolderItem[];
   files: FileItem[];
   clients: Client[];
   projects: Project[];
   onPreview: (f: FileItem) => void;
+  onDeleteFolder: (id: string) => void;
+  onDeleteFile: (id: string) => void;
 }) {
   const downloadUrl = (id: string) => `/admin/drive/download/${id}`;
 
@@ -317,7 +359,7 @@ function ListView({
       </TableHeader>
       <TableBody>
         {folders.map((folder) => (
-          <TableRow key={folder.id}>
+          <TableRow key={folder.id} className="group">
             <TableCell>
               <Link
                 href={`/admin/drive?folder=${folder.id}`}
@@ -337,16 +379,30 @@ function ListView({
               {folder.project?.name ?? folder.client?.name ?? "General"}
             </TableCell>
             <TableCell className="text-right">
-              <FolderEditDialog
-                folder={folder}
-                clients={clients}
-                projects={projects}
-              />
+              <div className="flex items-center justify-end gap-1 sm:opacity-0 transition-opacity sm:group-hover:opacity-100">
+                <FolderEditDialog
+                  folder={folder}
+                  clients={clients}
+                  projects={projects}
+                />
+                <ConfirmationDialog
+                  trigger={
+                    <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive">
+                      <Trash2 className="size-4" />
+                    </Button>
+                  }
+                  title="Eliminar carpeta"
+                  description={`¿Eliminar "${folder.name}"?`}
+                  confirmLabel="Eliminar"
+                  destructive
+                  onConfirm={() => onDeleteFolder(folder.id)}
+                />
+              </div>
             </TableCell>
           </TableRow>
         ))}
         {files.map((file) => (
-          <TableRow key={file.id}>
+          <TableRow key={file.id} className="group">
             <TableCell>
               <div className="flex items-center gap-2">
                 {fileIcon(file.mimeType)}
@@ -360,7 +416,7 @@ function ListView({
               {file.project?.name ?? file.client?.name ?? "General"}
             </TableCell>
             <TableCell className="text-right">
-              <div className="flex items-center justify-end gap-1">
+              <div className="flex items-center justify-end gap-1 sm:opacity-0 transition-opacity sm:group-hover:opacity-100">
                 {isPreviewable(file.mimeType) ? (
                   <Button
                     variant="ghost"
@@ -379,6 +435,18 @@ function ListView({
                   file={file}
                   clients={clients}
                   projects={projects}
+                />
+                <ConfirmationDialog
+                  trigger={
+                    <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive">
+                      <Trash2 className="size-4" />
+                    </Button>
+                  }
+                  title="Eliminar archivo"
+                  description={`¿Eliminar "${file.name}"?`}
+                  confirmLabel="Eliminar"
+                  destructive
+                  onConfirm={() => onDeleteFile(file.id)}
                 />
               </div>
             </TableCell>
@@ -410,10 +478,31 @@ export function DriveView({
   clients: Client[];
   projects: Project[];
 }) {
+  const router = useRouter();
   const [view, setView] = useState<"grid" | "list">("grid");
   const [preview, setPreview] = useState<FileItem | null>(null);
 
   const isEmpty = folders.length === 0 && files.length === 0;
+
+  async function handleDeleteFolder(id: string) {
+    try {
+      await deleteFolder(id);
+      router.refresh();
+      toast.success("Carpeta eliminada.");
+    } catch {
+      toast.error("Error al eliminar carpeta");
+    }
+  }
+
+  async function handleDeleteFile(id: string) {
+    try {
+      await deleteDriveFile(id);
+      router.refresh();
+      toast.success("Archivo eliminado.");
+    } catch {
+      toast.error("Error al eliminar archivo");
+    }
+  }
 
   return (
     <div className="space-y-4">
@@ -448,6 +537,8 @@ export function DriveView({
           clients={clients}
           projects={projects}
           onPreview={setPreview}
+          onDeleteFolder={handleDeleteFolder}
+          onDeleteFile={handleDeleteFile}
         />
       ) : (
         <ListView
@@ -456,6 +547,8 @@ export function DriveView({
           clients={clients}
           projects={projects}
           onPreview={setPreview}
+          onDeleteFolder={handleDeleteFolder}
+          onDeleteFile={handleDeleteFile}
         />
       )}
 

@@ -199,7 +199,7 @@ export default async function ProjectDetailPage({
                     </span>
                   ) : null}
                 </div>
-                <TaskDialog projects={projects} mode="create" />
+                <TaskDialog projects={projects} mode="create" fixedProjectId={id} />
               </div>
               {project.tasks.length > 0 ? (
                 <Progress value={progress} className="mt-2 h-1.5" />
@@ -259,6 +259,7 @@ export default async function ProjectDetailPage({
                             <TaskDialog
                               task={forTaskDialog(task)}
                               projects={projects}
+                              fixedProjectId={id}
                             />
                           </div>
                         </div>
@@ -291,6 +292,7 @@ export default async function ProjectDetailPage({
                             <TaskDialog
                               task={forTaskDialog(task)}
                               projects={projects}
+                              fixedProjectId={id}
                             />
                           </div>
                         </div>
@@ -357,6 +359,8 @@ export default async function ProjectDetailPage({
                   clients={clients}
                   projects={projects}
                   mode="create"
+                  fixedClientId={project.client?.id ?? undefined}
+                  fixedProjectId={id}
                 />
               </div>
             </CardHeader>
@@ -414,6 +418,8 @@ export default async function ProjectDetailPage({
                     clients={clients}
                     projects={projects}
                     mode="create"
+                    fixedClientId={project.client?.id ?? undefined}
+                    fixedProjectId={id}
                   />
                 </div>
               </CardHeader>
@@ -452,6 +458,8 @@ export default async function ProjectDetailPage({
                     clients={clients}
                     projects={projects}
                     mode="create"
+                    fixedClientId={project.client?.id ?? undefined}
+                    fixedProjectId={id}
                   />
                 </div>
               </CardHeader>

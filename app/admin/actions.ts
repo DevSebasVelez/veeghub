@@ -723,6 +723,20 @@ export async function toggleTaskStatus(id: string, done: boolean) {
   revalidatePath("/admin/proyectos");
 }
 
+export async function deleteFolder(id: string) {
+  await requireAdmin();
+  await prisma.driveFolder.delete({ where: { id } });
+  revalidatePath("/admin/drive");
+  revalidatePath("/admin");
+}
+
+export async function deleteDriveFile(id: string) {
+  await requireAdmin();
+  await prisma.driveFile.delete({ where: { id } });
+  revalidatePath("/admin/drive");
+  revalidatePath("/admin");
+}
+
 export async function registerDriveFile(formData: FormData) {
   await requireAdmin();
 

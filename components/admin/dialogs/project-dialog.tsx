@@ -52,10 +52,12 @@ export function ProjectDialog({
   project,
   clients,
   mode = "edit",
+  fixedClientId,
 }: {
   project?: ProjectProps;
   clients: EntityOption[];
   mode?: "create" | "edit";
+  fixedClientId?: string;
 }) {
   const [open, setOpen] = useState(false);
   const router = useRouter();
@@ -95,14 +97,18 @@ export function ProjectDialog({
               <FieldLabel>Nombre</FieldLabel>
               <Input name="name" defaultValue={project?.name ?? ""} required />
             </Field>
-            <Field>
-              <FieldLabel>Cliente</FieldLabel>
-              <FormSelect
-                name="clientId"
-                defaultValue={project?.clientId ?? "none"}
-                options={relationOptions(clients, "Sin cliente")}
-              />
-            </Field>
+            {fixedClientId ? (
+              <input type="hidden" name="clientId" value={fixedClientId} />
+            ) : (
+              <Field>
+                <FieldLabel>Cliente</FieldLabel>
+                <FormSelect
+                  name="clientId"
+                  defaultValue={project?.clientId ?? "none"}
+                  options={relationOptions(clients, "Sin cliente")}
+                />
+              </Field>
+            )}
             <Field>
               <FieldLabel>Estado</FieldLabel>
               <FormSelect

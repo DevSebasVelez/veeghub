@@ -1,20 +1,13 @@
 import Link from "next/link";
 
-import { createClient } from "@/app/admin/actions";
-import { ClientEditDialog } from "@/components/admin/dialogs/client-dialog";
+import {
+  ClientEditDialog,
+  CreateClientDialog,
+} from "@/components/admin/dialogs/client-dialog";
 import { forClientDialog } from "@/lib/admin/serialize";
 import { getPage, Pagination } from "@/components/admin/pagination";
 import prisma from "@/lib/db/prisma";
-import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
   TableBody,
@@ -23,9 +16,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Textarea } from "@/components/ui/textarea";
 
-const PAGE_SIZE = 10;
+const PAGE_SIZE = 15;
 
 export default async function ClientsPage({
   searchParams,
@@ -36,7 +28,7 @@ export default async function ClientsPage({
   const page = getPage(pageParam);
   const [clients, total] = await Promise.all([
     prisma.client.findMany({
-      orderBy: { createdAt: "desc" },
+      orderBy: { name: "asc" },
       skip: (page - 1) * PAGE_SIZE,
       take: PAGE_SIZE,
       include: {
@@ -54,29 +46,36 @@ export default async function ClientsPage({
   ]);
 
   return (
-    <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
+    <div className="space-y-6">
+      <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Clientes</h1>
+          <p className="text-sm text-muted-foreground">
+            {total} cliente{total !== 1 ? "s" : ""} registrado{total !== 1 ? "s" : ""}.
+          </p>
+        </div>
+        <CreateClientDialog />
+      </div>
+
       <Card className="rounded-lg">
-        <CardHeader>
-          <CardTitle>Clientes</CardTitle>
-          <CardDescription>
-            Contactos, datos de facturación y relación con proyectos.
-          </CardDescription>
-        </CardHeader>
         <CardContent className="p-0">
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead className="pl-6">Cliente</TableHead>
-                  <TableHead>Facturación</TableHead>
-                  <TableHead>Proyectos</TableHead>
-                  <TableHead>Credenciales</TableHead>
+                  <TableHead>Razón social / RUC</TableHead>
+                  <TableHead>Email facturación</TableHead>
+                  <TableHead className="text-center">Proyectos</TableHead>
+                  <TableHead className="text-center">Hitos</TableHead>
+                  <TableHead className="text-center">Facturas</TableHead>
+                  <TableHead className="text-center">Credenciales</TableHead>
                   <TableHead className="pr-6 text-right">Acciones</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {clients.map((client) => (
-                  <TableRow key={client.id}>
+                  <TableRow key={client.id} className="group">
                     <TableCell className="pl-6">
                       <Link
                         href={`/admin/clientes/${client.id}`}
@@ -84,29 +83,56 @@ export default async function ClientsPage({
                       >
                         {client.name}
                       </Link>
-                      <div className="text-xs text-muted-foreground">
-                        {client.email ?? "Sin email principal"}
-                      </div>
+                      {client.email ? (
+                        <div className="text-xs text-muted-foreground">
+                          {client.email}
+                        </div>
+                      ) : null}
                     </TableCell>
-                    <TableCell>
-                      <div>
-                        {client.billingEmail ?? client.email ?? "Sin correo"}
-                      </div>
-                      <div className="text-xs text-muted-foreground">
-                        {client.taxId ?? "Sin RUC/cédula"}
-                      </div>
+                    <TableCell className="text-sm">
+                      <div>{client.legalName ?? <span className="text-muted-foreground/50">—</span>}</div>
+                      {client.taxId ? (
+                        <div className="text-xs text-muted-foreground">
+                          {client.taxId}
+                        </div>
+                      ) : null}
                     </TableCell>
-                    <TableCell>{client._count.projects}</TableCell>
-                    <TableCell>{client._count.credentials}</TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {client.billingEmail ?? client.email ?? (
+                        <span className="opacity-40">—</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-center text-sm font-medium">
+                      {client._count.projects > 0 ? client._count.projects : (
+                        <span className="text-muted-foreground/40">—</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-center text-sm font-medium">
+                      {client._count.receivables > 0 ? client._count.receivables : (
+                        <span className="text-muted-foreground/40">—</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-center text-sm font-medium">
+                      {client._count.invoices > 0 ? client._count.invoices : (
+                        <span className="text-muted-foreground/40">—</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-center text-sm font-medium">
+                      {client._count.credentials > 0 ? client._count.credentials : (
+                        <span className="text-muted-foreground/40">—</span>
+                      )}
+                    </TableCell>
                     <TableCell className="pr-6 text-right">
-                      <ClientEditDialog client={forClientDialog(client)} />
+                      <div className="sm:opacity-0 transition-opacity sm:group-hover:opacity-100">
+                        <ClientEditDialog client={forClientDialog(client)} />
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
                 {!clients.length ? (
                   <TableRow>
                     <TableCell
-                      colSpan={5}
+                      colSpan={8}
                       className="h-24 text-center text-muted-foreground"
                     >
                       Aún no hay clientes.
@@ -116,7 +142,7 @@ export default async function ClientsPage({
               </TableBody>
             </Table>
           </div>
-          <div className="px-6 pb-4 pt-2">
+          <div className="px-6 py-4">
             <Pagination
               page={page}
               pageSize={PAGE_SIZE}
@@ -124,62 +150,6 @@ export default async function ClientsPage({
               basePath="/admin/clientes"
             />
           </div>
-        </CardContent>
-      </Card>
-
-      <Card className="rounded-lg">
-        <CardHeader>
-          <CardTitle>Nuevo cliente</CardTitle>
-          <CardDescription>
-            Guarda datos comerciales y de envío de facturas.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form action={createClient}>
-            <FieldGroup>
-              <Field>
-                <FieldLabel htmlFor="name">Nombre visible</FieldLabel>
-                <Input id="name" name="name" required />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="legalName">Razón social</FieldLabel>
-                <Input id="legalName" name="legalName" />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="taxId">RUC o cédula</FieldLabel>
-                <Input id="taxId" name="taxId" />
-              </Field>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <Field>
-                  <FieldLabel htmlFor="email">Email principal</FieldLabel>
-                  <Input id="email" name="email" type="email" />
-                </Field>
-                <Field>
-                  <FieldLabel htmlFor="billingEmail">
-                    Email facturación
-                  </FieldLabel>
-                  <Input id="billingEmail" name="billingEmail" type="email" />
-                </Field>
-              </div>
-              <Field>
-                <FieldLabel htmlFor="phone">Teléfono</FieldLabel>
-                <Input id="phone" name="phone" />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="website">Sitio web</FieldLabel>
-                <Input id="website" name="website" type="url" />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="address">Dirección</FieldLabel>
-                <Textarea id="address" name="address" rows={2} />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="notes">Notas</FieldLabel>
-                <Textarea id="notes" name="notes" rows={3} />
-              </Field>
-              <Button type="submit">Crear cliente</Button>
-            </FieldGroup>
-          </form>
         </CardContent>
       </Card>
     </div>

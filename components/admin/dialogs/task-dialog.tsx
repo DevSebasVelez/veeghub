@@ -52,10 +52,12 @@ export function TaskDialog({
   task,
   projects,
   mode = "edit",
+  fixedProjectId,
 }: {
   task?: TaskProps;
   projects: EntityOption[];
   mode?: "create" | "edit";
+  fixedProjectId?: string;
 }) {
   const [open, setOpen] = useState(false);
   const router = useRouter();
@@ -91,14 +93,21 @@ export function TaskDialog({
         </DialogHeader>
         <form action={handleSave} className="space-y-4">
           <FieldGroup>
-            <Field>
-              <FieldLabel>Proyecto</FieldLabel>
-              <FormSelect
-                name="projectId"
-                defaultValue={task?.projectId ?? projects[0]?.id}
-                options={projects.map((p) => ({ value: p.id, label: p.name }))}
-              />
-            </Field>
+            {fixedProjectId ? (
+              <input type="hidden" name="projectId" value={fixedProjectId} />
+            ) : (
+              <Field>
+                <FieldLabel>Proyecto</FieldLabel>
+                <FormSelect
+                  name="projectId"
+                  defaultValue={task?.projectId ?? projects[0]?.id}
+                  options={projects.map((p) => ({
+                    value: p.id,
+                    label: p.name,
+                  }))}
+                />
+              </Field>
+            )}
             <Field>
               <FieldLabel>Tarea</FieldLabel>
               <Input name="title" defaultValue={task?.title ?? ""} required />

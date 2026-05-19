@@ -52,11 +52,15 @@ export function CredentialDialog({
   clients,
   projects,
   mode = "edit",
+  fixedClientId,
+  fixedProjectId,
 }: {
   credential?: CredentialProps;
   clients: EntityOption[];
   projects: EntityOption[];
   mode?: "create" | "edit";
+  fixedClientId?: string;
+  fixedProjectId?: string;
 }) {
   const [open, setOpen] = useState(false);
   const router = useRouter();
@@ -113,22 +117,30 @@ export function CredentialDialog({
                 options={kindOptions}
               />
             </Field>
-            <Field>
-              <FieldLabel>Cliente</FieldLabel>
-              <FormSelect
-                name="clientId"
-                defaultValue={credential?.clientId ?? "none"}
-                options={relationOptions(clients, "General")}
-              />
-            </Field>
-            <Field>
-              <FieldLabel>Proyecto</FieldLabel>
-              <FormSelect
-                name="projectId"
-                defaultValue={credential?.projectId ?? "none"}
-                options={relationOptions(projects, "Sin proyecto")}
-              />
-            </Field>
+            {fixedClientId ? (
+              <input type="hidden" name="clientId" value={fixedClientId} />
+            ) : (
+              <Field>
+                <FieldLabel>Cliente</FieldLabel>
+                <FormSelect
+                  name="clientId"
+                  defaultValue={credential?.clientId ?? "none"}
+                  options={relationOptions(clients, "General")}
+                />
+              </Field>
+            )}
+            {fixedProjectId ? (
+              <input type="hidden" name="projectId" value={fixedProjectId} />
+            ) : (
+              <Field>
+                <FieldLabel>Proyecto</FieldLabel>
+                <FormSelect
+                  name="projectId"
+                  defaultValue={credential?.projectId ?? "none"}
+                  options={relationOptions(projects, "Sin proyecto")}
+                />
+              </Field>
+            )}
             <Field>
               <FieldLabel>URL</FieldLabel>
               <Input
