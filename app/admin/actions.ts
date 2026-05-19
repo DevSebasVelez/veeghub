@@ -832,6 +832,15 @@ export async function deletePayment(id: string) {
     const newPaidAmount = Number(remaining._sum.amount ?? 0);
     const receivable = await tx.receivable.findUniqueOrThrow({
       where: { id: payment.receivableId },
+      include: {
+        invoice: {
+          select: {
+            id: true,
+            status: true,
+            emailLogs: { select: { id: true }, take: 1 },
+          },
+        },
+      },
     });
     const receivableAmount = Number(receivable.amount);
 
@@ -854,6 +863,18 @@ export async function deletePayment(id: string) {
       where: { id: payment.receivableId },
       data: { paidAmount: newPaidAmount, status: newStatus },
     });
+
+    // Sync invoice back if receivable is no longer fully paid
+    if (newStatus !== "PAID" && receivable.invoice?.status === "PAID") {
+      const wasSent = receivable.invoice.emailLogs.length > 0;
+      await tx.invoice.update({
+        where: { id: receivable.invoice.id },
+        data: {
+          status: wasSent ? "SENT" : "READY_TO_SEND",
+          paidAt: null,
+        },
+      });
+    }
   });
 
   revalidatePath("/admin");
@@ -886,6 +907,15 @@ export async function updatePayment(id: string, formData: FormData) {
     const newPaidAmount = Number(aggregate._sum.amount ?? 0);
     const receivable = await tx.receivable.findUniqueOrThrow({
       where: { id: payment.receivableId },
+      include: {
+        invoice: {
+          select: {
+            id: true,
+            status: true,
+            emailLogs: { select: { id: true }, take: 1 },
+          },
+        },
+      },
     });
 
     let newStatus: ReceivableStatus;
@@ -901,6 +931,18 @@ export async function updatePayment(id: string, formData: FormData) {
       where: { id: payment.receivableId },
       data: { paidAmount: newPaidAmount, status: newStatus },
     });
+
+    // Sync invoice back if receivable is no longer fully paid
+    if (newStatus !== "PAID" && receivable.invoice?.status === "PAID") {
+      const wasSent = receivable.invoice.emailLogs.length > 0;
+      await tx.invoice.update({
+        where: { id: receivable.invoice.id },
+        data: {
+          status: wasSent ? "SENT" : "READY_TO_SEND",
+          paidAt: null,
+        },
+      });
+    }
   });
 
   revalidatePath("/admin");
