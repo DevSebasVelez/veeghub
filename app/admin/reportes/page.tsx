@@ -1,19 +1,19 @@
 import { startOfMonth, subMonths, format, endOfMonth } from "date-fns";
 import { es } from "date-fns/locale";
-import { FaChartLine, FaCircleDollarToSlot } from "react-icons/fa6";
+import {
+  AlertTriangle,
+  BarChart3,
+  CheckCircle2,
+  Clock,
+  DollarSign,
+  FileText,
+} from "lucide-react";
 
 import { CashFlowChart, MonthlyBillingChart } from "@/components/admin/charts";
 import { StatusBadge } from "@/components/admin/status-badge";
-import { ReportMonthFilter } from "@/app/admin/reportes/report-month-filter";
+import { ReportFilter } from "@/app/admin/reportes/report-month-filter";
 import prisma from "@/lib/db/prisma";
 import { formatCurrency, formatDate } from "@/lib/admin/format";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import {
   Table,
   TableBody,
@@ -26,22 +26,23 @@ import {
 export default async function ReportsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ month?: string }>;
+  searchParams: Promise<{ year?: string; month?: string }>;
 }) {
-  const { month } = await searchParams;
-  const months = Array.from({ length: 12 }, (_, index) =>
-    startOfMonth(subMonths(new Date(), 11 - index)),
-  );
-  const monthOptions = months.map((date) => ({
-    value: format(date, "yyyy-MM"),
-    label: format(date, "MMMM yyyy", { locale: es }),
-  }));
-  const selectedMonth =
-    month ?? monthOptions.at(-1)?.value ?? format(new Date(), "yyyy-MM");
-  const selectedDate = new Date(`${selectedMonth}-01T00:00:00`);
+  const params = await searchParams;
+  const now = new Date();
+  const selectedYear = params.year ? Number(params.year) : now.getFullYear();
+  const selectedMonth = params.month ? Number(params.month) : now.getMonth() + 1;
+
+  const selectedDate = new Date(selectedYear, selectedMonth - 1, 1);
   const selectedStart = startOfMonth(selectedDate);
   const selectedEnd = endOfMonth(selectedDate);
+
+  const months = Array.from({ length: 12 }, (_, i) =>
+    startOfMonth(subMonths(selectedDate, 11 - i)),
+  );
+
   const [
+    earliestInvoice,
     invoices,
     payments,
     receivables,
@@ -49,6 +50,11 @@ export default async function ReportsPage({
     selectedPayments,
     pendingReceivables,
   ] = await Promise.all([
+    prisma.invoice.findFirst({
+      select: { issueDate: true },
+      where: { issueDate: { not: null } },
+      orderBy: { issueDate: "asc" },
+    }),
     prisma.invoice.findMany({
       where: { issueDate: { gte: months[0] } },
       include: { client: true },
@@ -71,37 +77,45 @@ export default async function ReportsPage({
       orderBy: { paidAt: "desc" },
     }),
     prisma.receivable.findMany({
-      where: {
-        status: { not: "PAID" },
-      },
+      where: { status: { not: "PAID" } },
       include: { client: true, project: true },
       orderBy: [{ dueDate: "asc" }, { createdAt: "desc" }],
     }),
   ]);
+
+  const startYear = earliestInvoice?.issueDate
+    ? new Date(earliestInvoice.issueDate).getFullYear()
+    : now.getFullYear();
+  const currentYear = now.getFullYear();
+  const availableYears = Array.from(
+    { length: currentYear - startYear + 1 },
+    (_, i) => startYear + i,
+  );
+  if (!availableYears.includes(currentYear)) availableYears.push(currentYear);
+
   const monthlyData = months.map((date) => {
     const key = format(date, "yyyy-MM");
-    const monthInvoices = invoices.filter((invoice) =>
-      invoice.issueDate ? format(invoice.issueDate, "yyyy-MM") === key : false,
+    const monthInvoices = invoices.filter((inv) =>
+      inv.issueDate ? format(inv.issueDate, "yyyy-MM") === key : false,
     );
     const monthPayments = payments.filter(
-      (payment) => format(payment.paidAt, "yyyy-MM") === key,
+      (p) => format(p.paidAt, "yyyy-MM") === key,
     );
     const monthReceivables = receivables.filter(
-      (item) => format(item.createdAt, "yyyy-MM") === key,
+      (r) => format(r.createdAt, "yyyy-MM") === key,
     );
     const invoiced = monthInvoices.reduce(
-      (sum, invoice) => sum + Number(invoice.total),
+      (sum, inv) => sum + Number(inv.total),
       0,
     );
     const collected = monthPayments.reduce(
-      (sum, payment) => sum + Number(payment.amount),
+      (sum, p) => sum + Number(p.amount),
       0,
     );
     const pending = monthReceivables.reduce(
-      (sum, item) => sum + Number(item.amount) - Number(item.paidAmount),
+      (sum, r) => sum + Number(r.amount) - Number(r.paidAmount),
       0,
     );
-
     return {
       month: format(date, "MMM", { locale: es }),
       invoiced,
@@ -109,242 +123,308 @@ export default async function ReportsPage({
       pending,
     };
   });
+
   const selectedInvoiced = selectedInvoices.reduce(
-    (sum, invoice) => sum + Number(invoice.total),
+    (sum, inv) => sum + Number(inv.total),
     0,
   );
   const selectedCollected = selectedPayments.reduce(
-    (sum, payment) => sum + Number(payment.amount),
+    (sum, p) => sum + Number(p.amount),
     0,
   );
   const outstandingReceivables = pendingReceivables.filter(
-    (item) => Number(item.amount) - Number(item.paidAmount) > 0,
+    (r) => Number(r.amount) - Number(r.paidAmount) > 0,
   );
   const totalPending = outstandingReceivables.reduce(
-    (sum, item) => sum + Number(item.amount) - Number(item.paidAmount),
+    (sum, r) => sum + Number(r.amount) - Number(r.paidAmount),
     0,
   );
   const overdue = outstandingReceivables.filter(
-    (item) => item.dueDate && item.dueDate < new Date(),
+    (r) => r.dueDate && r.dueDate < new Date(),
   );
+
+  const periodLabel = format(selectedDate, "MMMM yyyy", { locale: es });
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div>
-          <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-normal">
-            <FaChartLine className="text-blue-600" />
+          <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight">
+            <BarChart3 className="text-blue-500" size={22} />
             Reportes
           </h1>
-          <p className="text-sm text-muted-foreground">
-            Facturación, cobros reales y cuentas por cobrar por mes.
+          <p className="mt-1 text-sm text-muted-foreground">
+            Facturación, cobros y cuentas por cobrar del período.
           </p>
         </div>
-        <ReportMonthFilter value={selectedMonth} options={monthOptions} />
+        <ReportFilter
+          year={selectedYear}
+          month={selectedMonth}
+          availableYears={availableYears}
+        />
       </div>
 
-      <div className="grid gap-3 md:grid-cols-4">
-        <Metric
+      <div className="rounded-xl border border-border bg-card px-4 py-3">
+        <p className="text-sm font-medium text-foreground">
+          Período seleccionado:{" "}
+          <span className="capitalize text-muted-foreground">{periodLabel}</span>
+        </p>
+        <p className="mt-0.5 text-xs text-muted-foreground">
+          Los gráficos muestran los 12 meses anteriores al período.
+        </p>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <StatCard
           label="Facturado en el mes"
           value={formatCurrency(selectedInvoiced)}
-          tone="blue"
+          helper={`${selectedInvoices.length} facturas emitidas`}
+          icon={FileText}
+          accent="text-blue-500"
         />
-        <Metric
+        <StatCard
           label="Cobrado en el mes"
           value={formatCurrency(selectedCollected)}
-          tone="emerald"
+          helper={`${selectedPayments.length} pagos registrados`}
+          icon={CheckCircle2}
+          accent="text-emerald-500"
         />
-        <Metric
+        <StatCard
           label="Total por cobrar"
           value={formatCurrency(totalPending)}
-          tone="amber"
+          helper={`${outstandingReceivables.length} hitos abiertos`}
+          icon={Clock}
+          accent="text-amber-500"
         />
-        <Metric label="Vencidos" value={`${overdue.length} hitos`} tone="red" />
+        <StatCard
+          label="Hitos vencidos"
+          value={`${overdue.length}`}
+          helper="Requieren atención inmediata"
+          icon={AlertTriangle}
+          accent="text-red-500"
+        />
       </div>
 
       <div className="grid gap-4 xl:grid-cols-2">
-        <Card className="rounded-lg">
-          <CardHeader>
-            <CardTitle>Facturado vs cobrado</CardTitle>
-            <CardDescription>
-              Comparativo mensual de los últimos 12 meses.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <MonthlyBillingChart data={monthlyData} />
-          </CardContent>
-        </Card>
-        <Card className="rounded-lg">
-          <CardHeader>
-            <CardTitle>Flujo de cobros</CardTitle>
-            <CardDescription>
-              Cobros recibidos contra pendiente generado.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <CashFlowChart data={monthlyData} />
-          </CardContent>
-        </Card>
+        <ChartPanel
+          title="Facturado vs cobrado"
+          description="Comparativo mensual de los últimos 12 meses."
+        >
+          <MonthlyBillingChart data={monthlyData} />
+        </ChartPanel>
+        <ChartPanel
+          title="Flujo de cobros"
+          description="Cobros recibidos contra pendiente generado."
+        >
+          <CashFlowChart data={monthlyData} />
+        </ChartPanel>
       </div>
 
-      <Card className="rounded-lg">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <FaCircleDollarToSlot className="text-amber-600" />
-            Cuentas por cobrar críticas
-          </CardTitle>
-          <CardDescription>
-            Pendientes abiertos ordenados por fecha de vencimiento.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="p-0">
+      <div className="overflow-hidden rounded-xl border border-border bg-card">
+        <div className="flex items-center gap-2 border-b border-border px-5 py-4">
+          <DollarSign size={15} className="text-amber-500" />
+          <div>
+            <h2 className="text-sm font-semibold">
+              Cuentas por cobrar críticas
+            </h2>
+            <p className="text-xs text-muted-foreground">
+              Pendientes abiertos ordenados por fecha de vencimiento.
+            </p>
+          </div>
+        </div>
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="pl-5">Hito</TableHead>
+                <TableHead>Cliente</TableHead>
+                <TableHead>Estado</TableHead>
+                <TableHead>Saldo</TableHead>
+                <TableHead className="pr-5">Vence</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {outstandingReceivables.slice(0, 10).map((item) => (
+                <TableRow key={item.id}>
+                  <TableCell className="pl-5">
+                    <div className="font-medium">{item.title}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {item.project?.name ?? "Sin proyecto"}
+                    </div>
+                  </TableCell>
+                  <TableCell>{item.client.name}</TableCell>
+                  <TableCell>
+                    <StatusBadge value={item.status} />
+                  </TableCell>
+                  <TableCell className="font-mono text-sm">
+                    {formatCurrency(
+                      Number(item.amount) - Number(item.paidAmount),
+                    )}
+                  </TableCell>
+                  <TableCell className="pr-5">
+                    {formatDate(item.dueDate)}
+                  </TableCell>
+                </TableRow>
+              ))}
+              {outstandingReceivables.length === 0 && (
+                <TableRow>
+                  <TableCell
+                    colSpan={5}
+                    className="py-8 text-center text-sm text-muted-foreground"
+                  >
+                    No hay cuentas por cobrar pendientes.
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </div>
+      </div>
+
+      <div className="grid gap-4 xl:grid-cols-2">
+        <div className="overflow-hidden rounded-xl border border-border bg-card">
+          <div className="border-b border-border px-5 py-4">
+            <h2 className="text-sm font-semibold">Facturas del mes</h2>
+            <p className="mt-0.5 text-xs text-muted-foreground capitalize">
+              Emitidas en {periodLabel}.
+            </p>
+          </div>
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="pl-6">Hito</TableHead>
+                  <TableHead className="pl-5">Factura</TableHead>
                   <TableHead>Cliente</TableHead>
-                  <TableHead>Estado</TableHead>
-                  <TableHead>Saldo</TableHead>
-                  <TableHead className="pr-6">Vence</TableHead>
+                  <TableHead>Total</TableHead>
+                  <TableHead className="pr-5">Estado</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {outstandingReceivables.slice(0, 10).map((item) => (
-                  <TableRow key={item.id}>
-                    <TableCell className="pl-6">
-                      <div className="font-medium">{item.title}</div>
-                      <div className="text-xs text-muted-foreground">
-                        {item.project?.name ?? "Sin proyecto"}
-                      </div>
+                {selectedInvoices.map((invoice) => (
+                  <TableRow key={invoice.id}>
+                    <TableCell className="pl-5 font-mono text-xs">
+                      {invoice.invoiceNumber ?? "Sin número"}
                     </TableCell>
-                    <TableCell>{item.client.name}</TableCell>
-                    <TableCell>
-                      <StatusBadge value={item.status} />
+                    <TableCell>{invoice.client.name}</TableCell>
+                    <TableCell className="font-mono text-sm">
+                      {formatCurrency(invoice.total.toString())}
                     </TableCell>
-                    <TableCell>
-                      {formatCurrency(
-                        Number(item.amount) - Number(item.paidAmount),
-                      )}
-                    </TableCell>
-                    <TableCell className="pr-6">
-                      {formatDate(item.dueDate)}
+                    <TableCell className="pr-5">
+                      <StatusBadge value={invoice.status} />
                     </TableCell>
                   </TableRow>
                 ))}
+                {selectedInvoices.length === 0 && (
+                  <TableRow>
+                    <TableCell
+                      colSpan={4}
+                      className="py-8 text-center text-sm text-muted-foreground"
+                    >
+                      No hay facturas en este período.
+                    </TableCell>
+                  </TableRow>
+                )}
               </TableBody>
             </Table>
           </div>
-        </CardContent>
-      </Card>
+        </div>
 
-      <div className="grid gap-4 xl:grid-cols-2">
-        <Card className="rounded-lg">
-          <CardHeader>
-            <CardTitle>Facturas del mes</CardTitle>
-            <CardDescription>
-              Emitidas en el periodo seleccionado.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="p-0">
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="pl-6">Factura</TableHead>
-                    <TableHead>Cliente</TableHead>
-                    <TableHead>Total</TableHead>
-                    <TableHead className="pr-6">Estado</TableHead>
+        <div className="overflow-hidden rounded-xl border border-border bg-card">
+          <div className="border-b border-border px-5 py-4">
+            <h2 className="text-sm font-semibold">Cobros del mes</h2>
+            <p className="mt-0.5 text-xs text-muted-foreground capitalize">
+              Pagos registrados en {periodLabel}.
+            </p>
+          </div>
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="pl-5">Hito</TableHead>
+                  <TableHead>Cliente</TableHead>
+                  <TableHead>Monto</TableHead>
+                  <TableHead className="pr-5">Fecha</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {selectedPayments.map((payment) => (
+                  <TableRow key={payment.id}>
+                    <TableCell className="pl-5">
+                      {payment.receivable.title}
+                    </TableCell>
+                    <TableCell>{payment.receivable.client.name}</TableCell>
+                    <TableCell className="font-mono text-sm">
+                      {formatCurrency(payment.amount.toString())}
+                    </TableCell>
+                    <TableCell className="pr-5">
+                      {formatDate(payment.paidAt)}
+                    </TableCell>
                   </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {selectedInvoices.map((invoice) => (
-                    <TableRow key={invoice.id}>
-                      <TableCell className="pl-6">
-                        {invoice.invoiceNumber ?? "Sin número"}
-                      </TableCell>
-                      <TableCell>{invoice.client.name}</TableCell>
-                      <TableCell>
-                        {formatCurrency(invoice.total.toString())}
-                      </TableCell>
-                      <TableCell className="pr-6">
-                        <StatusBadge value={invoice.status} />
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="rounded-lg">
-          <CardHeader>
-            <CardTitle>Cobros del mes</CardTitle>
-            <CardDescription>
-              Pagos registrados en el periodo seleccionado.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="p-0">
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
+                ))}
+                {selectedPayments.length === 0 && (
                   <TableRow>
-                    <TableHead className="pl-6">Hito</TableHead>
-                    <TableHead>Cliente</TableHead>
-                    <TableHead>Monto</TableHead>
-                    <TableHead className="pr-6">Fecha</TableHead>
+                    <TableCell
+                      colSpan={4}
+                      className="py-8 text-center text-sm text-muted-foreground"
+                    >
+                      No hay cobros en este período.
+                    </TableCell>
                   </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {selectedPayments.map((payment) => (
-                    <TableRow key={payment.id}>
-                      <TableCell className="pl-6">
-                        {payment.receivable.title}
-                      </TableCell>
-                      <TableCell>{payment.receivable.client.name}</TableCell>
-                      <TableCell>
-                        {formatCurrency(payment.amount.toString())}
-                      </TableCell>
-                      <TableCell className="pr-6">
-                        {formatDate(payment.paidAt)}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          </CardContent>
-        </Card>
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </div>
       </div>
     </div>
   );
 }
 
-function Metric({
+function StatCard({
   label,
   value,
-  tone,
+  helper,
+  icon: Icon,
+  accent,
 }: {
   label: string;
   value: string;
-  tone: "blue" | "emerald" | "amber" | "red";
+  helper: string;
+  icon: React.ComponentType<{ size?: number; className?: string }>;
+  accent: string;
 }) {
-  const styles = {
-    blue: "border-blue-100 bg-blue-50 text-blue-700 dark:border-blue-900 dark:bg-blue-950 dark:text-blue-300",
-    emerald:
-      "border-emerald-100 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-300",
-    amber:
-      "border-amber-100 bg-amber-50 text-amber-700 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-300",
-    red: "border-red-100 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300",
-  };
-
   return (
-    <Card className={`rounded-lg ${styles[tone]}`}>
-      <CardContent className="p-4">
-        <div className="text-sm opacity-80">{label}</div>
-        <div className="mt-1 text-2xl font-semibold">{value}</div>
-      </CardContent>
-    </Card>
+    <div className="rounded-xl border border-border bg-card p-4">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-xs uppercase tracking-wide text-muted-foreground">
+          {label}
+        </p>
+        <Icon size={16} className={accent} />
+      </div>
+      <p className="mt-2 text-2xl font-semibold tabular-nums text-foreground">
+        {value}
+      </p>
+      <p className="mt-1 text-xs text-muted-foreground">{helper}</p>
+    </div>
+  );
+}
+
+function ChartPanel({
+  title,
+  description,
+  children,
+}: {
+  title: string;
+  description: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="rounded-xl border border-border bg-card p-5">
+      <div className="mb-4">
+        <h2 className="text-sm font-semibold text-foreground">{title}</h2>
+        <p className="mt-0.5 text-xs text-muted-foreground">{description}</p>
+      </div>
+      {children}
+    </div>
   );
 }
