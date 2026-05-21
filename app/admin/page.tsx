@@ -1,27 +1,40 @@
 import Link from "next/link";
 import {
+  AlertTriangle,
+  BarChart3,
   BadgeDollarSign,
   BriefcaseBusiness,
   CheckCircle2,
   Clock3,
   FileText,
   KeyRound,
+  Plus,
   Users,
 } from "lucide-react";
 
 import prisma from "@/lib/db/prisma";
 import { formatCurrency, formatDate } from "@/lib/admin/format";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+
+const PRIORITY_STYLES: Record<string, string> = {
+  URGENT:
+    "bg-red-100 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800",
+  HIGH: "bg-orange-100 text-orange-700 border-orange-200 dark:bg-orange-900/30 dark:text-orange-400 dark:border-orange-800",
+  MEDIUM:
+    "bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-800",
+  LOW: "bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700",
+};
+
+const PRIORITY_LABELS: Record<string, string> = {
+  URGENT: "Urgente",
+  HIGH: "Alta",
+  MEDIUM: "Media",
+  LOW: "Baja",
+};
 
 export default async function AdminPage() {
+  const now = new Date();
+
   const [
     clients,
     activeProjects,
@@ -44,7 +57,7 @@ export default async function AdminPage() {
     prisma.task.findMany({
       where: { status: { not: "DONE" } },
       orderBy: [{ dueDate: "asc" }, { createdAt: "desc" }],
-      take: 5,
+      take: 6,
       include: { project: { select: { name: true } } },
     }),
     prisma.receivable.findMany({
@@ -56,6 +69,7 @@ export default async function AdminPage() {
       },
     }),
   ]);
+
   const outstandingReceivables = upcomingReceivables.filter(
     (item) => Number(item.amount) - Number(item.paidAmount) > 0,
   );
@@ -63,143 +77,264 @@ export default async function AdminPage() {
     (total, item) => total + Number(item.amount) - Number(item.paidAmount),
     0,
   );
+  const overdueCount = outstandingReceivables.filter(
+    (item) => item.dueDate && item.dueDate < now,
+  ).length;
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold tracking-normal">Dashboard</h1>
-          <p className="text-sm text-muted-foreground">
+          <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
+          <p className="mt-0.5 text-sm text-muted-foreground">
             Vista operativa de proyectos, cobros, facturas y accesos.
           </p>
         </div>
-        <Button asChild>
-          <Link href="/admin/proyectos">Nuevo proyecto</Link>
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" asChild>
+            <Link href="/admin/reportes">
+              <BarChart3 size={15} />
+              Reportes
+            </Link>
+          </Button>
+          <Button asChild>
+            <Link href="/admin/proyectos">
+              <Plus size={15} />
+              Nuevo proyecto
+            </Link>
+          </Button>
+        </div>
       </div>
 
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        <MetricCard icon={Users} label="Clientes" value={clients} />
-        <MetricCard
-          icon={BriefcaseBusiness}
-          label="Proyectos activos"
-          value={activeProjects}
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        <StatCard
+          href="/admin/clientes"
+          icon={Users}
+          accent="text-blue-500"
+          label="Clientes"
+          value={String(clients)}
+          helper="registrados en el sistema"
         />
-        <MetricCard icon={Clock3} label="Tareas abiertas" value={openTasks} />
-        <MetricCard
+        <StatCard
+          href="/admin/proyectos"
+          icon={BriefcaseBusiness}
+          accent="text-emerald-500"
+          label="Proyectos activos"
+          value={String(activeProjects)}
+          helper="en desarrollo actualmente"
+        />
+        <StatCard
+          href="/admin/tareas"
+          icon={Clock3}
+          accent="text-amber-500"
+          label="Tareas abiertas"
+          value={String(openTasks)}
+          helper="pendientes de completar"
+        />
+        <StatCard
+          href="/admin/finanzas"
           icon={BadgeDollarSign}
+          accent="text-cyan-500"
           label="Por cobrar"
           value={formatCurrency(receivableBalance)}
+          helper={
+            overdueCount > 0
+              ? `${overdueCount} hito${overdueCount !== 1 ? "s" : ""} vencido${overdueCount !== 1 ? "s" : ""}`
+              : "saldo total pendiente"
+          }
+          alert={overdueCount > 0}
         />
-        <MetricCard
+        <StatCard
+          href="/admin/facturas"
           icon={FileText}
+          accent="text-indigo-500"
           label="Facturas por enviar"
-          value={pendingInvoices}
+          value={String(pendingInvoices)}
+          helper="listas para entregar al cliente"
         />
-        <MetricCard
+        <StatCard
+          href="/admin/credenciales"
           icon={KeyRound}
-          label="Credenciales guardadas"
-          value={credentials}
+          accent="text-slate-500"
+          label="Credenciales"
+          value={String(credentials)}
+          helper="accesos almacenados"
         />
       </div>
 
       <div className="grid gap-4 xl:grid-cols-2">
-        <Card className="rounded-lg">
-          <CardHeader>
-            <CardTitle>Tareas próximas</CardTitle>
-            <CardDescription>Lo que necesita atención primero.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
+        <div className="overflow-hidden rounded-xl border border-border bg-card">
+          <div className="flex items-center justify-between border-b border-border px-5 py-4">
+            <div>
+              <h2 className="text-sm font-semibold">Tareas próximas</h2>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                Lo que necesita atención primero.
+              </p>
+            </div>
+            <Link
+              href="/admin/tareas"
+              className="text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+            >
+              Ver todas
+            </Link>
+          </div>
+          <div className="divide-y divide-border">
             {recentTasks.length ? (
-              recentTasks.map((task) => (
-                <div
-                  key={task.id}
-                  className="flex items-center justify-between gap-3 rounded-lg border p-3"
-                >
-                  <div className="min-w-0">
-                    <div className="truncate text-sm font-medium">
-                      {task.title}
+              recentTasks.map((task) => {
+                const isOverdue = task.dueDate && task.dueDate < now;
+                return (
+                  <div
+                    key={task.id}
+                    className="flex items-center justify-between gap-3 px-5 py-3.5"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        {isOverdue && (
+                          <AlertTriangle
+                            size={13}
+                            className="shrink-0 text-red-500"
+                          />
+                        )}
+                        <span className="truncate text-sm font-medium">
+                          {task.title}
+                        </span>
+                      </div>
+                      <div className="mt-0.5 text-xs text-muted-foreground">
+                        {task.project.name}
+                        {task.dueDate && (
+                          <>
+                            {" · "}
+                            <span className={isOverdue ? "text-red-500" : ""}>
+                              {formatDate(task.dueDate)}
+                            </span>
+                          </>
+                        )}
+                      </div>
                     </div>
-                    <div className="text-xs text-muted-foreground">
-                      {task.project.name} · {formatDate(task.dueDate)}
-                    </div>
+                    <span
+                      className={`shrink-0 rounded-full border px-2 py-0.5 text-xs font-medium ${PRIORITY_STYLES[task.priority] ?? PRIORITY_STYLES.LOW}`}
+                    >
+                      {PRIORITY_LABELS[task.priority] ?? task.priority}
+                    </span>
                   </div>
-                  <Badge variant="outline">{task.priority}</Badge>
-                </div>
-              ))
+                );
+              })
             ) : (
               <EmptyState text="No hay tareas abiertas." />
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </div>
 
-        <Card className="rounded-lg">
-          <CardHeader>
-            <CardTitle>Cuentas por cobrar</CardTitle>
-            <CardDescription>Hitos y pagos pendientes.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
+        <div className="overflow-hidden rounded-xl border border-border bg-card">
+          <div className="flex items-center justify-between border-b border-border px-5 py-4">
+            <div>
+              <h2 className="text-sm font-semibold">Cuentas por cobrar</h2>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                Hitos pendientes más próximos a vencer.
+              </p>
+            </div>
+            <Link
+              href="/admin/finanzas"
+              className="text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+            >
+              Ver todas
+            </Link>
+          </div>
+          <div className="divide-y divide-border">
             {outstandingReceivables.length ? (
-              outstandingReceivables.slice(0, 5).map((item) => (
-                <div
-                  key={item.id}
-                  className="flex items-center justify-between gap-3 rounded-lg border p-3"
-                >
-                  <div className="min-w-0">
-                    <div className="truncate text-sm font-medium">
-                      {item.title}
+              outstandingReceivables.slice(0, 6).map((item) => {
+                const balance = Number(item.amount) - Number(item.paidAmount);
+                const isOverdue = item.dueDate && item.dueDate < now;
+                return (
+                  <div
+                    key={item.id}
+                    className="flex items-center justify-between gap-3 px-5 py-3.5"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        {isOverdue && (
+                          <AlertTriangle
+                            size={13}
+                            className="shrink-0 text-red-500"
+                          />
+                        )}
+                        <span className="truncate text-sm font-medium">
+                          {item.title}
+                        </span>
+                      </div>
+                      <div className="mt-0.5 text-xs text-muted-foreground">
+                        {item.client.name}
+                        {item.project ? ` · ${item.project.name}` : ""}
+                        {item.dueDate && (
+                          <>
+                            {" · "}
+                            <span className={isOverdue ? "text-red-500" : ""}>
+                              {formatDate(item.dueDate)}
+                            </span>
+                          </>
+                        )}
+                      </div>
                     </div>
-                    <div className="text-xs text-muted-foreground">
-                      {item.client.name}
-                      {item.project ? ` · ${item.project.name}` : ""} ·{" "}
-                      {formatDate(item.dueDate)}
-                    </div>
+                    <span className="shrink-0 font-mono text-sm font-semibold tabular-nums">
+                      {formatCurrency(balance)}
+                    </span>
                   </div>
-                  <div className="text-right text-sm font-medium">
-                    {formatCurrency(
-                      Number(item.amount) - Number(item.paidAmount),
-                    )}
-                  </div>
-                </div>
-              ))
+                );
+              })
             ) : (
               <EmptyState text="No hay cobros pendientes." />
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       </div>
     </div>
   );
 }
 
-function MetricCard({
+function StatCard({
+  href,
   icon: Icon,
+  accent,
   label,
   value,
+  helper,
+  alert = false,
 }: {
+  href: string;
   icon: React.ElementType;
+  accent: string;
   label: string;
-  value: React.ReactNode;
+  value: string;
+  helper: string;
+  alert?: boolean;
 }) {
   return (
-    <Card className="rounded-lg">
-      <CardContent className="flex items-center gap-3 p-4">
-        <div className="flex size-10 items-center justify-center rounded-lg bg-muted">
-          <Icon className="size-5" />
+    <Link href={href} className="group block">
+      <div className="rounded-xl border border-border bg-card p-4 transition-colors group-hover:bg-accent/40">
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-xs uppercase tracking-wide text-muted-foreground">
+            {label}
+          </p>
+          <Icon size={16} className={accent} />
         </div>
-        <div>
-          <div className="text-sm text-muted-foreground">{label}</div>
-          <div className="text-xl font-semibold">{value}</div>
-        </div>
-      </CardContent>
-    </Card>
+        <p className="mt-2 text-2xl font-semibold tabular-nums text-foreground">
+          {value}
+        </p>
+        <p
+          className={`mt-1 text-xs ${alert ? "font-medium text-red-500" : "text-muted-foreground"}`}
+        >
+          {alert && <AlertTriangle size={11} className="mr-1 inline" />}
+          {helper}
+        </p>
+      </div>
+    </Link>
   );
 }
 
 function EmptyState({ text }: { text: string }) {
   return (
-    <div className="flex items-center gap-2 rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
-      <CheckCircle2 className="size-4" />
+    <div className="flex items-center gap-2 px-5 py-8 text-sm text-muted-foreground">
+      <CheckCircle2 size={15} />
       {text}
     </div>
   );
