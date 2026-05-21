@@ -9,6 +9,7 @@ import { signOut } from "@/auth";
 import { requireAdmin } from "@/lib/auth/require-admin";
 import { AdminNav } from "@/app/admin/admin-nav";
 import { ThemeToggle } from "@/components/admin/theme-toggle";
+import { MobileNav } from "@/components/admin/mobile-nav";
 
 export default async function AdminLayout({
   children,
@@ -22,7 +23,7 @@ export default async function AdminLayout({
       <AdminNav />
       <SidebarInset>
         <header className="sticky top-0 z-10 flex h-14 items-center gap-3 border-b bg-background/95 px-4 backdrop-blur">
-          <SidebarTrigger />
+          <SidebarTrigger className="shrink-0" />
           <Separator orientation="vertical" className="h-5" />
           <div className="text-sm font-medium">Panel administrativo</div>
           <div className="ml-auto flex items-center gap-2">
@@ -30,10 +31,8 @@ export default async function AdminLayout({
             <Separator orientation="vertical" className="h-5" />
           </div>
           <form
-            className=""
             action={async () => {
               "use server";
-
               await signOut({ redirectTo: "/login" });
             }}
           >
@@ -42,8 +41,9 @@ export default async function AdminLayout({
             </Button>
           </form>
         </header>
-        <div className="flex-1 p-4 md:p-6">{children}</div>
+        <div className="flex-1 p-4 pb-24 md:p-6 md:pb-6">{children}</div>
       </SidebarInset>
+      <MobileNav />
     </SidebarProvider>
   );
 }
