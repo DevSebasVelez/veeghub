@@ -6,22 +6,18 @@ import {
   Download,
   FileText,
   Mail,
-  Send,
   XCircle,
 } from "lucide-react";
 
-import { sendInvoiceEmail } from "@/app/admin/actions";
 import { InvoiceEditDialog } from "@/components/admin/dialogs/invoice-dialog";
+import { SendInvoiceForm } from "@/components/admin/send-invoice-form";
 import { StatusBadge } from "@/components/admin/status-badge";
 import { forInvoiceDialog } from "@/lib/admin/serialize";
 import prisma from "@/lib/db/prisma";
 import { formatCurrency, formatDate } from "@/lib/admin/format";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
-import { Textarea } from "@/components/ui/textarea";
-import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 
 export default async function InvoiceDetailPage({
   params,
@@ -270,50 +266,35 @@ export default async function InvoiceDetailPage({
                 Enviar por email
               </CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-4">
               {canSend ? (
-                <form action={sendInvoiceEmail} className="space-y-4">
-                  <input type="hidden" name="invoiceId" value={invoice.id} />
-                  <FieldGroup>
-                    <Field>
-                      <FieldLabel>Para</FieldLabel>
-                      <Input
-                        name="to"
-                        type="email"
-                        defaultValue={defaultEmail}
-                        placeholder="cliente@email.com"
-                        required
-                      />
-                    </Field>
-                    <Field>
-                      <FieldLabel>CC (opcional)</FieldLabel>
-                      <Input
-                        name="cc"
-                        type="email"
-                        placeholder="copia@email.com"
-                      />
-                    </Field>
-                    <Field>
-                      <FieldLabel>Asunto</FieldLabel>
-                      <Input
-                        name="subject"
-                        defaultValue={`Factura ${invoice.invoiceNumber ?? ""} - ${invoice.client.name}`.trim()}
-                      />
-                    </Field>
-                    <Field>
-                      <FieldLabel>Mensaje</FieldLabel>
-                      <Textarea
-                        name="body"
-                        rows={3}
-                        defaultValue={`Hola ${invoice.client.name},\n\nAdjunto el XML autorizado y el RIDE PDF de la factura emitida.\n\nSaludos.`}
-                      />
-                    </Field>
-                  </FieldGroup>
-                  <Button type="submit" className="w-full" size="sm">
-                    <Send className="size-3.5" />
-                    Enviar factura
-                  </Button>
-                </form>
+                <>
+                  {/* Template preview badge */}
+                  <div className="rounded-lg border border-indigo-200 bg-indigo-50/60 p-3 dark:border-indigo-800/50 dark:bg-indigo-950/30">
+                    <div className="flex items-start gap-2.5">
+                      <div className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-indigo-600">
+                        <span className="text-[10px] font-bold text-white">
+                          V
+                        </span>
+                      </div>
+                      <div>
+                        <p className="text-xs font-semibold text-indigo-900 dark:text-indigo-200">
+                          Plantilla VEEGSOFT profesional
+                        </p>
+                        <p className="mt-0.5 text-xs text-indigo-700 dark:text-indigo-400">
+                          Se enviará un email con diseño enterprise que incluye
+                          N° factura, monto, proyecto y los documentos adjuntos.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <SendInvoiceForm
+                    invoiceId={invoice.id}
+                    defaultTo={defaultEmail}
+                    defaultSubject={`Factura ${invoice.invoiceNumber ?? ""} · ${invoice.client.name}`.trim()}
+                  />
+                </>
               ) : (
                 <p className="text-center text-sm text-muted-foreground">
                   Adjunta el XML y RIDE para habilitar el envío.

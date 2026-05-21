@@ -8,6 +8,10 @@ import { requireAdmin } from "@/lib/auth/require-admin";
 import { compactId, slugify } from "@/lib/admin/slug";
 import { uploadToR2, getR2ObjectBuffer } from "@/lib/storage/r2";
 import { sendInvoiceEmail as sendWithResend } from "@/lib/email/resend";
+import {
+  buildInvoiceEmailHtml,
+} from "@/lib/email/invoice-template";
+import { formatCurrency, formatDate } from "@/lib/admin/format";
 import { decryptSecret, encryptSecret } from "@/lib/security/credentials";
 import {
   clientSchema,
@@ -365,10 +369,24 @@ export async function sendInvoiceEmail(formData: FormData) {
 
   const subject =
     text(formData, "subject") ??
-    `Factura ${invoice.invoiceNumber ?? ""} - Veeghub`.trim();
-  const body =
-    text(formData, "body") ??
-    `Hola ${invoice.client.name}, adjunto el XML y RIDE de la factura emitida.`;
+    `Factura ${invoice.invoiceNumber ?? ""} · ${invoice.client.name}`.trim();
+  const customMessage = text(formData, "customMessage") ?? undefined;
+
+  const html = buildInvoiceEmailHtml({
+    invoiceNumber: invoice.invoiceNumber,
+    clientName: invoice.client.name,
+    projectName: invoice.project?.name,
+    issueDate: invoice.issueDate ? formatDate(invoice.issueDate) : null,
+    subtotal: invoice.subtotal
+      ? formatCurrency(invoice.subtotal.toString())
+      : null,
+    taxAmount: invoice.taxAmount
+      ? formatCurrency(invoice.taxAmount.toString())
+      : null,
+    total: formatCurrency(invoice.total.toString()),
+    accessKey: invoice.accessKey,
+    customMessage,
+  });
 
   try {
     const [xmlBuffer, rideBuffer] = await Promise.all([
@@ -379,7 +397,7 @@ export async function sendInvoiceEmail(formData: FormData) {
       to,
       cc,
       subject,
-      html: `<p>${body.replace(/\n/g, "<br />")}</p>`,
+      html,
       attachments: [
         { filename: invoice.xmlFile.name, content: xmlBuffer },
         { filename: invoice.rideFile.name, content: rideBuffer },
@@ -393,7 +411,7 @@ export async function sendInvoiceEmail(formData: FormData) {
           to,
           cc,
           subject,
-          body,
+          body: customMessage ?? "",
           providerMessageId,
           sentAt: new Date(),
         },
@@ -413,8 +431,8 @@ export async function sendInvoiceEmail(formData: FormData) {
         to,
         cc,
         subject,
-        body,
-        status: "FAILED",
+          body: customMessage ?? "",
+          status: "FAILED",
         error: error instanceof Error ? error.message : "Error desconocido",
       },
     });
