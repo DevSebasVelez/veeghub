@@ -100,7 +100,7 @@ export function CommentSection({
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="mt-1 size-7 shrink-0 text-muted-foreground opacity-0 transition-opacity hover:text-destructive group-hover:opacity-100"
+                    className="mt-1 size-7 shrink-0 text-muted-foreground transition-opacity hover:text-destructive sm:opacity-0 sm:group-hover:opacity-100"
                   >
                     <Trash2 className="size-3.5" />
                   </Button>

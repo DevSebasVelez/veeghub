@@ -3,6 +3,14 @@
 import { CalendarDays } from "lucide-react";
 import { useRouter } from "next/navigation";
 
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
 const MONTHS = [
   { value: 1, label: "Enero" },
   { value: 2, label: "Febrero" },
@@ -39,30 +47,45 @@ export function ReportFilter({
   return (
     <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border bg-card px-4 py-3">
       <CalendarDays size={15} className="text-muted-foreground" />
-      <select
-        value={year}
-        onChange={(e) => update({ year: Number(e.target.value) })}
-        className="h-8 rounded-md border border-input bg-background px-3 text-sm text-foreground"
-        aria-label="Año del reporte"
+      <Select
+        value={String(year)}
+        onValueChange={(v) => update({ year: Number(v) })}
       >
-        {availableYears.map((y) => (
-          <option key={y} value={y}>
-            {y}
-          </option>
-        ))}
-      </select>
-      <select
-        value={month}
-        onChange={(e) => update({ month: Number(e.target.value) })}
-        className="h-8 rounded-md border border-input bg-background px-3 text-sm text-foreground"
-        aria-label="Mes del reporte"
+        <SelectTrigger
+          size="sm"
+          className="w-auto"
+          aria-label="Año del reporte"
+        >
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {availableYears.map((y) => (
+            <SelectItem key={y} value={String(y)}>
+              {y}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+
+      <Select
+        value={String(month)}
+        onValueChange={(v) => update({ month: Number(v) })}
       >
-        {MONTHS.map((m) => (
-          <option key={m.value} value={m.value}>
-            {m.label}
-          </option>
-        ))}
-      </select>
+        <SelectTrigger
+          size="sm"
+          className="w-auto min-w-32"
+          aria-label="Mes del reporte"
+        >
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {MONTHS.map((m) => (
+            <SelectItem key={m.value} value={String(m.value)}>
+              {m.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     </div>
   );
 }

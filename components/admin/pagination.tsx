@@ -25,7 +25,7 @@ export function Pagination({
   const hasNext = page < totalPages;
 
   return (
-    <div className="flex flex-col gap-3 border-t pt-4 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+    <div className="flex flex-col items-center gap-3 border-t pt-4 text-sm text-muted-foreground sm:flex-row sm:justify-between">
       <div>
         Mostrando {start}-{end} de {total}
       </div>

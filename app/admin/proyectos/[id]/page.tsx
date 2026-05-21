@@ -24,6 +24,7 @@ import {
   SinglePaymentDialog,
 } from "@/components/admin/dialogs/receivable-dialog";
 import { TaskDialog } from "@/components/admin/dialogs/task-dialog";
+import { TaskTitleEditor } from "@/components/admin/task-title-editor";
 import { CommentSection } from "@/components/admin/comment-section";
 import { DriveUploader } from "@/components/admin/drive-uploader";
 import { DriveView } from "@/components/admin/drive-view";
@@ -259,17 +260,22 @@ export default async function ProjectDetailPage({
     <div className="space-y-5">
       {/* Header */}
       <Card className="rounded-lg border-blue-100 bg-blue-50/40 dark:border-blue-900/40 dark:bg-blue-950/20">
-        <CardContent className="p-5">
-          <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-            <div className="flex items-start gap-4">
-              <ProjectAvatar name={project.name} size="lg" />
-              <div className="space-y-2">
-                <div className="flex flex-wrap items-center gap-2">
+        <CardContent className="p-4 sm:p-5">
+          <div className="flex gap-3 sm:gap-4">
+            <ProjectAvatar
+              name={project.name}
+              size="md"
+              className="mt-0.5 shrink-0 sm:size-14 sm:text-lg"
+            />
+            <div className="min-w-0 flex-1 space-y-1.5">
+              {/* Badges + acciones inline */}
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex flex-wrap items-center gap-1.5">
                   <StatusBadge value={project.status} />
                   {project.client ? (
                     <Link
                       href={`/admin/clientes/${project.client.id}`}
-                      className="text-sm text-muted-foreground underline-offset-4 hover:underline"
+                      className="text-xs text-muted-foreground underline-offset-4 hover:underline"
                     >
                       {project.client.name}
                     </Link>
@@ -280,68 +286,105 @@ export default async function ProjectDetailPage({
                     </span>
                   ) : null}
                 </div>
-                <h1 className="text-2xl font-semibold tracking-tight">
-                  {project.name}
-                </h1>
-                {project.description ? (
-                  <p className="max-w-2xl text-sm text-muted-foreground">
-                    {project.description}
-                  </p>
-                ) : null}
-                <div className="flex flex-wrap items-center gap-2 pt-0.5">
-                  {project.budget ? (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-background/70 px-2.5 py-0.5 text-xs ring-1 ring-border">
-                      <span className="text-muted-foreground">Presupuesto</span>
-                      <span className="font-semibold text-foreground">
-                        {formatCurrency(project.budget.toString())}
-                      </span>
-                    </span>
+                <div className="flex shrink-0 items-center gap-1">
+                  {project.repositoryUrl ? (
+                    <>
+                      <Button
+                        asChild
+                        variant="ghost"
+                        size="icon"
+                        className="size-8 sm:hidden"
+                      >
+                        <Link href={project.repositoryUrl} target="_blank">
+                          <FaGithub className="size-4" />
+                        </Link>
+                      </Button>
+                      <Button
+                        asChild
+                        variant="outline"
+                        size="sm"
+                        className="hidden sm:inline-flex"
+                      >
+                        <Link href={project.repositoryUrl} target="_blank">
+                          <FaGithub className="size-4" />
+                          Repo
+                        </Link>
+                      </Button>
+                    </>
                   ) : null}
-                  {project.dueDate ? (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-background/70 px-2.5 py-0.5 text-xs ring-1 ring-border">
-                      <CalendarDays className="size-3 text-muted-foreground" />
-                      <span className="font-medium">
-                        {formatDate(project.dueDate)}
-                      </span>
-                    </span>
+                  {project.productionUrl ? (
+                    <>
+                      <Button
+                        asChild
+                        variant="ghost"
+                        size="icon"
+                        className="size-8 sm:hidden"
+                      >
+                        <Link href={project.productionUrl} target="_blank">
+                          <ExternalLink className="size-4" />
+                        </Link>
+                      </Button>
+                      <Button
+                        asChild
+                        variant="outline"
+                        size="sm"
+                        className="hidden sm:inline-flex"
+                      >
+                        <Link href={project.productionUrl} target="_blank">
+                          <ExternalLink className="size-4" />
+                          Live
+                        </Link>
+                      </Button>
+                    </>
                   ) : null}
-                  {pendingBalance > 0 ? (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-semibold text-amber-700 ring-1 ring-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:ring-amber-800">
-                      {formatCurrency(pendingBalance.toFixed(2))} por cobrar
-                    </span>
-                  ) : null}
-                  {project.tasks.length > 0 ? (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-background/70 px-2.5 py-0.5 text-xs ring-1 ring-border">
-                      <span className="font-semibold text-foreground">
-                        {doneTasks.length}/{project.tasks.length}
-                      </span>
-                      <span className="text-muted-foreground">tareas</span>
-                    </span>
-                  ) : null}
+                  <ProjectDialog
+                    project={forProjectDialog(project)}
+                    clients={clients}
+                  />
                 </div>
               </div>
-            </div>
-            <div className="flex shrink-0 gap-2">
-              {project.repositoryUrl ? (
-                <Button asChild variant="outline" size="sm">
-                  <Link href={project.repositoryUrl} target="_blank">
-                    <FaGithub className="size-4" />
-                    Repo
-                  </Link>
-                </Button>
+              {/* Nombre */}
+              <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">
+                {project.name}
+              </h1>
+              {/* Descripción */}
+              {project.description ? (
+                <p className="line-clamp-2 max-w-2xl text-sm text-muted-foreground sm:line-clamp-none">
+                  {project.description}
+                </p>
               ) : null}
-              {project.productionUrl ? (
-                <Button asChild variant="outline" size="sm">
-                  <Link href={project.productionUrl} target="_blank">
-                    <ExternalLink className="size-4" />
-                    Live
-                  </Link>
-                </Button>
-              ) : null}
-              <ProjectDialog
-                project={forProjectDialog(project)}
-                clients={clients}
-              />
+              {/* Meta pills */}
+              <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                {project.budget ? (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-background/70 px-2.5 py-0.5 text-xs ring-1 ring-border">
+                    <span className="text-muted-foreground">Presupuesto</span>
+                    <span className="font-semibold text-foreground">
+                      {formatCurrency(project.budget.toString())}
+                    </span>
+                  </span>
+                ) : null}
+                {project.dueDate ? (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-background/70 px-2.5 py-0.5 text-xs ring-1 ring-border">
+                    <CalendarDays className="size-3 text-muted-foreground" />
+                    <span className="font-medium">
+                      {formatDate(project.dueDate)}
+                    </span>
+                  </span>
+                ) : null}
+                {pendingBalance > 0 ? (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-semibold text-amber-700 ring-1 ring-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:ring-amber-800">
+                    {formatCurrency(pendingBalance.toFixed(2))} por cobrar
+                  </span>
+                ) : null}
+                {project.tasks.length > 0 ? (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-background/70 px-2.5 py-0.5 text-xs ring-1 ring-border">
+                    <span className="font-semibold text-foreground">
+                      {doneTasks.length}/{project.tasks.length}
+                    </span>
+                    <span className="text-muted-foreground">tareas</span>
+                  </span>
+                ) : null}
+              </div>
             </div>
           </div>
         </CardContent>
@@ -349,31 +392,36 @@ export default async function ProjectDetailPage({
 
       {/* Tabs */}
       <Tabs defaultValue={tab ?? "tareas"} className="gap-0">
-        <TabsList className="mb-4 h-auto flex-wrap gap-1 rounded-lg p-1">
-          <TabsTrigger value="tareas" className="rounded-md">
-            Tareas{project.tasks.length > 0 ? ` (${project.tasks.length})` : ""}
-          </TabsTrigger>
-          <TabsTrigger value="notas" className="rounded-md">
-            Notas
-            {project.comments.length > 0 ? ` (${project.comments.length})` : ""}
-          </TabsTrigger>
-          <TabsTrigger value="archivos" className="rounded-md">
-            Archivos
-            {project._count.files > 0 ? ` (${project._count.files})` : ""}
-          </TabsTrigger>
-          <TabsTrigger value="pagos" className="rounded-md">
-            Pagos
-            {project.receivables.length > 0
-              ? ` (${project.receivables.length})`
-              : ""}
-          </TabsTrigger>
-          <TabsTrigger value="credenciales" className="rounded-md">
-            Credenciales
-            {project.credentials.length > 0
-              ? ` (${project.credentials.length})`
-              : ""}
-          </TabsTrigger>
-        </TabsList>
+        <div className="-mx-4 mb-4 overflow-x-auto border-b border-border px-4 pb-1 scrollbar-none [&::-webkit-scrollbar]:hidden md:mx-0 md:border-0 md:pb-0 md:px-0">
+          <TabsList className="h-auto w-max gap-1 rounded-lg p-1">
+            <TabsTrigger value="tareas" className="rounded-md">
+              Tareas
+              {project.tasks.length > 0 ? ` (${project.tasks.length})` : ""}
+            </TabsTrigger>
+            <TabsTrigger value="notas" className="rounded-md">
+              Notas
+              {project.comments.length > 0
+                ? ` (${project.comments.length})`
+                : ""}
+            </TabsTrigger>
+            <TabsTrigger value="archivos" className="rounded-md">
+              Archivos
+              {project._count.files > 0 ? ` (${project._count.files})` : ""}
+            </TabsTrigger>
+            <TabsTrigger value="pagos" className="rounded-md">
+              Pagos
+              {project.receivables.length > 0
+                ? ` (${project.receivables.length})`
+                : ""}
+            </TabsTrigger>
+            <TabsTrigger value="credenciales" className="rounded-md">
+              Credenciales
+              {project.credentials.length > 0
+                ? ` (${project.credentials.length})`
+                : ""}
+            </TabsTrigger>
+          </TabsList>
+        </div>
 
         {/* Tareas */}
         <TabsContent value="tareas" className="mt-0">
@@ -414,46 +462,52 @@ export default async function ProjectDetailPage({
                     return (
                       <div
                         key={task.id}
-                        className="group flex items-start gap-3 px-5 py-3 transition-colors hover:bg-muted/30"
+                        className="group flex items-start gap-3 px-4 py-3 transition-colors hover:bg-muted/30"
                       >
                         <TaskCheckbox id={task.id} done={false} />
                         <div className="min-w-0 flex-1">
-                          <div className="text-sm font-medium leading-5">
-                            {task.title}
-                          </div>
-                          {task.description ? (
-                            <div className="mt-0.5 truncate text-xs text-muted-foreground">
-                              {task.description}
+                          <div className="flex items-start gap-2">
+                            <div className="min-w-0 flex-1">
+                              <TaskTitleEditor
+                                id={task.id}
+                                title={task.title}
+                                done={false}
+                              />
+                              {task.description ? (
+                                <div className="mt-0.5 truncate text-xs text-muted-foreground">
+                                  {task.description}
+                                </div>
+                              ) : null}
                             </div>
-                          ) : null}
-                        </div>
-                        <div className="flex shrink-0 items-center gap-2">
-                          <span
-                            className={cn(
-                              "rounded-full border px-2 py-0.5 text-xs",
-                              priorityColor[task.priority] ?? "",
-                            )}
-                          >
-                            {priorityLabel[task.priority]}
-                          </span>
-                          {task.dueDate ? (
+                            <div className="shrink-0 transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
+                              <TaskDialog
+                                task={forTaskDialog(task)}
+                                projects={projects}
+                                fixedProjectId={id}
+                              />
+                            </div>
+                          </div>
+                          <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                             <span
                               className={cn(
-                                "text-xs",
-                                isOverdue
-                                  ? "font-medium text-destructive"
-                                  : "text-muted-foreground",
+                                "rounded-full border px-2 py-0.5 text-xs",
+                                priorityColor[task.priority] ?? "",
                               )}
                             >
-                              {formatDate(task.dueDate)}
+                              {priorityLabel[task.priority]}
                             </span>
-                          ) : null}
-                          <div className="transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
-                            <TaskDialog
-                              task={forTaskDialog(task)}
-                              projects={projects}
-                              fixedProjectId={id}
-                            />
+                            {task.dueDate ? (
+                              <span
+                                className={cn(
+                                  "text-xs",
+                                  isOverdue
+                                    ? "font-medium text-destructive"
+                                    : "text-muted-foreground",
+                                )}
+                              >
+                                {formatDate(task.dueDate)}
+                              </span>
+                            ) : null}
                           </div>
                         </div>
                       </div>
@@ -472,13 +526,15 @@ export default async function ProjectDetailPage({
                       {doneTasks.map((task) => (
                         <div
                           key={task.id}
-                          className="group flex items-start gap-3 px-5 py-2.5 transition-colors hover:bg-muted/20"
+                          className="group flex items-start gap-3 px-4 py-2.5 transition-colors hover:bg-muted/20"
                         >
                           <TaskCheckbox id={task.id} done={true} />
                           <div className="min-w-0 flex-1">
-                            <div className="text-sm text-muted-foreground line-through">
-                              {task.title}
-                            </div>
+                            <TaskTitleEditor
+                              id={task.id}
+                              title={task.title}
+                              done={true}
+                            />
                           </div>
                           <div className="transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
                             <TaskDialog
@@ -670,7 +726,7 @@ export default async function ProjectDetailPage({
 
             {/* Pagos registrados */}
             <div className="space-y-4">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
                 <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
                   Pagos registrados
                 </h3>

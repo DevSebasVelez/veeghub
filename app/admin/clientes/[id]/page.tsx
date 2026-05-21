@@ -286,96 +286,108 @@ export default async function ClientDetailPage({
     <div className="space-y-5">
       {/* Header */}
       <Card className="rounded-lg border-sky-100 bg-sky-50/50 dark:border-sky-900/40 dark:bg-sky-950/20">
-        <CardContent className="p-5">
-          <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-            <div className="flex items-start gap-4">
-              <ClientAvatar name={client.name} size="lg" />
-              <div className="space-y-1.5">
-                <div className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+        <CardContent className="p-4 sm:p-5">
+          <div className="flex gap-3 sm:gap-4">
+            <ClientAvatar
+              name={client.name}
+              size="md"
+              className="mt-0.5 shrink-0 sm:size-14 sm:text-lg"
+            />
+            <div className="min-w-0 flex-1 space-y-1.5">
+              {/* Etiqueta + acción inline */}
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
                   Cliente
-                </div>
-                <h1 className="text-2xl font-semibold tracking-tight">
-                  {client.name}
-                </h1>
-                <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
-                  {client.legalName ? (
-                    <span className="flex items-center gap-1.5">
-                      <Building2 className="size-3.5 shrink-0" />
+                </span>
+                <ClientEditDialog client={forClientDialog(client)} />
+              </div>
+              {/* Nombre */}
+              <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">
+                {client.name}
+              </h1>
+              {/* Contacto */}
+              <div className="flex flex-col gap-1 text-sm text-muted-foreground sm:flex-row sm:flex-wrap sm:gap-x-4 sm:gap-y-1">
+                {client.legalName ? (
+                  <span className="flex items-center gap-1.5">
+                    <Building2 className="size-3.5 shrink-0" />
+                    <span className="truncate">
                       {client.legalName}
                       {client.taxId ? ` · ${client.taxId}` : ""}
                     </span>
-                  ) : null}
-                  {client.email ? (
-                    <a
-                      href={`mailto:${client.email}`}
-                      className="flex items-center gap-1.5 hover:text-foreground"
-                    >
-                      <Mail className="size-3.5 shrink-0" />
-                      {client.email}
-                    </a>
-                  ) : null}
-                  {client.phone ? (
-                    <span className="flex items-center gap-1.5">
-                      <Phone className="size-3.5 shrink-0" />
-                      {client.phone}
+                  </span>
+                ) : null}
+                {client.email ? (
+                  <a
+                    href={`mailto:${client.email}`}
+                    className="flex items-center gap-1.5 hover:text-foreground"
+                  >
+                    <Mail className="size-3.5 shrink-0" />
+                    <span className="truncate">{client.email}</span>
+                  </a>
+                ) : null}
+                {client.phone ? (
+                  <span className="flex items-center gap-1.5">
+                    <Phone className="size-3.5 shrink-0" />
+                    {client.phone}
+                  </span>
+                ) : null}
+              </div>
+              {/* Estadísticas */}
+              <div className="flex flex-wrap gap-1.5 pt-0.5">
+                {[
+                  { label: "proyectos", value: client._count.projects },
+                  { label: "hitos", value: client._count.receivables },
+                  { label: "facturas", value: client._count.invoices },
+                  { label: "archivos", value: client._count.files },
+                  { label: "notas", value: client._count.comments },
+                ].map(({ label, value }) => (
+                  <span
+                    key={label}
+                    className="inline-flex items-center gap-1 rounded-full bg-background/70 px-2.5 py-0.5 text-xs ring-1 ring-border"
+                  >
+                    <span className="font-semibold text-foreground">
+                      {value}
                     </span>
-                  ) : null}
-                </div>
-                <div className="flex flex-wrap gap-2 pt-1">
-                  {[
-                    { label: "proyectos", value: client._count.projects },
-                    { label: "hitos", value: client._count.receivables },
-                    { label: "facturas", value: client._count.invoices },
-                    { label: "archivos", value: client._count.files },
-                    { label: "notas", value: client._count.comments },
-                  ].map(({ label, value }) => (
-                    <span
-                      key={label}
-                      className="inline-flex items-center gap-1 rounded-full bg-background/70 px-2.5 py-0.5 text-xs ring-1 ring-border"
-                    >
-                      <span className="font-semibold text-foreground">
-                        {value}
-                      </span>
-                      <span className="text-muted-foreground">{label}</span>
-                    </span>
-                  ))}
-                  {totalPending > 0 ? (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-semibold text-amber-700 ring-1 ring-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:ring-amber-800">
-                      {formatCurrency(totalPending.toFixed(2))} pendiente
-                    </span>
-                  ) : null}
-                </div>
+                    <span className="text-muted-foreground">{label}</span>
+                  </span>
+                ))}
+                {totalPending > 0 ? (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-semibold text-amber-700 ring-1 ring-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:ring-amber-800">
+                    {formatCurrency(totalPending.toFixed(2))} pendiente
+                  </span>
+                ) : null}
               </div>
             </div>
-            <ClientEditDialog client={forClientDialog(client)} />
           </div>
         </CardContent>
       </Card>
 
       {/* Tabs */}
       <Tabs defaultValue={query.tab ?? "resumen"} className="gap-0">
-        <TabsList className="mb-4 h-auto flex-wrap gap-1 rounded-lg p-1">
-          <TabsTrigger value="resumen" className="rounded-md">
-            Resumen
-          </TabsTrigger>
-          <TabsTrigger value="notas" className="rounded-md">
-            Notas
-            {client._count.comments > 0 ? ` (${client._count.comments})` : ""}
-          </TabsTrigger>
-          <TabsTrigger value="pagos" className="rounded-md">
-            Pagos
-            {clientPayments.length > 0 ? ` (${clientPayments.length})` : ""}
-          </TabsTrigger>
-          <TabsTrigger value="invoices" className="rounded-md">
-            Facturas{invoicesTotal > 0 ? ` (${invoicesTotal})` : ""}
-          </TabsTrigger>
-          <TabsTrigger value="drive" className="rounded-md">
-            Drive{client._count.files > 0 ? ` (${client._count.files})` : ""}
-          </TabsTrigger>
-          <TabsTrigger value="credentials" className="rounded-md">
-            Credenciales{credentialsTotal > 0 ? ` (${credentialsTotal})` : ""}
-          </TabsTrigger>
-        </TabsList>
+        <div className="-mx-4 mb-4 overflow-x-auto border-b border-border px-4 pb-1 scrollbar-none [&::-webkit-scrollbar]:hidden md:mx-0 md:border-0 md:pb-0 md:px-0">
+          <TabsList className="h-auto w-max gap-1 rounded-lg p-1">
+            <TabsTrigger value="resumen" className="rounded-md">
+              Resumen
+            </TabsTrigger>
+            <TabsTrigger value="notas" className="rounded-md">
+              Notas
+              {client._count.comments > 0 ? ` (${client._count.comments})` : ""}
+            </TabsTrigger>
+            <TabsTrigger value="pagos" className="rounded-md">
+              Pagos
+              {clientPayments.length > 0 ? ` (${clientPayments.length})` : ""}
+            </TabsTrigger>
+            <TabsTrigger value="invoices" className="rounded-md">
+              Facturas{invoicesTotal > 0 ? ` (${invoicesTotal})` : ""}
+            </TabsTrigger>
+            <TabsTrigger value="drive" className="rounded-md">
+              Drive{client._count.files > 0 ? ` (${client._count.files})` : ""}
+            </TabsTrigger>
+            <TabsTrigger value="credentials" className="rounded-md">
+              Credenciales{credentialsTotal > 0 ? ` (${credentialsTotal})` : ""}
+            </TabsTrigger>
+          </TabsList>
+        </div>
 
         {/* Resumen tab */}
         <TabsContent value="resumen" className="mt-0">
@@ -561,7 +573,7 @@ export default async function ClientDetailPage({
         {/* Pagos tab */}
         <TabsContent value="pagos" className="mt-0">
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
               <p className="text-sm text-muted-foreground">
                 Pagos registrados contra hitos de este cliente.
               </p>

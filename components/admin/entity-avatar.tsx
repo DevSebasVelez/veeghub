@@ -41,9 +41,11 @@ const sizes = {
 export function ClientAvatar({
   name,
   size = "md",
+  className,
 }: {
   name: string;
   size?: keyof typeof sizes;
+  className?: string;
 }) {
   return (
     <div
@@ -51,6 +53,7 @@ export function ClientAvatar({
         "flex shrink-0 items-center justify-center rounded-full font-semibold",
         sizes[size],
         colorFor(name),
+        className,
       )}
     >
       {initials(name)}
@@ -61,9 +64,11 @@ export function ClientAvatar({
 export function ProjectAvatar({
   name,
   size = "md",
+  className,
 }: {
   name: string;
   size?: keyof typeof sizes;
+  className?: string;
 }) {
   return (
     <div
@@ -71,6 +76,7 @@ export function ProjectAvatar({
         "flex shrink-0 items-center justify-center rounded-xl font-semibold",
         sizes[size],
         colorFor(name),
+        className,
       )}
     >
       {initials(name)}

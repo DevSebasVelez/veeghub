@@ -961,7 +961,27 @@ export async function toggleTaskStatus(id: string, done: boolean) {
   });
 
   revalidatePath("/admin");
+  revalidatePath("/admin/tareas");
   revalidatePath("/admin/proyectos");
+}
+
+export async function renameTask(id: string, title: string) {
+  await requireAdmin();
+  const trimmed = title.trim();
+  if (!trimmed) throw new Error("El título no puede estar vacío");
+
+  const task = await prisma.task.findUnique({
+    where: { id },
+    select: { projectId: true },
+  });
+
+  await prisma.task.update({
+    where: { id },
+    data: { title: trimmed },
+  });
+
+  revalidatePath("/admin/tareas");
+  if (task?.projectId) revalidatePath(`/admin/proyectos/${task.projectId}`);
 }
 
 export async function deleteFolder(id: string) {
