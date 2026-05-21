@@ -7,7 +7,7 @@ import { TaskTitleEditor } from "@/components/admin/task-title-editor";
 import { TaskFilters } from "@/components/admin/task-filters";
 import { forTaskDialog } from "@/lib/admin/serialize";
 import prisma from "@/lib/db/prisma";
-import { formatDate } from "@/lib/admin/format";
+import { formatDateOnly } from "@/lib/admin/format";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -207,7 +207,7 @@ export default async function TareasPage({
                                   : "text-muted-foreground",
                               )}
                             >
-                              {formatDate(task.dueDate)}
+                              {formatDateOnly(task.dueDate)}
                             </span>
                           ) : null}
                         </div>

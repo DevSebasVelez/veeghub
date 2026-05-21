@@ -9,7 +9,7 @@ import { getPage, Pagination } from "@/components/admin/pagination";
 import { StatusBadge } from "@/components/admin/status-badge";
 import { forProjectDialog } from "@/lib/admin/serialize";
 import prisma from "@/lib/db/prisma";
-import { formatCurrency, formatDate } from "@/lib/admin/format";
+import { formatCurrency, formatDateOnly } from "@/lib/admin/format";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -230,7 +230,7 @@ function GridView({
                 {project.dueDate ? (
                   <span className="flex items-center gap-1">
                     <CalendarDays className="size-3" />
-                    {formatDate(project.dueDate)}
+                    {formatDateOnly(project.dueDate)}
                   </span>
                 ) : null}
                 {project._count.files > 0 ? (
@@ -330,7 +330,7 @@ function ListView({
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">
                     {project.dueDate ? (
-                      formatDate(project.dueDate)
+                      formatDateOnly(project.dueDate)
                     ) : (
                       <span className="text-xs">—</span>
                     )}

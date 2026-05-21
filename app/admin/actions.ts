@@ -11,7 +11,7 @@ import { sendInvoiceEmail as sendWithResend } from "@/lib/email/resend";
 import {
   buildInvoiceEmailHtml,
 } from "@/lib/email/invoice-template";
-import { formatCurrency, formatDate } from "@/lib/admin/format";
+import { formatCurrency, formatDate, formatDateOnly } from "@/lib/admin/format";
 import { decryptSecret, encryptSecret } from "@/lib/security/credentials";
 import {
   clientSchema,
@@ -376,7 +376,7 @@ export async function sendInvoiceEmail(formData: FormData) {
     invoiceNumber: invoice.invoiceNumber,
     clientName: invoice.client.name,
     projectName: invoice.project?.name,
-    issueDate: invoice.issueDate ? formatDate(invoice.issueDate) : null,
+    issueDate: invoice.issueDate ? formatDateOnly(invoice.issueDate) : null,
     subtotal: invoice.subtotal
       ? formatCurrency(invoice.subtotal.toString())
       : null,

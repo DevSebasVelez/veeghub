@@ -14,7 +14,7 @@ import { SendInvoiceForm } from "@/components/admin/send-invoice-form";
 import { StatusBadge } from "@/components/admin/status-badge";
 import { forInvoiceDialog } from "@/lib/admin/serialize";
 import prisma from "@/lib/db/prisma";
-import { formatCurrency, formatDate } from "@/lib/admin/format";
+import { formatCurrency, formatDate, formatDateOnly } from "@/lib/admin/format";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
@@ -92,7 +92,7 @@ export default async function InvoiceDetailPage({
               </Link>
             ) : null}
             {invoice.issueDate ? (
-              <span>{formatDate(invoice.issueDate)}</span>
+              <span>{formatDateOnly(invoice.issueDate)}</span>
             ) : null}
           </div>
         </div>

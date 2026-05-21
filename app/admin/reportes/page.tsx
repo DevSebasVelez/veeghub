@@ -13,7 +13,7 @@ import { CashFlowChart, MonthlyBillingChart } from "@/components/admin/charts";
 import { StatusBadge } from "@/components/admin/status-badge";
 import { ReportFilter } from "@/app/admin/reportes/report-month-filter";
 import prisma from "@/lib/db/prisma";
-import { formatCurrency, formatDate } from "@/lib/admin/format";
+import { formatCurrency, formatDateOnly } from "@/lib/admin/format";
 import {
   Table,
   TableBody,
@@ -262,7 +262,7 @@ export default async function ReportsPage({
                     )}
                   </TableCell>
                   <TableCell className="pr-5">
-                    {formatDate(item.dueDate)}
+                    {formatDateOnly(item.dueDate)}
                   </TableCell>
                 </TableRow>
               ))}
@@ -357,7 +357,7 @@ export default async function ReportsPage({
                       {formatCurrency(payment.amount.toString())}
                     </TableCell>
                     <TableCell className="pr-5">
-                      {formatDate(payment.paidAt)}
+                      {formatDateOnly(payment.paidAt)}
                     </TableCell>
                   </TableRow>
                 ))}

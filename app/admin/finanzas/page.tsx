@@ -12,7 +12,7 @@ import {
 import { forReceivableDialog } from "@/lib/admin/serialize";
 import { getPage, Pagination } from "@/components/admin/pagination";
 import prisma from "@/lib/db/prisma";
-import { formatCurrency, formatDate } from "@/lib/admin/format";
+import { formatCurrency, formatDateOnly } from "@/lib/admin/format";
 import { cn } from "@/lib/utils";
 import {
   Card,
@@ -380,7 +380,7 @@ export default async function FinancePage({
                                   : "text-muted-foreground",
                               )}
                             >
-                              {formatDate(item.dueDate)}
+                              {formatDateOnly(item.dueDate)}
                             </span>
                           ) : (
                             <span className="text-muted-foreground opacity-40">
@@ -513,7 +513,7 @@ export default async function FinancePage({
                               {formatCurrency(payment.amount.toString())}
                             </TableCell>
                             <TableCell className="text-sm text-muted-foreground">
-                              {formatDate(payment.paidAt)}
+                              {formatDateOnly(payment.paidAt)}
                             </TableCell>
                             <TableCell className="pr-6 text-right">
                               <div className="flex items-center justify-end gap-1">

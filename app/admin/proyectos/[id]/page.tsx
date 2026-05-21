@@ -40,7 +40,7 @@ import {
   forTaskDialog,
 } from "@/lib/admin/serialize";
 import prisma from "@/lib/db/prisma";
-import { formatCurrency, formatDate } from "@/lib/admin/format";
+import { formatCurrency, formatDateOnly } from "@/lib/admin/format";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -367,7 +367,7 @@ export default async function ProjectDetailPage({
                   <span className="inline-flex items-center gap-1 rounded-full bg-background/70 px-2.5 py-0.5 text-xs ring-1 ring-border">
                     <CalendarDays className="size-3 text-muted-foreground" />
                     <span className="font-medium">
-                      {formatDate(project.dueDate)}
+                      {formatDateOnly(project.dueDate)}
                     </span>
                   </span>
                 ) : null}
@@ -505,7 +505,7 @@ export default async function ProjectDetailPage({
                                     : "text-muted-foreground",
                                 )}
                               >
-                                {formatDate(task.dueDate)}
+                                {formatDateOnly(task.dueDate)}
                               </span>
                             ) : null}
                           </div>
@@ -812,7 +812,7 @@ export default async function ProjectDetailPage({
                                   )}
                                 </TableCell>
                                 <TableCell className="text-sm text-muted-foreground">
-                                  {formatDate(payment.paidAt)}
+                                  {formatDateOnly(payment.paidAt)}
                                 </TableCell>
                                 <TableCell className="pr-5 text-right">
                                   <div className="flex items-center justify-end gap-1">

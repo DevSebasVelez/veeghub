@@ -41,7 +41,7 @@ import {
 } from "@/lib/admin/serialize";
 import { getPage, Pagination } from "@/components/admin/pagination";
 import prisma from "@/lib/db/prisma";
-import { formatCurrency, formatDate } from "@/lib/admin/format";
+import { formatCurrency, formatDate, formatDateOnly } from "@/lib/admin/format";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -525,7 +525,9 @@ export default async function ClientDetailPage({
                                   pendiente
                                 </span>
                               ) : null}
-                              {r.dueDate ? ` · ${formatDate(r.dueDate)}` : ""}
+                              {r.dueDate
+                                ? ` · ${formatDateOnly(r.dueDate)}`
+                                : ""}
                             </div>
                           </div>
                           <div className="flex items-center gap-1 transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
@@ -670,7 +672,7 @@ export default async function ClientDetailPage({
                                 )}
                               </TableCell>
                               <TableCell className="text-sm text-muted-foreground">
-                                {formatDate(payment.paidAt)}
+                                {formatDateOnly(payment.paidAt)}
                               </TableCell>
                               <TableCell className="pr-5 text-right">
                                 <EditPaymentDialog
@@ -730,7 +732,7 @@ export default async function ClientDetailPage({
                           <StatusBadge value={invoice.status} />
                         </div>
                         <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
-                          <span>{formatDate(invoice.issueDate)}</span>
+                          <span>{formatDateOnly(invoice.issueDate)}</span>
                           <span className="font-medium text-foreground">
                             {formatCurrency(invoice.total.toString())}
                           </span>

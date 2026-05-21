@@ -10,7 +10,7 @@ import { getPage, Pagination } from "@/components/admin/pagination";
 import { StatusBadge } from "@/components/admin/status-badge";
 import { forInvoiceDialog } from "@/lib/admin/serialize";
 import prisma from "@/lib/db/prisma";
-import { formatCurrency, formatDate } from "@/lib/admin/format";
+import { formatCurrency, formatDate, formatDateOnly } from "@/lib/admin/format";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -178,7 +178,7 @@ export default async function InvoicesPage({
                           {formatCurrency(invoice.total.toString())}
                         </span>
                         {invoice.issueDate ? (
-                          <span>{formatDate(invoice.issueDate)}</span>
+                          <span>{formatDateOnly(invoice.issueDate)}</span>
                         ) : null}
                       </div>
                       <div className="flex gap-3 text-xs">

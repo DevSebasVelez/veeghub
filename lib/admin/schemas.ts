@@ -18,7 +18,9 @@ const optionalDate = z.preprocess(
   z
     .string()
     .trim()
-    .transform((v) => (v ? new Date(v) : null)),
+    // Appending T00:00:00 (no Z) makes new Date parse as LOCAL midnight instead
+    // of UTC midnight. Without it, "2025-05-30" → UTC 00:00 → shows "29 mayo" in UTC-5.
+    .transform((v) => (v ? new Date(v + "T00:00:00") : null)),
 );
 
 const optionalId = z.preprocess(

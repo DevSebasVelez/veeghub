@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 
 import prisma from "@/lib/db/prisma";
-import { formatCurrency, formatDate } from "@/lib/admin/format";
+import { formatCurrency, formatDate, formatDateOnly } from "@/lib/admin/format";
 import { Button } from "@/components/ui/button";
 
 const PRIORITY_STYLES: Record<string, string> = {
@@ -205,7 +205,7 @@ export default async function AdminPage() {
                           <>
                             {" · "}
                             <span className={isOverdue ? "text-red-500" : ""}>
-                              {formatDate(task.dueDate)}
+                              {formatDateOnly(task.dueDate)}
                             </span>
                           </>
                         )}
@@ -269,7 +269,7 @@ export default async function AdminPage() {
                           <>
                             {" · "}
                             <span className={isOverdue ? "text-red-500" : ""}>
-                              {formatDate(item.dueDate)}
+                              {formatDateOnly(item.dueDate)}
                             </span>
                           </>
                         )}
