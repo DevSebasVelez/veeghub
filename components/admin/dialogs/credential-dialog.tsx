@@ -6,6 +6,7 @@ import { toast } from "sonner";
 
 import { createCredential, updateCredential } from "@/app/admin/actions";
 import {
+  CreateTrigger,
   EditTrigger,
   relationOptions,
   type EntityOption,
@@ -83,9 +84,11 @@ export function CredentialDialog({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <EditTrigger
-          label={mode === "create" ? "Nueva credencial" : "Editar"}
-        />
+        {mode === "create" ? (
+          <CreateTrigger label="Nueva credencial" />
+        ) : (
+          <EditTrigger />
+        )}
       </DialogTrigger>
       <DialogContent className="max-h-[90svh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>

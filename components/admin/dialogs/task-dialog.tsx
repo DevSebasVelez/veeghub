@@ -6,6 +6,7 @@ import { toast } from "sonner";
 
 import { createTask, updateTask } from "@/app/admin/actions";
 import {
+  CreateTrigger,
   EditTrigger,
   type EntityOption,
 } from "@/components/admin/dialogs/_base";
@@ -80,7 +81,11 @@ export function TaskDialog({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <EditTrigger label={mode === "create" ? "Nueva tarea" : "Editar"} />
+        {mode === "create" ? (
+          <CreateTrigger label="Nueva tarea" />
+        ) : (
+          <EditTrigger />
+        )}
       </DialogTrigger>
       <DialogContent className="max-h-[90svh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>

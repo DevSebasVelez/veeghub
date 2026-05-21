@@ -11,11 +11,12 @@ import {
   updateReceivable,
 } from "@/app/admin/actions";
 import {
+  CreateTrigger,
   EditTrigger,
   relationOptions,
   type EntityOption,
 } from "@/components/admin/dialogs/_base";
-import { Pencil } from "lucide-react";
+import { Pencil, Plus } from "lucide-react";
 import { DatePickerField } from "@/components/admin/date-picker-field";
 import { FormSelect } from "@/components/admin/form-select";
 import { Button } from "@/components/ui/button";
@@ -87,7 +88,11 @@ export function ReceivableDialog({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <EditTrigger label={mode === "create" ? "Nuevo hito" : "Editar"} />
+        {mode === "create" ? (
+          <CreateTrigger label="Nuevo hito" />
+        ) : (
+          <EditTrigger />
+        )}
       </DialogTrigger>
       <DialogContent className="max-h-[90svh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
@@ -346,7 +351,10 @@ export function PaymentDialog({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline">Registrar pago</Button>
+        <Button size="sm">
+          <Plus className="size-3.5" />
+          Registrar pago
+        </Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
