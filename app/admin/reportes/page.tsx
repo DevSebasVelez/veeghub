@@ -13,7 +13,12 @@ import { CashFlowChart, MonthlyBillingChart } from "@/components/admin/charts";
 import { StatusBadge } from "@/components/admin/status-badge";
 import { ReportFilter } from "@/app/admin/reportes/report-month-filter";
 import prisma from "@/lib/db/prisma";
-import { formatCurrency, formatDateOnly } from "@/lib/admin/format";
+import {
+  dateOnlyParts,
+  formatCurrency,
+  formatDateOnly,
+  monthKeyUTC,
+} from "@/lib/admin/format";
 import {
   Table,
   TableBody,
@@ -31,7 +36,9 @@ export default async function ReportsPage({
   const params = await searchParams;
   const now = new Date();
   const selectedYear = params.year ? Number(params.year) : now.getFullYear();
-  const selectedMonth = params.month ? Number(params.month) : now.getMonth() + 1;
+  const selectedMonth = params.month
+    ? Number(params.month)
+    : now.getMonth() + 1;
 
   const selectedDate = new Date(selectedYear, selectedMonth - 1, 1);
   const selectedStart = startOfMonth(selectedDate);
@@ -84,7 +91,7 @@ export default async function ReportsPage({
   ]);
 
   const startYear = earliestInvoice?.issueDate
-    ? new Date(earliestInvoice.issueDate).getFullYear()
+    ? dateOnlyParts(earliestInvoice.issueDate).year
     : now.getFullYear();
   const currentYear = now.getFullYear();
   const availableYears = Array.from(
@@ -96,11 +103,9 @@ export default async function ReportsPage({
   const monthlyData = months.map((date) => {
     const key = format(date, "yyyy-MM");
     const monthInvoices = invoices.filter((inv) =>
-      inv.issueDate ? format(inv.issueDate, "yyyy-MM") === key : false,
+      inv.issueDate ? monthKeyUTC(inv.issueDate) === key : false,
     );
-    const monthPayments = payments.filter(
-      (p) => format(p.paidAt, "yyyy-MM") === key,
-    );
+    const monthPayments = payments.filter((p) => monthKeyUTC(p.paidAt) === key);
     const monthReceivables = receivables.filter(
       (r) => format(r.createdAt, "yyyy-MM") === key,
     );
@@ -167,7 +172,9 @@ export default async function ReportsPage({
       <div className="rounded-xl border border-border bg-card px-4 py-3">
         <p className="text-sm font-medium text-foreground">
           Período seleccionado:{" "}
-          <span className="capitalize text-muted-foreground">{periodLabel}</span>
+          <span className="capitalize text-muted-foreground">
+            {periodLabel}
+          </span>
         </p>
         <p className="mt-0.5 text-xs text-muted-foreground">
           Los gráficos muestran los 12 meses anteriores al período.

@@ -1,0 +1,17 @@
+-- AlterTable
+ALTER TABLE "Invoice" ALTER COLUMN "issueDate" SET DATA TYPE DATE;
+
+-- AlterTable
+ALTER TABLE "Payment" ALTER COLUMN "paidAt" SET DATA TYPE DATE;
+
+-- AlterTable
+ALTER TABLE "Project" ALTER COLUMN "startDate" SET DATA TYPE DATE,
+ALTER COLUMN "dueDate" SET DATA TYPE DATE,
+ALTER COLUMN "completedAt" SET DATA TYPE DATE;
+
+-- AlterTable
+ALTER TABLE "Receivable" ALTER COLUMN "dueDate" SET DATA TYPE DATE;
+
+-- AlterTable
+ALTER TABLE "Task" ALTER COLUMN "dueDate" SET DATA TYPE DATE,
+ALTER COLUMN "completedAt" SET DATA TYPE DATE;

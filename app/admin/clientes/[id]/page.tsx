@@ -41,7 +41,11 @@ import {
 } from "@/lib/admin/serialize";
 import { getPage, Pagination } from "@/components/admin/pagination";
 import prisma from "@/lib/db/prisma";
-import { formatCurrency, formatDateOnly } from "@/lib/admin/format";
+import {
+  dateOnlyParts,
+  formatCurrency,
+  formatDateOnly,
+} from "@/lib/admin/format";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -269,8 +273,8 @@ export default async function ClientDetailPage({
     { key: string; total: number; payments: typeof clientPayments }
   > = {};
   for (const payment of clientPayments) {
-    const d = new Date(payment.paidAt);
-    const key = `${MONTH_NAMES[d.getMonth()]} ${d.getFullYear()}`;
+    const { year, month } = dateOnlyParts(payment.paidAt);
+    const key = `${MONTH_NAMES[month]} ${year}`;
     if (!clientPaymentsByMonth[key])
       clientPaymentsByMonth[key] = { key, total: 0, payments: [] };
     clientPaymentsByMonth[key].payments.push(payment);

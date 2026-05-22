@@ -40,7 +40,11 @@ import {
   forTaskDialog,
 } from "@/lib/admin/serialize";
 import prisma from "@/lib/db/prisma";
-import { formatCurrency, formatDateOnly } from "@/lib/admin/format";
+import {
+  dateOnlyParts,
+  formatCurrency,
+  formatDateOnly,
+} from "@/lib/admin/format";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -243,8 +247,8 @@ export default async function ProjectDetailPage({
     { key: string; total: number; payments: typeof projectPayments }
   > = {};
   for (const payment of projectPayments) {
-    const d = new Date(payment.paidAt);
-    const key = `${MONTH_NAMES[d.getMonth()]} ${d.getFullYear()}`;
+    const { year, month } = dateOnlyParts(payment.paidAt);
+    const key = `${MONTH_NAMES[month]} ${year}`;
     if (!paymentsByMonth[key])
       paymentsByMonth[key] = { key, total: 0, payments: [] };
     paymentsByMonth[key].payments.push(payment);

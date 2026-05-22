@@ -22,9 +22,8 @@ export function formatDate(value: Date | string | null | undefined) {
 
 /**
  * Formats a date-only business field (dueDate, issueDate, paidAt, startDate).
- * These are stored as UTC midnight in the DB (e.g. 2025-05-30T00:00:00.000Z).
- * Using timeZone: "UTC" ensures the date is always rendered as "30 may 2025"
- * and never shifted to "29 may 2025" due to a negative UTC offset (Ecuador UTC-5).
+ * Stored as DATE in Postgres; Prisma materializes them at UTC midnight.
+ * timeZone: "UTC" prevents day-shift in negative-offset zones (e.g. UTC-5).
  */
 export function formatDateOnly(value: Date | string | null | undefined) {
   if (!value) return "Sin fecha";
@@ -33,6 +32,26 @@ export function formatDateOnly(value: Date | string | null | undefined) {
     dateStyle: "medium",
     timeZone: "UTC",
   }).format(new Date(value));
+}
+
+/**
+ * Components of a calendar-date field in UTC. Use for year/month grouping
+ * on @db.Date fields so a UTC-midnight value never falls into the previous
+ * day/month/year when the server runs in a negative-offset timezone.
+ */
+export function dateOnlyParts(value: Date | string) {
+  const d = value instanceof Date ? value : new Date(value);
+  return {
+    year: d.getUTCFullYear(),
+    month: d.getUTCMonth(),
+    day: d.getUTCDate(),
+  };
+}
+
+/** "yyyy-MM" key for grouping @db.Date values without TZ drift. */
+export function monthKeyUTC(value: Date | string) {
+  const { year, month } = dateOnlyParts(value);
+  return `${year}-${String(month + 1).padStart(2, "0")}`;
 }
 
 export function formatBytes(bytes: number) {

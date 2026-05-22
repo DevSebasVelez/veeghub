@@ -12,7 +12,11 @@ import {
 import { forReceivableDialog } from "@/lib/admin/serialize";
 import { getPage, Pagination } from "@/components/admin/pagination";
 import prisma from "@/lib/db/prisma";
-import { formatCurrency, formatDateOnly } from "@/lib/admin/format";
+import {
+  dateOnlyParts,
+  formatCurrency,
+  formatDateOnly,
+} from "@/lib/admin/format";
 import { cn } from "@/lib/utils";
 import {
   Card,
@@ -131,7 +135,7 @@ export default async function FinancePage({
 
   // Compute available years from payment dates
   const years = [
-    ...new Set(availableYears.map((p) => new Date(p.paidAt).getFullYear())),
+    ...new Set(availableYears.map((p) => dateOnlyParts(p.paidAt).year)),
   ].sort((a, b) => b - a);
   if (!years.includes(currentYear)) years.unshift(currentYear);
 
@@ -165,8 +169,8 @@ export default async function FinancePage({
     { key: string; total: number; payments: typeof paymentHistory }
   > = {};
   for (const payment of paymentHistory) {
-    const d = new Date(payment.paidAt);
-    const key = `${MONTH_NAMES[d.getMonth()]} ${d.getFullYear()}`;
+    const { year, month } = dateOnlyParts(payment.paidAt);
+    const key = `${MONTH_NAMES[month]} ${year}`;
     if (!paymentsByMonth[key]) {
       paymentsByMonth[key] = { key, total: 0, payments: [] };
     }
