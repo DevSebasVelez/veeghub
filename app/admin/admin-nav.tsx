@@ -24,6 +24,7 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  useSidebar,
 } from "@/components/ui/sidebar";
 
 const navItems = [
@@ -40,6 +41,11 @@ const navItems = [
 
 export function AdminNav() {
   const pathname = usePathname();
+  const { isMobile, setOpenMobile } = useSidebar();
+
+  const closeOnMobile = () => {
+    if (isMobile) setOpenMobile(false);
+  };
 
   return (
     <Sidebar collapsible="icon">
@@ -74,8 +80,9 @@ export function AdminNav() {
                       asChild
                       isActive={isActive}
                       tooltip={item.label}
+                      className="h-11 gap-3 text-base md:h-8 md:gap-2 md:text-sm [&_svg]:size-5 md:[&_svg]:size-4"
                     >
-                      <Link href={item.href}>
+                      <Link href={item.href} onClick={closeOnMobile}>
                         <Icon />
                         <span>{item.label}</span>
                       </Link>
