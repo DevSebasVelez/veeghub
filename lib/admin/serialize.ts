@@ -103,7 +103,7 @@ export function forInvoiceDialog(i: {
   id: string;
   clientId: string;
   projectId: string | null;
-  receivableId: string | null;
+  receivables?: { id: string }[];
   invoiceNumber: string | null;
   accessKey: string | null;
   subtotal: { toString(): string } | null;
@@ -118,7 +118,7 @@ export function forInvoiceDialog(i: {
     id: i.id,
     clientId: i.clientId,
     projectId: i.projectId,
-    receivableId: i.receivableId,
+    receivableIds: i.receivables?.map((r) => r.id) ?? [],
     invoiceNumber: i.invoiceNumber,
     accessKey: i.accessKey,
     subtotal: i.subtotal?.toString() ?? null,

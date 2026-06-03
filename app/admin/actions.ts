@@ -8,10 +8,8 @@ import { requireAdmin } from "@/lib/auth/require-admin";
 import { compactId, slugify } from "@/lib/admin/slug";
 import { uploadToR2, getR2ObjectBuffer } from "@/lib/storage/r2";
 import { sendInvoiceEmail as sendWithResend } from "@/lib/email/resend";
-import {
-  buildInvoiceEmailHtml,
-} from "@/lib/email/invoice-template";
-import { formatCurrency, formatDate, formatDateOnly } from "@/lib/admin/format";
+import { buildInvoiceEmailHtml } from "@/lib/email/invoice-template";
+import { formatCurrency, formatDateOnly } from "@/lib/admin/format";
 import { decryptSecret, encryptSecret } from "@/lib/security/credentials";
 import {
   clientSchema,
@@ -31,6 +29,77 @@ import type {
   CredentialKind,
   ReceivableStatus,
 } from "@/app/generated/prisma/enums";
+import type { Prisma } from "@/app/generated/prisma/client";
+
+// Recomputes an invoice's status from the payment state of ALL its receivables.
+// An invoice is PAID only when every linked hito is fully paid; if that stops
+// being true (payment edited/deleted) it reverts to SENT/READY_TO_SEND.
+async function syncInvoicePaidStatus(
+  tx: Prisma.TransactionClient,
+  invoiceId: string | null | undefined,
+) {
+  if (!invoiceId) return;
+  const invoice = await tx.invoice.findUnique({
+    where: { id: invoiceId },
+    select: {
+      status: true,
+      emailLogs: { select: { id: true }, take: 1 },
+    },
+  });
+  if (!invoice || invoice.status === "CANCELLED") return;
+
+  const hitos = await tx.receivable.findMany({
+    where: { invoiceId },
+    select: { amount: true, paidAmount: true },
+  });
+  const allPaid =
+    hitos.length > 0 &&
+    hitos.every((h) => Number(h.paidAmount) >= Number(h.amount));
+
+  if (allPaid && invoice.status !== "PAID") {
+    await tx.invoice.update({
+      where: { id: invoiceId },
+      data: { status: "PAID", paidAt: new Date() },
+    });
+  } else if (!allPaid && invoice.status === "PAID") {
+    const wasSent = invoice.emailLogs.length > 0;
+    await tx.invoice.update({
+      where: { id: invoiceId },
+      data: { status: wasSent ? "SENT" : "READY_TO_SEND", paidAt: null },
+    });
+  }
+}
+
+// Reconciles the set of receivables (hitos) covered by an invoice: links the
+// new set, marks PLANNED ones as INVOICED, and unlinks dropped ones (reverting
+// the ones we had marked INVOICED back to PLANNED).
+async function syncInvoiceReceivables(
+  tx: Prisma.TransactionClient,
+  invoiceId: string,
+  receivableIds: string[],
+) {
+  // Unlink hitos no longer covered by this invoice.
+  await tx.receivable.updateMany({
+    where: { invoiceId, id: { notIn: receivableIds }, status: "INVOICED" },
+    data: { status: "PLANNED" },
+  });
+  await tx.receivable.updateMany({
+    where: { invoiceId, id: { notIn: receivableIds } },
+    data: { invoiceId: null },
+  });
+
+  if (receivableIds.length) {
+    // Link the selected hitos and flag the untouched (PLANNED) ones as INVOICED.
+    await tx.receivable.updateMany({
+      where: { id: { in: receivableIds } },
+      data: { invoiceId },
+    });
+    await tx.receivable.updateMany({
+      where: { id: { in: receivableIds }, status: "PLANNED" },
+      data: { status: "INVOICED" },
+    });
+  }
+}
 
 export type AdminFormState = {
   ok?: boolean;
@@ -232,7 +301,7 @@ export async function recordPayment(formData: FormData) {
   await prisma.$transaction(async (tx) => {
     const receivable = await tx.receivable.findUniqueOrThrow({
       where: { id: data.receivableId },
-      include: { invoice: { select: { id: true, status: true } } },
+      select: { amount: true, paidAmount: true, invoiceId: true },
     });
     const paidAmount = Number(receivable.paidAmount) + data.amount;
     const status = (
@@ -248,18 +317,8 @@ export async function recordPayment(formData: FormData) {
       data: { paidAmount, status },
     });
 
-    // Auto-sync linked invoice to PAID when hito is fully paid
-    if (
-      status === "PAID" &&
-      receivable.invoice &&
-      receivable.invoice.status !== "PAID" &&
-      receivable.invoice.status !== "CANCELLED"
-    ) {
-      await tx.invoice.update({
-        where: { id: receivable.invoice.id },
-        data: { status: "PAID", paidAt: data.paidAt ?? new Date() },
-      });
-    }
+    // Sync the linked invoice: PAID only when ALL its hitos are fully paid.
+    await syncInvoicePaidStatus(tx, receivable.invoiceId);
   });
 
   revalidatePath("/admin");
@@ -268,7 +327,7 @@ export async function recordPayment(formData: FormData) {
 
 export async function createInvoice(formData: FormData) {
   await requireAdmin();
-  const data = parseForm(invoiceSchema, formData);
+  const { receivableIds, ...data } = parseForm(invoiceSchema, formData);
 
   const xml = formData.get("xml") as File | null;
   const ride = formData.get("ride") as File | null;
@@ -290,20 +349,16 @@ export async function createInvoice(formData: FormData) {
       })
     : null;
 
-  await prisma.invoice.create({
-    data: {
-      ...data,
-      xmlFileId: xmlFile?.id,
-      rideFileId: rideFile?.id,
-    },
-  });
-
-  if (data.receivableId) {
-    await prisma.receivable.update({
-      where: { id: data.receivableId },
-      data: { status: "INVOICED" },
+  await prisma.$transaction(async (tx) => {
+    const invoice = await tx.invoice.create({
+      data: {
+        ...data,
+        xmlFileId: xmlFile?.id,
+        rideFileId: rideFile?.id,
+      },
     });
-  }
+    await syncInvoiceReceivables(tx, invoice.id, receivableIds);
+  });
 
   revalidatePath("/admin");
   revalidatePath("/admin/facturas");
@@ -311,7 +366,7 @@ export async function createInvoice(formData: FormData) {
 
 export async function updateInvoice(id: string, formData: FormData) {
   await requireAdmin();
-  const data = parseForm(invoiceSchema, formData);
+  const { receivableIds, ...data } = parseForm(invoiceSchema, formData);
 
   const xml = formData.get("xml") as File | null;
   const ride = formData.get("ride") as File | null;
@@ -333,13 +388,17 @@ export async function updateInvoice(id: string, formData: FormData) {
       })
     : null;
 
-  await prisma.invoice.update({
-    where: { id },
-    data: {
-      ...data,
-      ...(xmlFile ? { xmlFileId: xmlFile.id } : {}),
-      ...(rideFile ? { rideFileId: rideFile.id } : {}),
-    },
+  await prisma.$transaction(async (tx) => {
+    await tx.invoice.update({
+      where: { id },
+      data: {
+        ...data,
+        ...(xmlFile ? { xmlFileId: xmlFile.id } : {}),
+        ...(rideFile ? { rideFileId: rideFile.id } : {}),
+      },
+    });
+    await syncInvoiceReceivables(tx, id, receivableIds);
+    await syncInvoicePaidStatus(tx, id);
   });
 
   revalidatePath("/admin");
@@ -431,8 +490,8 @@ export async function sendInvoiceEmail(formData: FormData) {
         to,
         cc,
         subject,
-          body: customMessage ?? "",
-          status: "FAILED",
+        body: customMessage ?? "",
+        status: "FAILED",
         error: error instanceof Error ? error.message : "Error desconocido",
       },
     });
@@ -596,7 +655,7 @@ async function registerFileKey({
 
 export async function createInvoiceWithKeys(formData: FormData) {
   await requireAdmin();
-  const data = parseForm(invoiceSchema, formData);
+  const { receivableIds, ...data } = parseForm(invoiceSchema, formData);
 
   const xmlMeta = fileMetaFromForm(formData, "xml");
   const rideMeta = fileMetaFromForm(formData, "ride");
@@ -618,20 +677,16 @@ export async function createInvoiceWithKeys(formData: FormData) {
       : null,
   ]);
 
-  await prisma.invoice.create({
-    data: {
-      ...data,
-      xmlFileId: xmlFile?.id ?? null,
-      rideFileId: rideFile?.id ?? null,
-    },
-  });
-
-  if (data.receivableId) {
-    await prisma.receivable.update({
-      where: { id: data.receivableId },
-      data: { status: "INVOICED" },
+  await prisma.$transaction(async (tx) => {
+    const invoice = await tx.invoice.create({
+      data: {
+        ...data,
+        xmlFileId: xmlFile?.id ?? null,
+        rideFileId: rideFile?.id ?? null,
+      },
     });
-  }
+    await syncInvoiceReceivables(tx, invoice.id, receivableIds);
+  });
 
   revalidatePath("/admin/facturas");
   if (data.clientId) revalidatePath(`/admin/clientes/${data.clientId}`);
@@ -640,7 +695,7 @@ export async function createInvoiceWithKeys(formData: FormData) {
 
 export async function updateInvoiceWithKeys(id: string, formData: FormData) {
   await requireAdmin();
-  const data = parseForm(invoiceSchema, formData);
+  const { receivableIds, ...data } = parseForm(invoiceSchema, formData);
 
   const xmlMeta = fileMetaFromForm(formData, "xml");
   const rideMeta = fileMetaFromForm(formData, "ride");
@@ -662,13 +717,17 @@ export async function updateInvoiceWithKeys(id: string, formData: FormData) {
       : null,
   ]);
 
-  await prisma.invoice.update({
-    where: { id },
-    data: {
-      ...data,
-      ...(xmlFile ? { xmlFileId: xmlFile.id } : {}),
-      ...(rideFile ? { rideFileId: rideFile.id } : {}),
-    },
+  await prisma.$transaction(async (tx) => {
+    await tx.invoice.update({
+      where: { id },
+      data: {
+        ...data,
+        ...(xmlFile ? { xmlFileId: xmlFile.id } : {}),
+        ...(rideFile ? { rideFileId: rideFile.id } : {}),
+      },
+    });
+    await syncInvoiceReceivables(tx, id, receivableIds);
+    await syncInvoicePaidStatus(tx, id);
   });
 
   revalidatePath("/admin/facturas");
@@ -850,15 +909,7 @@ export async function deletePayment(id: string) {
     const newPaidAmount = Number(remaining._sum.amount ?? 0);
     const receivable = await tx.receivable.findUniqueOrThrow({
       where: { id: payment.receivableId },
-      include: {
-        invoice: {
-          select: {
-            id: true,
-            status: true,
-            emailLogs: { select: { id: true }, take: 1 },
-          },
-        },
-      },
+      select: { amount: true, status: true, invoiceId: true },
     });
     const receivableAmount = Number(receivable.amount);
 
@@ -871,7 +922,7 @@ export async function deletePayment(id: string) {
       receivable.status === "PAID" ||
       receivable.status === "PARTIALLY_PAID"
     ) {
-      newStatus = "PLANNED";
+      newStatus = receivable.invoiceId ? "INVOICED" : "PLANNED";
     } else {
       newStatus = receivable.status;
     }
@@ -882,17 +933,8 @@ export async function deletePayment(id: string) {
       data: { paidAmount: newPaidAmount, status: newStatus },
     });
 
-    // Sync invoice back if receivable is no longer fully paid
-    if (newStatus !== "PAID" && receivable.invoice?.status === "PAID") {
-      const wasSent = receivable.invoice.emailLogs.length > 0;
-      await tx.invoice.update({
-        where: { id: receivable.invoice.id },
-        data: {
-          status: wasSent ? "SENT" : "READY_TO_SEND",
-          paidAt: null,
-        },
-      });
-    }
+    // Sync the linked invoice back if its hitos are no longer all paid.
+    await syncInvoicePaidStatus(tx, receivable.invoiceId);
   });
 
   revalidatePath("/admin");
@@ -925,15 +967,7 @@ export async function updatePayment(id: string, formData: FormData) {
     const newPaidAmount = Number(aggregate._sum.amount ?? 0);
     const receivable = await tx.receivable.findUniqueOrThrow({
       where: { id: payment.receivableId },
-      include: {
-        invoice: {
-          select: {
-            id: true,
-            status: true,
-            emailLogs: { select: { id: true }, take: 1 },
-          },
-        },
-      },
+      select: { amount: true, invoiceId: true },
     });
 
     let newStatus: ReceivableStatus;
@@ -942,7 +976,7 @@ export async function updatePayment(id: string, formData: FormData) {
     } else if (newPaidAmount > 0) {
       newStatus = "PARTIALLY_PAID";
     } else {
-      newStatus = "PLANNED";
+      newStatus = receivable.invoiceId ? "INVOICED" : "PLANNED";
     }
 
     await tx.receivable.update({
@@ -950,17 +984,8 @@ export async function updatePayment(id: string, formData: FormData) {
       data: { paidAmount: newPaidAmount, status: newStatus },
     });
 
-    // Sync invoice back if receivable is no longer fully paid
-    if (newStatus !== "PAID" && receivable.invoice?.status === "PAID") {
-      const wasSent = receivable.invoice.emailLogs.length > 0;
-      await tx.invoice.update({
-        where: { id: receivable.invoice.id },
-        data: {
-          status: wasSent ? "SENT" : "READY_TO_SEND",
-          paidAt: null,
-        },
-      });
-    }
+    // Sync the linked invoice: PAID only when ALL its hitos are fully paid.
+    await syncInvoicePaidStatus(tx, receivable.invoiceId);
   });
 
   revalidatePath("/admin");

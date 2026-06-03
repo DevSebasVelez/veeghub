@@ -58,13 +58,13 @@ export default async function InvoicesPage({
             select: { id: true, name: true },
           },
           receivables: {
-            where: { invoice: null, status: { notIn: ["CANCELLED"] } },
+            where: { invoiceId: null, status: { notIn: ["CANCELLED"] } },
             orderBy: { createdAt: "desc" },
-            select: { id: true, title: true, projectId: true },
+            select: { id: true, title: true, projectId: true, amount: true },
           },
         },
       }),
-      // For edit: all receivables
+      // For edit: receivables not yet on another invoice (own ones included below)
       prisma.client.findMany({
         orderBy: { name: "asc" },
         select: {
@@ -76,7 +76,13 @@ export default async function InvoicesPage({
           },
           receivables: {
             orderBy: { createdAt: "desc" },
-            select: { id: true, title: true, projectId: true },
+            select: {
+              id: true,
+              title: true,
+              projectId: true,
+              amount: true,
+              invoiceId: true,
+            },
           },
         },
       }),
@@ -90,11 +96,29 @@ export default async function InvoicesPage({
           project: true,
           xmlFile: true,
           rideFile: true,
+          receivables: { select: { id: true } },
           emailLogs: { orderBy: { createdAt: "desc" }, take: 1 },
         },
       }),
       prisma.invoice.count({ where: whereStatus }),
     ]);
+
+  // Decimal -> string for the client dialog (plain serializable props)
+  const serializeRecv = (r: {
+    id: string;
+    title: string;
+    projectId: string | null;
+    amount: { toString(): string };
+  }) => ({
+    id: r.id,
+    title: r.title,
+    projectId: r.projectId,
+    amount: r.amount.toString(),
+  });
+  const clientsForCreate = clientsWithContext.map((c) => ({
+    ...c,
+    receivables: c.receivables.map(serializeRecv),
+  }));
 
   return (
     <div className="space-y-6">
@@ -107,7 +131,7 @@ export default async function InvoicesPage({
             XML autorizado, RIDE PDF y envío por email con Resend.
           </p>
         </div>
-        <CreateInvoiceDialog clientsWithContext={clientsWithContext} />
+        <CreateInvoiceDialog clientsWithContext={clientsForCreate} />
       </div>
 
       <Card className="rounded-lg">
@@ -148,9 +172,21 @@ export default async function InvoicesPage({
                 const clientForEdit = clientsForEdit.find(
                   (c) => c.id === invoice.clientId,
                 );
+                // Offer hitos that are free or already on THIS invoice.
                 const editCtx = clientForEdit
-                  ? [clientForEdit]
-                  : clientsForEdit;
+                  ? [
+                      {
+                        ...clientForEdit,
+                        receivables: clientForEdit.receivables
+                          .filter(
+                            (r) =>
+                              r.invoiceId === null ||
+                              r.invoiceId === invoice.id,
+                          )
+                          .map(serializeRecv),
+                      },
+                    ]
+                  : [];
 
                 return (
                   <div

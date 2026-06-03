@@ -31,7 +31,10 @@ export default async function InvoiceDetailPage({
     include: {
       client: true,
       project: true,
-      receivable: true,
+      receivables: {
+        orderBy: { createdAt: "asc" },
+        select: { id: true, title: true, amount: true },
+      },
       xmlFile: true,
       rideFile: true,
       emailLogs: { orderBy: { createdAt: "desc" } },
@@ -49,10 +52,32 @@ export default async function InvoiceDetailPage({
       projects: { orderBy: { name: "asc" }, select: { id: true, name: true } },
       receivables: {
         orderBy: { createdAt: "desc" },
-        select: { id: true, title: true, projectId: true },
+        select: {
+          id: true,
+          title: true,
+          projectId: true,
+          amount: true,
+          invoiceId: true,
+        },
       },
     },
   });
+  // Offer hitos that are free or already on this invoice; Decimal -> string.
+  const editCtx = clientCtxEdit
+    ? [
+        {
+          ...clientCtxEdit,
+          receivables: clientCtxEdit.receivables
+            .filter((r) => r.invoiceId === null || r.invoiceId === invoice.id)
+            .map((r) => ({
+              id: r.id,
+              title: r.title,
+              projectId: r.projectId,
+              amount: r.amount.toString(),
+            })),
+        },
+      ]
+    : [];
 
   const canSend = !!(invoice.xmlFile && invoice.rideFile);
   const defaultEmail =
@@ -99,7 +124,7 @@ export default async function InvoiceDetailPage({
         <div className="flex shrink-0 items-start gap-2">
           <InvoiceEditDialog
             invoice={forInvoiceDialog(invoice)}
-            clientsWithContext={clientCtxEdit ? [clientCtxEdit] : []}
+            clientsWithContext={editCtx}
           />
         </div>
       </div>
@@ -155,17 +180,26 @@ export default async function InvoiceDetailPage({
                 </div>
               ) : null}
 
-              {invoice.receivable ? (
+              {invoice.receivables.length > 0 ? (
                 <div className="mt-4 border-t pt-4">
                   <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                    Hito vinculado
+                    {invoice.receivables.length === 1
+                      ? "Hito cubierto"
+                      : `Hitos cubiertos (${invoice.receivables.length})`}
                   </p>
-                  <p className="mt-1 text-sm font-medium">
-                    {invoice.receivable.title}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    {formatCurrency(invoice.receivable.amount.toString())}
-                  </p>
+                  <ul className="mt-2 space-y-1.5">
+                    {invoice.receivables.map((r) => (
+                      <li
+                        key={r.id}
+                        className="flex items-center justify-between gap-3 text-sm"
+                      >
+                        <span className="font-medium">{r.title}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {formatCurrency(r.amount.toString())}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
                 </div>
               ) : null}
             </CardContent>

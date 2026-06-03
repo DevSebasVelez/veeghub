@@ -158,7 +158,13 @@ export default async function ClientDetailPage({
       orderBy: { createdAt: "desc" },
       skip: (invoicesPage - 1) * PAGE_SIZE,
       take: PAGE_SIZE,
-      include: { client: true, project: true, xmlFile: true, rideFile: true },
+      include: {
+        client: true,
+        project: true,
+        xmlFile: true,
+        rideFile: true,
+        receivables: { select: { id: true } },
+      },
     }),
     prisma.invoice.count({ where: { clientId: id } }),
     prisma.driveFile.findMany({
@@ -237,9 +243,9 @@ export default async function ClientDetailPage({
           select: { id: true, name: true },
         },
         receivables: {
-          where: { invoice: null, status: { notIn: ["CANCELLED"] } },
+          where: { invoiceId: null, status: { notIn: ["CANCELLED"] } },
           orderBy: { createdAt: "desc" },
-          select: { id: true, title: true, projectId: true },
+          select: { id: true, title: true, projectId: true, amount: true },
         },
       },
     }),
@@ -254,14 +260,50 @@ export default async function ClientDetailPage({
         },
         receivables: {
           orderBy: { createdAt: "desc" },
-          select: { id: true, title: true, projectId: true },
+          select: {
+            id: true,
+            title: true,
+            projectId: true,
+            amount: true,
+            invoiceId: true,
+          },
         },
       },
     }),
   ]);
 
-  const invoiceCtxCreate = clientCtxCreate ? [clientCtxCreate] : [];
-  const invoiceCtxEdit = clientCtxEdit ? [clientCtxEdit] : [];
+  // Decimal -> string for client dialogs (plain serializable props)
+  const serializeRecv = (r: {
+    id: string;
+    title: string;
+    projectId: string | null;
+    amount: { toString(): string };
+  }) => ({
+    id: r.id,
+    title: r.title,
+    projectId: r.projectId,
+    amount: r.amount.toString(),
+  });
+  const invoiceCtxCreate = clientCtxCreate
+    ? [
+        {
+          ...clientCtxCreate,
+          receivables: clientCtxCreate.receivables.map(serializeRecv),
+        },
+      ]
+    : [];
+  // Edit dialog: offer free hitos plus the ones already on that invoice.
+  const editCtxFor = (invoiceId: string) =>
+    clientCtxEdit
+      ? [
+          {
+            ...clientCtxEdit,
+            receivables: clientCtxEdit.receivables
+              .filter((r) => r.invoiceId === null || r.invoiceId === invoiceId)
+              .map(serializeRecv),
+          },
+        ]
+      : [];
 
   const totalPending = receivables.reduce(
     (sum, r) => sum + Math.max(0, Number(r.amount) - Number(r.paidAmount)),
@@ -760,7 +802,7 @@ export default async function ClientDetailPage({
                       <div className="transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
                         <InvoiceEditDialog
                           invoice={forInvoiceDialog(invoice)}
-                          clientsWithContext={invoiceCtxEdit}
+                          clientsWithContext={editCtxFor(invoice.id)}
                         />
                       </div>
                     </div>
