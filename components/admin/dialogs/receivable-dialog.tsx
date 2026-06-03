@@ -332,7 +332,12 @@ export function EditPaymentDialog({
 export function PaymentDialog({
   receivables,
 }: {
-  receivables: Array<{ id: string; title: string; client: { name: string } }>;
+  receivables: Array<{
+    id: string;
+    title: string;
+    project: { name: string } | null;
+    client: { name: string };
+  }>;
 }) {
   const [open, setOpen] = useState(false);
   const router = useRouter();
@@ -372,7 +377,7 @@ export function PaymentDialog({
                 defaultValue={receivables[0]?.id}
                 options={receivables.map((r) => ({
                   value: r.id,
-                  label: `${r.title} · ${r.client.name}`,
+                  label: `${r.title} · ${r.project?.name ?? r.client.name}`,
                 }))}
               />
             </Field>
