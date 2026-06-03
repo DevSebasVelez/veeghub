@@ -29,6 +29,20 @@ const optionalId = z.preprocess(
     .transform((v) => (!v || v === "none" ? null : v)),
 );
 
+// Parses a comma-separated list of ids (from a hidden CSV field) into a string[].
+const idList = z.preprocess(
+  coerceStr,
+  z
+    .string()
+    .trim()
+    .transform((v) =>
+      v
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean),
+    ),
+);
+
 const money = z
   .preprocess(coerceStr, z.string().trim().min(1, "Ingresa un monto"))
   .transform((v) => Number(String(v).replace(",", ".")))
@@ -118,7 +132,7 @@ export const paymentUpdateSchema = z.object({
 export const invoiceSchema = z.object({
   clientId: requiredText,
   projectId: optionalId,
-  receivableId: optionalId,
+  receivableIds: idList,
   invoiceNumber: optionalText,
   accessKey: optionalText,
   subtotal: optionalMoney,

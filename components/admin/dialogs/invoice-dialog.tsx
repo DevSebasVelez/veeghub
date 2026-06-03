@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Plus, Receipt } from "lucide-react";
@@ -16,6 +16,7 @@ import {
   type UploadedFile,
 } from "@/components/admin/invoice-file-uploader";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -40,14 +41,19 @@ export type ClientWithContext = {
   id: string;
   name: string;
   projects: { id: string; name: string }[];
-  receivables: { id: string; title: string; projectId: string | null }[];
+  receivables: {
+    id: string;
+    title: string;
+    projectId: string | null;
+    amount: string;
+  }[];
 };
 
 type InvoiceData = {
   id: string;
   clientId: string;
   projectId: string | null;
-  receivableId: string | null;
+  receivableIds: string[];
   invoiceNumber: string | null;
   accessKey: string | null;
   subtotal: string | null;
@@ -90,17 +96,27 @@ function InvoiceFormBody({
   const initialClientId =
     fixedClientId ?? invoice?.clientId ?? clientsWithContext[0]?.id ?? "";
   const initialProjectId = fixedProjectId ?? invoice?.projectId ?? "none";
-  const initialReceivableId =
-    fixedReceivableId ?? invoice?.receivableId ?? "none";
+  const initialReceivableIds = fixedReceivableId
+    ? [fixedReceivableId]
+    : (invoice?.receivableIds ?? []);
 
   const [clientId, setClientId] = useState(initialClientId);
   const [projectId, setProjectId] = useState(initialProjectId);
+  const [receivableIds, setReceivableIds] =
+    useState<string[]>(initialReceivableIds);
+  const totalRef = useRef<HTMLInputElement>(null);
+  const subtotalRef = useRef<HTMLInputElement>(null);
 
   function handleProjectChange(val: string) {
     setProjectId(val);
-    if (!fixedReceivableId) setReceivableId("none");
+    if (!fixedReceivableId) setReceivableIds([]);
   }
-  const [receivableId, setReceivableId] = useState(initialReceivableId);
+
+  function toggleReceivable(id: string) {
+    setReceivableIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    );
+  }
 
   const clientCtx = clientsWithContext.find((c) => c.id === clientId);
   const availableProjects = clientCtx?.projects ?? [];
@@ -112,7 +128,7 @@ function InvoiceFormBody({
   function handleClientChange(val: string) {
     setClientId(val);
     if (!fixedProjectId) setProjectId("none");
-    if (!fixedReceivableId) setReceivableId("none");
+    if (!fixedReceivableId) setReceivableIds([]);
   }
 
   const showClientSelect = !fixedClientId;
@@ -126,6 +142,21 @@ function InvoiceFormBody({
     ? availableReceivables.find((r) => r.id === fixedReceivableId)
     : null;
 
+  // Sum of the currently selected (visible) hitos, to help fill the total.
+  const selectedSum = availableReceivables
+    .filter((r) => receivableIds.includes(r.id))
+    .reduce((sum, r) => sum + Number(r.amount), 0);
+
+  const submittedReceivableIds = fixedReceivableId
+    ? [fixedReceivableId]
+    : receivableIds;
+
+  function applySumToTotals() {
+    const value = selectedSum.toFixed(2);
+    if (totalRef.current) totalRef.current.value = value;
+    if (subtotalRef.current) subtotalRef.current.value = value;
+  }
+
   return (
     <FieldGroup>
       {/* Hidden values for fixed context */}
@@ -135,9 +166,6 @@ function InvoiceFormBody({
       {fixedProjectId ? (
         <input type="hidden" name="projectId" value={fixedProjectId} />
       ) : null}
-      {fixedReceivableId ? (
-        <input type="hidden" name="receivableId" value={fixedReceivableId} />
-      ) : null}
 
       {/* Hidden values for controlled selects */}
       {showClientSelect ? (
@@ -146,9 +174,12 @@ function InvoiceFormBody({
       {showProjectSelect ? (
         <input type="hidden" name="projectId" value={projectId} />
       ) : null}
-      {showReceivableSelect ? (
-        <input type="hidden" name="receivableId" value={receivableId} />
-      ) : null}
+      {/* Selected hitos as a comma-separated list */}
+      <input
+        type="hidden"
+        name="receivableIds"
+        value={submittedReceivableIds.join(",")}
+      />
 
       {/* Client */}
       {showClientSelect ? (
@@ -194,28 +225,51 @@ function InvoiceFormBody({
         </Field>
       ) : null}
 
-      {/* Receivable */}
+      {/* Receivables — one invoice can cover several hitos */}
       {showReceivableSelect ? (
         <Field>
-          <FieldLabel>Hito relacionado</FieldLabel>
-          <Select value={receivableId} onValueChange={setReceivableId}>
-            <SelectTrigger className="h-10 w-full">
-              <SelectValue placeholder="Sin hito" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="none">Sin hito</SelectItem>
+          <div className="flex items-center justify-between">
+            <FieldLabel>Hitos cubiertos</FieldLabel>
+            {receivableIds.length > 0 ? (
+              <button
+                type="button"
+                onClick={applySumToTotals}
+                className="text-xs font-medium text-primary hover:underline"
+              >
+                Usar suma ({selectedSum.toFixed(2)})
+              </button>
+            ) : null}
+          </div>
+          {availableReceivables.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              No hay hitos disponibles para este cliente/proyecto.
+            </p>
+          ) : (
+            <div className="max-h-44 space-y-1 overflow-y-auto rounded-md border p-1">
               {availableReceivables.map((r) => (
-                <SelectItem key={r.id} value={r.id}>
-                  {r.title}
-                </SelectItem>
+                <label
+                  key={r.id}
+                  className="flex cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 hover:bg-muted/60"
+                >
+                  <Checkbox
+                    checked={receivableIds.includes(r.id)}
+                    onCheckedChange={() => toggleReceivable(r.id)}
+                  />
+                  <span className="min-w-0 flex-1 truncate text-sm">
+                    {r.title}
+                  </span>
+                  <span className="shrink-0 text-xs text-muted-foreground">
+                    {r.amount}
+                  </span>
+                </label>
               ))}
-            </SelectContent>
-          </Select>
+            </div>
+          )}
         </Field>
       ) : fixedReceivable ? (
         <div className="space-y-0.5">
           <p className="text-xs font-medium text-muted-foreground">
-            Hito relacionado
+            Hito cubierto
           </p>
           <p className="text-sm font-medium">{fixedReceivable.title}</p>
         </div>
@@ -250,6 +304,7 @@ function InvoiceFormBody({
         <Field>
           <FieldLabel>Subtotal</FieldLabel>
           <Input
+            ref={subtotalRef}
             name="subtotal"
             type="number"
             step="0.01"
@@ -270,6 +325,7 @@ function InvoiceFormBody({
         <Field>
           <FieldLabel>Total *</FieldLabel>
           <Input
+            ref={totalRef}
             name="total"
             type="number"
             step="0.01"

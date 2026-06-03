@@ -166,7 +166,8 @@ model Receivable {
   currency    String           @default("USD")
   dueDate     DateTime?        @db.Date
   status      ReceivableStatus @default(PLANNED)
-  invoice     Invoice?
+  invoiceId   String?
+  invoice     Invoice?         @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
   payments    Payment[]
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
@@ -175,6 +176,7 @@ model Receivable {
   @@index([projectId])
   @@index([status])
   @@index([dueDate])
+  @@index([invoiceId])
 }
 
 model Payment {
@@ -199,8 +201,7 @@ model Invoice {
   client        Client          @relation(fields: [clientId], references: [id], onDelete: Cascade)
   projectId     String?
   project       Project?        @relation(fields: [projectId], references: [id], onDelete: SetNull)
-  receivableId  String?         @unique
-  receivable    Receivable?     @relation(fields: [receivableId], references: [id], onDelete: SetNull)
+  receivables   Receivable[]
   invoiceNumber String?
   accessKey     String?         @unique
   subtotal      Decimal?        @db.Decimal(12, 2)

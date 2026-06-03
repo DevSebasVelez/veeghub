@@ -171,9 +171,14 @@ export default async function ProjectDetailPage({
                 select: { id: true, name: true },
               },
               receivables: {
-                where: { invoice: null, status: { notIn: ["CANCELLED"] } },
+                where: { invoiceId: null, status: { notIn: ["CANCELLED"] } },
                 orderBy: { createdAt: "desc" },
-                select: { id: true, title: true, projectId: true },
+                select: {
+                  id: true,
+                  title: true,
+                  projectId: true,
+                  amount: true,
+                },
               },
             },
           })
@@ -195,7 +200,19 @@ export default async function ProjectDetailPage({
       }),
     ]);
 
-  const invoiceCtxCreate = clientCtxCreate ? [clientCtxCreate] : [];
+  const invoiceCtxCreate = clientCtxCreate
+    ? [
+        {
+          ...clientCtxCreate,
+          receivables: clientCtxCreate.receivables.map((r) => ({
+            id: r.id,
+            title: r.title,
+            projectId: r.projectId,
+            amount: r.amount.toString(),
+          })),
+        },
+      ]
+    : [];
 
   // Drive data — contextual folder navigation
   const driveFolderId = driveFolderParam ?? null;
