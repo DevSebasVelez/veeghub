@@ -12,8 +12,8 @@ import {
   Users,
 } from "lucide-react";
 
-import prisma from "@/lib/db/prisma";
-import { formatCurrency, formatDate, formatDateOnly } from "@/lib/admin/format";
+import { formatCurrency, formatDateOnly } from "@/lib/admin/format";
+import { getAdminDashboardData } from "@/lib/admin/queries/dashboard";
 import { Button } from "@/components/ui/button";
 
 const PRIORITY_STYLES: Record<string, string> = {
@@ -33,53 +33,18 @@ const PRIORITY_LABELS: Record<string, string> = {
 };
 
 export default async function AdminPage() {
-  const now = new Date();
-
-  const [
+  const {
+    now,
     clients,
     activeProjects,
     openTasks,
-    receivables,
+    receivableBalance,
     pendingInvoices,
     credentials,
     recentTasks,
     upcomingReceivables,
-  ] = await Promise.all([
-    prisma.client.count(),
-    prisma.project.count({ where: { status: "ACTIVE" } }),
-    prisma.task.count({ where: { status: { not: "DONE" } } }),
-    prisma.receivable.findMany({
-      where: { status: { not: "PAID" } },
-      select: { amount: true, paidAmount: true },
-    }),
-    prisma.invoice.count({ where: { status: "READY_TO_SEND" } }),
-    prisma.credential.count(),
-    prisma.task.findMany({
-      where: { status: { not: "DONE" } },
-      orderBy: [{ dueDate: "asc" }, { createdAt: "desc" }],
-      take: 6,
-      include: { project: { select: { name: true } } },
-    }),
-    prisma.receivable.findMany({
-      where: { status: { not: "PAID" } },
-      orderBy: [{ dueDate: "asc" }, { createdAt: "desc" }],
-      include: {
-        client: { select: { name: true } },
-        project: { select: { name: true } },
-      },
-    }),
-  ]);
-
-  const outstandingReceivables = upcomingReceivables.filter(
-    (item) => Number(item.amount) - Number(item.paidAmount) > 0,
-  );
-  const receivableBalance = receivables.reduce(
-    (total, item) => total + Number(item.amount) - Number(item.paidAmount),
-    0,
-  );
-  const overdueCount = outstandingReceivables.filter(
-    (item) => item.dueDate && item.dueDate < now,
-  ).length;
+    overdueCount,
+  } = await getAdminDashboardData();
 
   return (
     <div className="space-y-6">
@@ -241,8 +206,8 @@ export default async function AdminPage() {
             </Link>
           </div>
           <div className="divide-y divide-border">
-            {outstandingReceivables.length ? (
-              outstandingReceivables.slice(0, 6).map((item) => {
+            {upcomingReceivables.length ? (
+              upcomingReceivables.map((item) => {
                 const balance = Number(item.amount) - Number(item.paidAmount);
                 const isOverdue = item.dueDate && item.dueDate < now;
                 return (

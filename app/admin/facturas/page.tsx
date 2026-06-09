@@ -1,22 +1,20 @@
 import Link from "next/link";
 import { ExternalLink } from "lucide-react";
 
-import { sendInvoiceEmail } from "@/app/admin/actions";
+import { sendInvoiceEmail } from "@/lib/admin/actions/invoices/actions";
 import {
   CreateInvoiceDialog,
   InvoiceEditDialog,
 } from "@/components/admin/dialogs/invoice-dialog";
-import { getPage, Pagination } from "@/components/admin/pagination";
+import { Pagination } from "@/components/admin/pagination";
 import { StatusBadge } from "@/components/admin/status-badge";
 import { forInvoiceDialog } from "@/lib/admin/serialize";
-import prisma from "@/lib/db/prisma";
+import { getInvoicesPageData } from "@/lib/admin/queries/invoices";
 import { formatCurrency, formatDate, formatDateOnly } from "@/lib/admin/format";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-
-const PAGE_SIZE = 12;
 
 const STATUS_FILTERS = [
   { value: "", label: "Todas" },
@@ -32,93 +30,15 @@ export default async function InvoicesPage({
   searchParams: Promise<{ page?: string; status?: string }>;
 }) {
   const { page: pageParam, status: statusFilter } = await searchParams;
-  const page = getPage(pageParam);
-
-  const whereStatus =
-    statusFilter && statusFilter !== ""
-      ? {
-          status: statusFilter as
-            | "READY_TO_SEND"
-            | "SENT"
-            | "PAID"
-            | "CANCELLED",
-        }
-      : {};
-
-  const [clientsWithContext, clientsForEdit, invoices, total] =
-    await Promise.all([
-      // For create: only open receivables (no invoice yet)
-      prisma.client.findMany({
-        orderBy: { name: "asc" },
-        select: {
-          id: true,
-          name: true,
-          projects: {
-            orderBy: { name: "asc" },
-            select: { id: true, name: true },
-          },
-          receivables: {
-            where: { invoiceId: null, status: { notIn: ["CANCELLED"] } },
-            orderBy: { createdAt: "desc" },
-            select: { id: true, title: true, projectId: true, amount: true },
-          },
-        },
-      }),
-      // For edit: receivables not yet on another invoice (own ones included below)
-      prisma.client.findMany({
-        orderBy: { name: "asc" },
-        select: {
-          id: true,
-          name: true,
-          projects: {
-            orderBy: { name: "asc" },
-            select: { id: true, name: true },
-          },
-          receivables: {
-            orderBy: { createdAt: "desc" },
-            select: {
-              id: true,
-              title: true,
-              projectId: true,
-              amount: true,
-              invoiceId: true,
-            },
-          },
-        },
-      }),
-      prisma.invoice.findMany({
-        where: whereStatus,
-        orderBy: { createdAt: "desc" },
-        skip: (page - 1) * PAGE_SIZE,
-        take: PAGE_SIZE,
-        include: {
-          client: true,
-          project: true,
-          xmlFile: true,
-          rideFile: true,
-          receivables: { select: { id: true } },
-          emailLogs: { orderBy: { createdAt: "desc" }, take: 1 },
-        },
-      }),
-      prisma.invoice.count({ where: whereStatus }),
-    ]);
-
-  // Decimal -> string for the client dialog (plain serializable props)
-  const serializeRecv = (r: {
-    id: string;
-    title: string;
-    projectId: string | null;
-    amount: { toString(): string };
-  }) => ({
-    id: r.id,
-    title: r.title,
-    projectId: r.projectId,
-    amount: r.amount.toString(),
-  });
-  const clientsForCreate = clientsWithContext.map((c) => ({
-    ...c,
-    receivables: c.receivables.map(serializeRecv),
-  }));
+  const {
+    page,
+    pageSize,
+    clientsForCreate,
+    clientsForEdit,
+    invoices,
+    total,
+    serializeRecv,
+  } = await getInvoicesPageData({ pageParam, statusFilter });
 
   return (
     <div className="space-y-6">
@@ -297,7 +217,7 @@ export default async function InvoicesPage({
           <div className="px-6 pb-4">
             <Pagination
               page={page}
-              pageSize={PAGE_SIZE}
+              pageSize={pageSize}
               total={total}
               basePath="/admin/facturas"
               searchParams={{ status: statusFilter ?? "" }}

@@ -5,10 +5,10 @@ import { ArrowRight, CalendarDays, CheckSquare2 } from "lucide-react";
 import { ProjectDialog } from "@/components/admin/dialogs/project-dialog";
 import { TaskDialog } from "@/components/admin/dialogs/task-dialog";
 import { ProjectAvatar } from "@/components/admin/entity-avatar";
-import { getPage, Pagination } from "@/components/admin/pagination";
+import { Pagination } from "@/components/admin/pagination";
 import { StatusBadge } from "@/components/admin/status-badge";
 import { forProjectDialog } from "@/lib/admin/serialize";
-import prisma from "@/lib/db/prisma";
+import { getProjectsPageData } from "@/lib/admin/queries/projects";
 import { formatCurrency, formatDateOnly } from "@/lib/admin/format";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -22,8 +22,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ProjectsFilters } from "./projects-filters";
-
-const PAGE_SIZE = 15;
 
 type ProjectRow = {
   id: string;
@@ -56,57 +54,17 @@ export default async function ProjectsPage({
   }>;
 }) {
   const params = await searchParams;
-  const page = getPage(params.page);
   const q = params.q ?? "";
   const status = params.status ?? "";
   const clientId = params.clientId ?? "";
   const view = params.view === "list" ? "list" : "grid";
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const where: any = {
-    ...(q ? { name: { contains: q, mode: "insensitive" } } : {}),
-    ...(status ? { status } : {}),
-    ...(clientId ? { clientId } : {}),
-  };
-
-  const [clients, allProjects, projects, total] = await Promise.all([
-    prisma.client.findMany({
-      orderBy: { name: "asc" },
-      select: { id: true, name: true },
-    }),
-    prisma.project.findMany({
-      orderBy: { name: "asc" },
-      select: { id: true, name: true },
-    }),
-    prisma.project.findMany({
-      where,
-      orderBy: [{ status: "asc" }, { createdAt: "desc" }],
-      skip: (page - 1) * PAGE_SIZE,
-      take: PAGE_SIZE,
-      select: {
-        id: true,
-        name: true,
-        clientId: true,
-        status: true,
-        description: true,
-        stack: true,
-        repositoryUrl: true,
-        productionUrl: true,
-        stagingUrl: true,
-        budget: true,
-        startDate: true,
-        dueDate: true,
-        client: { select: { name: true } },
-        tasks: { select: { id: true, status: true } },
-        receivables: {
-          select: { amount: true, paidAmount: true, status: true },
-          where: { status: { notIn: ["PAID", "CANCELLED"] } },
-        },
-        _count: { select: { tasks: true, files: true } },
-      },
-    }),
-    prisma.project.count({ where }),
-  ]);
+  const { page, pageSize, clients, allProjects, projects, total } =
+    await getProjectsPageData({
+      pageParam: params.page,
+      q,
+      status,
+      clientId,
+    });
 
   const filterParams = {
     q: q || null,
@@ -145,7 +103,7 @@ export default async function ProjectsPage({
 
       <Pagination
         page={page}
-        pageSize={PAGE_SIZE}
+        pageSize={pageSize}
         total={total}
         basePath="/admin/proyectos"
         searchParams={filterParams}

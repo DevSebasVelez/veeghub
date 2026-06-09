@@ -6,8 +6,8 @@ import {
 } from "@/components/admin/dialogs/client-dialog";
 import { ClientAvatar } from "@/components/admin/entity-avatar";
 import { forClientDialog } from "@/lib/admin/serialize";
-import { getPage, Pagination } from "@/components/admin/pagination";
-import prisma from "@/lib/db/prisma";
+import { Pagination } from "@/components/admin/pagination";
+import { getClientsPageData } from "@/lib/admin/queries/clients";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   Table,
@@ -17,8 +17,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-
-const PAGE_SIZE = 15;
 
 function CountPill({ value }: { value: number }) {
   if (value === 0) return <span className="text-muted-foreground/40">—</span>;
@@ -35,25 +33,8 @@ export default async function ClientsPage({
   searchParams: Promise<{ page?: string }>;
 }) {
   const { page: pageParam } = await searchParams;
-  const page = getPage(pageParam);
-  const [clients, total] = await Promise.all([
-    prisma.client.findMany({
-      orderBy: { name: "asc" },
-      skip: (page - 1) * PAGE_SIZE,
-      take: PAGE_SIZE,
-      include: {
-        _count: {
-          select: {
-            projects: true,
-            receivables: true,
-            invoices: true,
-            credentials: true,
-          },
-        },
-      },
-    }),
-    prisma.client.count(),
-  ]);
+  const { page, pageSize, clients, total } =
+    await getClientsPageData(pageParam);
 
   return (
     <div className="space-y-6">
@@ -157,7 +138,7 @@ export default async function ClientsPage({
           <div className="px-6 py-4">
             <Pagination
               page={page}
-              pageSize={PAGE_SIZE}
+              pageSize={pageSize}
               total={total}
               basePath="/admin/clientes"
             />

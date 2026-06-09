@@ -6,10 +6,11 @@ import { TaskCheckbox } from "@/components/admin/task-checkbox";
 import { TaskTitleEditor } from "@/components/admin/task-title-editor";
 import { TaskFilters } from "@/components/admin/task-filters";
 import { forTaskDialog } from "@/lib/admin/serialize";
-import prisma from "@/lib/db/prisma";
+import { getTasksPageData } from "@/lib/admin/queries/tasks";
 import { formatDateOnly } from "@/lib/admin/format";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { Pagination } from "@/components/admin/pagination";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 
@@ -38,28 +39,17 @@ const priorityOrder: Record<string, number> = {
 export default async function TareasPage({
   searchParams,
 }: {
-  searchParams: Promise<{ proyecto?: string; completadas?: string }>;
+  searchParams: Promise<{ page?: string; proyecto?: string; completadas?: string }>;
 }) {
   const query = await searchParams;
   const projectFilter = query.proyecto ?? "all";
   const showDone = query.completadas === "1";
-
-  const [projects, tasks] = await Promise.all([
-    prisma.project.findMany({
-      orderBy: { name: "asc" },
-      select: { id: true, name: true },
-    }),
-    prisma.task.findMany({
-      where: {
-        ...(projectFilter !== "all" ? { projectId: projectFilter } : {}),
-        ...(showDone ? {} : { status: { not: "DONE" } }),
-      },
-      orderBy: [{ priority: "asc" }, { dueDate: "asc" }, { createdAt: "desc" }],
-      include: {
-        project: { select: { id: true, name: true } },
-      },
-    }),
-  ]);
+  const { page, pageSize, projects, tasks, total, pendingTotal, doneTotal } =
+    await getTasksPageData({
+      pageParam: query.page,
+      projectFilter,
+      showDone,
+    });
 
   const byProject = tasks.reduce<
     Record<
@@ -84,9 +74,6 @@ export default async function TareasPage({
   const groups = Object.values(byProject).sort((a, b) =>
     a.project.name.localeCompare(b.project.name),
   );
-
-  const pendingTotal = tasks.filter((t) => t.status !== "DONE").length;
-  const doneTotal = tasks.filter((t) => t.status === "DONE").length;
 
   return (
     <div className="space-y-5">
@@ -268,6 +255,17 @@ export default async function TareasPage({
           </Card>
         ))
       )}
+
+      <Pagination
+        page={page}
+        pageSize={pageSize}
+        total={total}
+        basePath="/admin/tareas"
+        searchParams={{
+          proyecto: projectFilter !== "all" ? projectFilter : null,
+          completadas: showDone ? "1" : null,
+        }}
+      />
     </div>
   );
 }

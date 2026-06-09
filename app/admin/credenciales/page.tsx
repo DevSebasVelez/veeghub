@@ -1,9 +1,9 @@
 import { CredentialSecret } from "@/app/admin/credenciales/credential-secret";
 import { CredentialDialog } from "@/components/admin/dialogs/credential-dialog";
-import { getPage, Pagination } from "@/components/admin/pagination";
+import { Pagination } from "@/components/admin/pagination";
 import { StatusBadge } from "@/components/admin/status-badge";
 import { forCredentialDialog } from "@/lib/admin/serialize";
-import prisma from "@/lib/db/prisma";
+import { getCredentialsPageData } from "@/lib/admin/queries/credentials";
 import { formatDate } from "@/lib/admin/format";
 import {
   Card,
@@ -21,35 +21,14 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
-const PAGE_SIZE = 10;
-
 export default async function CredentialsPage({
   searchParams,
 }: {
   searchParams: Promise<{ page?: string }>;
 }) {
   const { page: pageParam } = await searchParams;
-  const page = getPage(pageParam);
-  const [clients, projects, credentials, total] = await Promise.all([
-    prisma.client.findMany({
-      orderBy: { name: "asc" },
-      select: { id: true, name: true },
-    }),
-    prisma.project.findMany({
-      orderBy: { name: "asc" },
-      select: { id: true, name: true },
-    }),
-    prisma.credential.findMany({
-      orderBy: { updatedAt: "desc" },
-      skip: (page - 1) * PAGE_SIZE,
-      take: PAGE_SIZE,
-      include: {
-        client: { select: { name: true } },
-        project: { select: { name: true } },
-      },
-    }),
-    prisma.credential.count(),
-  ]);
+  const { page, pageSize, clients, projects, credentials, total } =
+    await getCredentialsPageData(pageParam);
 
   return (
     <div className="space-y-6">
@@ -139,7 +118,7 @@ export default async function CredentialsPage({
           <div className="px-6 pt-2">
             <Pagination
               page={page}
-              pageSize={PAGE_SIZE}
+              pageSize={pageSize}
               total={total}
               basePath="/admin/credenciales"
             />
