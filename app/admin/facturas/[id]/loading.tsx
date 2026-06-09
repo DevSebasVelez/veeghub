@@ -5,20 +5,20 @@ export default function Loading() {
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-        <div className="space-y-2">
+        <div className="min-w-0 space-y-2">
           <Skeleton className="h-4 w-24" />
-          <div className="flex items-center gap-3">
-            <Skeleton className="h-8 w-56" />
+          <div className="flex flex-wrap items-center gap-3">
+            <Skeleton className="h-8 w-56 max-w-full" />
             <Skeleton className="h-5 w-20 rounded-full" />
           </div>
-          <Skeleton className="h-4 w-72" />
+          <Skeleton className="h-4 w-72 max-w-full" />
         </div>
-        <div className="flex shrink-0 gap-2">
-          <Skeleton className="h-9 w-28" />
-          <Skeleton className="h-9 w-28" />
+        <div className="grid w-full shrink-0 grid-cols-2 gap-2 sm:flex sm:w-auto">
+          <Skeleton className="h-9 w-full sm:w-28" />
+          <Skeleton className="h-9 w-full sm:w-28" />
         </div>
       </div>
-      <div className="grid gap-5 lg:grid-cols-[1fr_360px]">
+      <div className="grid min-w-0 gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
         {Array.from({ length: 2 }).map((_, i) => (
           <Card key={i} className="rounded-lg">
             <CardContent className="space-y-4 p-5">
