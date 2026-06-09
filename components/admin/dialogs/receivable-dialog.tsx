@@ -6,10 +6,12 @@ import { toast } from "sonner";
 
 import {
   createReceivable,
+  updateReceivable,
+} from "@/lib/admin/actions/receivables/actions";
+import {
   recordPayment,
   updatePayment,
-  updateReceivable,
-} from "@/app/admin/actions";
+} from "@/lib/admin/actions/payments/actions";
 import {
   CreateTrigger,
   EditTrigger,

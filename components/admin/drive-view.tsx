@@ -14,7 +14,7 @@ import {
 } from "react-icons/fa6";
 import { Download, Eye, Grid2X2, List, Trash2, X } from "lucide-react";
 
-import { deleteFolder, deleteDriveFile } from "@/app/admin/actions";
+import { deleteFolder, deleteDriveFile } from "@/lib/admin/actions/drive/actions";
 import { ConfirmationDialog } from "@/components/admin/confirmation-dialog";
 import { DriveFileEditDialog } from "@/components/admin/dialogs/drive-file-dialog";
 import { FolderEditDialog } from "@/components/admin/dialogs/folder-dialog";

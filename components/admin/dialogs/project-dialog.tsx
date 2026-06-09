@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
-import { createProject, updateProject } from "@/app/admin/actions";
+import { createProject, updateProject } from "@/lib/admin/actions/projects/actions";
 import {
   CreateTrigger,
   EditTrigger,

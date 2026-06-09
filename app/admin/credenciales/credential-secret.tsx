@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
 
-import { revealCredential } from "@/app/admin/actions";
+import { revealCredential } from "@/lib/admin/actions/credentials/actions";
 import { Button } from "@/components/ui/button";
 
 export function CredentialSecret({

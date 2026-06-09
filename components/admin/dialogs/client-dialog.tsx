@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
-import { createClient, updateClient } from "@/app/admin/actions";
+import { createClient, updateClient } from "@/lib/admin/actions/clients/actions";
 import { CreateTrigger, EditTrigger } from "@/components/admin/dialogs/_base";
 import { Button } from "@/components/ui/button";
 import {

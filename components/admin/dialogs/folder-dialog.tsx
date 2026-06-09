@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { FolderPlus } from "lucide-react";
 
-import { createFolder, updateFolder } from "@/app/admin/actions";
+import { createFolder, updateFolder } from "@/lib/admin/actions/drive/actions";
 import {
   EditTrigger,
   relationOptions,

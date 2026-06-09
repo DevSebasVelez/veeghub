@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
-import { createCredential, updateCredential } from "@/app/admin/actions";
+import { createCredential, updateCredential } from "@/lib/admin/actions/credentials/actions";
 import {
   CreateTrigger,
   EditTrigger,

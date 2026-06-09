@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Loader2, Send } from "lucide-react";
 import { toast } from "sonner";
 
-import { sendInvoiceEmail } from "@/app/admin/actions";
+import { sendInvoiceEmail } from "@/lib/admin/actions/invoices/actions";
 import { Button } from "@/components/ui/button";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";

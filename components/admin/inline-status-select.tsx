@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
-import { updateReceivableStatus } from "@/app/admin/actions";
+import { updateReceivableStatus } from "@/lib/admin/actions/receivables/actions";
 import {
   Select,
   SelectContent,

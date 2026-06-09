@@ -8,7 +8,7 @@ import { Plus, Receipt } from "lucide-react";
 import {
   createInvoiceWithKeys,
   updateInvoiceWithKeys,
-} from "@/app/admin/actions";
+} from "@/lib/admin/actions/invoices/actions";
 import { EditTrigger } from "@/components/admin/dialogs/_base";
 import { DatePickerField } from "@/components/admin/date-picker-field";
 import {

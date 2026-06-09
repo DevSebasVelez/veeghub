@@ -5,8 +5,8 @@ import {
 } from "@/components/ui/sidebar";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
-import { signOut } from "@/auth";
 import { requireAdmin } from "@/lib/auth/require-admin";
+import { signOutAdmin } from "@/lib/admin/actions/auth/actions";
 import { AdminNav } from "@/app/admin/admin-nav";
 import { ThemeToggle } from "@/components/admin/theme-toggle";
 import { MobileNav } from "@/components/admin/mobile-nav";
@@ -30,12 +30,7 @@ export default async function AdminLayout({
             <ThemeToggle />
             <Separator orientation="vertical" className="h-5" />
           </div>
-          <form
-            action={async () => {
-              "use server";
-              await signOut({ redirectTo: "/login" });
-            }}
-          >
+          <form action={signOutAdmin}>
             <Button type="submit" variant="outline" size="sm">
               Salir
             </Button>

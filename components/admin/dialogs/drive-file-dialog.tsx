@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
-import { updateDriveFile } from "@/app/admin/actions";
+import { updateDriveFile } from "@/lib/admin/actions/drive/actions";
 import {
   EditTrigger,
   relationOptions,

@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Copy, ExternalLink, Eye } from "lucide-react";
 import { toast } from "sonner";
 
-import { revealCredential } from "@/app/admin/actions";
+import { revealCredential } from "@/lib/admin/actions/credentials/actions";
 import { StatusBadge } from "@/components/admin/status-badge";
 import { Button } from "@/components/ui/button";
 import {
