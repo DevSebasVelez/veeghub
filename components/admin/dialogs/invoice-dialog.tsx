@@ -9,7 +9,10 @@ import {
   createInvoiceWithKeys,
   updateInvoiceWithKeys,
 } from "@/lib/admin/actions/invoices/actions";
-import { EditTrigger } from "@/components/admin/dialogs/_base";
+import {
+  DialogSubmitFooter,
+  EditTrigger,
+} from "@/components/admin/dialogs/_base";
 import { DatePickerField } from "@/components/admin/date-picker-field";
 import {
   InvoiceFileUploader,
@@ -399,13 +402,19 @@ export function CreateInvoiceDialog({
   const [open, setOpen] = useState(false);
   const [xml, setXml] = useState<UploadedFile | null>(null);
   const [ride, setRide] = useState<UploadedFile | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [busyCount, setBusyCount] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const router = useRouter();
 
+  const isUploading = busyCount > 0;
+
+  function trackBusy(uploading: boolean) {
+    setBusyCount((n) => Math.max(0, n + (uploading ? 1 : -1)));
+  }
+
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    if (busy) {
+    if (isUploading) {
       toast.error("Espera a que termine la subida de archivos.");
       return;
     }
@@ -443,16 +452,8 @@ export function CreateInvoiceDialog({
     if (!val) {
       setXml(null);
       setRide(null);
-      setBusy(false);
+      setBusyCount(0);
     }
-  }
-
-  // busy tracker for two uploaders
-  const [busyCount, setBusyCount] = useState(0);
-  const isUploading = busyCount > 0;
-
-  function trackBusy(uploading: boolean) {
-    setBusyCount((n) => Math.max(0, n + (uploading ? 1 : -1)));
   }
 
   return (
@@ -486,17 +487,12 @@ export function CreateInvoiceDialog({
             onRideClear={() => setRide(null)}
             onBusy={trackBusy}
           />
-          <Button
-            type="submit"
-            className="w-full"
-            disabled={submitting || isUploading || !clientsWithContext.length}
-          >
-            {isUploading
-              ? "Subiendo archivos..."
-              : submitting
-                ? "Guardando..."
-                : "Registrar factura"}
-          </Button>
+          <DialogSubmitFooter
+            submitLabel="Registrar factura"
+            saving={submitting || isUploading}
+            savingLabel={isUploading ? "Subiendo archivos..." : "Guardando..."}
+            disabled={!clientsWithContext.length}
+          />
         </form>
       </DialogContent>
     </Dialog>
@@ -591,17 +587,11 @@ export function InvoiceEditDialog({
             onRideClear={() => setRide(null)}
             onBusy={trackBusy}
           />
-          <Button
-            type="submit"
-            className="w-full"
-            disabled={submitting || isUploading}
-          >
-            {isUploading
-              ? "Subiendo archivos..."
-              : submitting
-                ? "Guardando..."
-                : "Guardar cambios"}
-          </Button>
+          <DialogSubmitFooter
+            submitLabel="Guardar cambios"
+            saving={submitting || isUploading}
+            savingLabel={isUploading ? "Subiendo archivos..." : "Guardando..."}
+          />
         </form>
       </DialogContent>
     </Dialog>

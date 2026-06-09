@@ -1,18 +1,18 @@
 "use client";
 
-import { useState } from "react";
+import { type FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 import { createCredential, updateCredential } from "@/lib/admin/actions/credentials/actions";
 import {
   CreateTrigger,
+  DialogSubmitFooter,
   EditTrigger,
   relationOptions,
   type EntityOption,
 } from "@/components/admin/dialogs/_base";
 import { FormSelect } from "@/components/admin/form-select";
-import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -64,10 +64,16 @@ export function CredentialDialog({
   fixedProjectId?: string;
 }) {
   const [open, setOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
   const router = useRouter();
 
-  async function handleSave(formData: FormData) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (saving) return;
+
+    setSaving(true);
     try {
+      const formData = new FormData(event.currentTarget);
       if (credential) {
         await updateCredential(credential.id, formData);
       } else {
@@ -78,6 +84,8 @@ export function CredentialDialog({
       toast.success("Credencial guardada.");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Error al guardar");
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -99,7 +107,7 @@ export function CredentialDialog({
             Puedes guardar password/token o solo método de acceso.
           </DialogDescription>
         </DialogHeader>
-        <form action={handleSave} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4">
           <FieldGroup>
             {credential ? (
               <input type="hidden" name="existingSecret" value="true" />
@@ -189,9 +197,7 @@ export function CredentialDialog({
               />
             </Field>
           </FieldGroup>
-          <Button type="submit" className="w-full">
-            Guardar
-          </Button>
+          <DialogSubmitFooter submitLabel="Guardar" saving={saving} />
         </form>
       </DialogContent>
     </Dialog>

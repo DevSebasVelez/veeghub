@@ -93,7 +93,7 @@ export function CredentialViewDialog({
           <Eye className="size-3.5" />
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-h-[90svh] overflow-y-auto sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-base">
             <span className="truncate">{credential.title}</span>
@@ -104,7 +104,7 @@ export function CredentialViewDialog({
         <div className="space-y-4">
           {credential.url ? (
             <Field label="URL">
-              <div className="flex items-center gap-2">
+              <div className="flex min-w-0 items-center gap-2">
                 <a
                   href={credential.url}
                   target="_blank"
@@ -129,8 +129,8 @@ export function CredentialViewDialog({
 
           {credential.username ? (
             <Field label="Usuario">
-              <div className="flex items-center gap-2">
-                <code className="flex-1 font-mono text-sm">
+              <div className="flex min-w-0 items-center gap-2">
+                <code className="min-w-0 flex-1 break-all font-mono text-sm">
                   {credential.username}
                 </code>
                 <CopyButton value={credential.username} />
@@ -140,14 +140,14 @@ export function CredentialViewDialog({
 
           {credential.accessMethod ? (
             <Field label="Método de acceso">
-              <p className="text-sm">{credential.accessMethod}</p>
+              <p className="wrap-break-word text-sm">{credential.accessMethod}</p>
             </Field>
           ) : null}
 
           {credential.secretPreview !== null &&
           credential.secretPreview !== undefined ? (
             <Field label="Secreto / Contraseña">
-              <div className="flex items-center gap-2">
+              <div className="flex min-w-0 items-center gap-2">
                 {revealed !== null ? (
                   <>
                     <code className="flex-1 break-all font-mono text-sm">

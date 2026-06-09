@@ -1,12 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { type FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 import { createClient, updateClient } from "@/lib/admin/actions/clients/actions";
-import { CreateTrigger, EditTrigger } from "@/components/admin/dialogs/_base";
-import { Button } from "@/components/ui/button";
+import {
+  CreateTrigger,
+  DialogSubmitFooter,
+  EditTrigger,
+} from "@/components/admin/dialogs/_base";
 import {
   Dialog,
   DialogContent,
@@ -97,16 +100,24 @@ function ClientFields({ client }: { client?: Props }) {
 
 export function ClientEditDialog({ client }: { client: Props }) {
   const [open, setOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
   const router = useRouter();
 
-  async function handleSave(formData: FormData) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (saving) return;
+
+    setSaving(true);
     try {
+      const formData = new FormData(event.currentTarget);
       await updateClient(client.id, formData);
       setOpen(false);
       router.refresh();
       toast.success("Cliente actualizado.");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Error al guardar");
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -122,11 +133,9 @@ export function ClientEditDialog({ client }: { client: Props }) {
             Actualiza contactos, datos fiscales y notas.
           </DialogDescription>
         </DialogHeader>
-        <form action={handleSave} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4">
           <ClientFields client={client} />
-          <Button type="submit" className="w-full">
-            Guardar cambios
-          </Button>
+          <DialogSubmitFooter submitLabel="Guardar cambios" saving={saving} />
         </form>
       </DialogContent>
     </Dialog>
@@ -135,16 +144,24 @@ export function ClientEditDialog({ client }: { client: Props }) {
 
 export function CreateClientDialog() {
   const [open, setOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
   const router = useRouter();
 
-  async function handleSave(formData: FormData) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (saving) return;
+
+    setSaving(true);
     try {
+      const formData = new FormData(event.currentTarget);
       await createClient(formData);
       setOpen(false);
       router.refresh();
       toast.success("Cliente creado.");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Error al guardar");
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -160,11 +177,13 @@ export function CreateClientDialog() {
             Guarda datos comerciales y de envío de facturas.
           </DialogDescription>
         </DialogHeader>
-        <form action={handleSave} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4">
           <ClientFields />
-          <Button type="submit" className="w-full">
-            Crear cliente
-          </Button>
+          <DialogSubmitFooter
+            submitLabel="Crear cliente"
+            saving={saving}
+            savingLabel="Creando..."
+          />
         </form>
       </DialogContent>
     </Dialog>

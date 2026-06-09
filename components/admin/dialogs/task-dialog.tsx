@@ -1,18 +1,18 @@
 "use client";
 
-import { useState } from "react";
+import { type FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 import { createTask, updateTask } from "@/lib/admin/actions/tasks/actions";
 import {
   CreateTrigger,
+  DialogSubmitFooter,
   EditTrigger,
   type EntityOption,
 } from "@/components/admin/dialogs/_base";
 import { DatePickerField } from "@/components/admin/date-picker-field";
 import { FormSelect } from "@/components/admin/form-select";
-import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -61,10 +61,16 @@ export function TaskDialog({
   fixedProjectId?: string;
 }) {
   const [open, setOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
   const router = useRouter();
 
-  async function handleSave(formData: FormData) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (saving) return;
+
+    setSaving(true);
     try {
+      const formData = new FormData(event.currentTarget);
       if (task) {
         await updateTask(task.id, formData);
       } else {
@@ -75,6 +81,8 @@ export function TaskDialog({
       toast.success("Tarea guardada.");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Error al guardar");
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -96,7 +104,7 @@ export function TaskDialog({
             Actualiza prioridad, estado y fecha límite.
           </DialogDescription>
         </DialogHeader>
-        <form action={handleSave} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4">
           <FieldGroup>
             {fixedProjectId ? (
               <input type="hidden" name="projectId" value={fixedProjectId} />
@@ -148,9 +156,7 @@ export function TaskDialog({
               />
             </Field>
           </FieldGroup>
-          <Button type="submit" className="w-full">
-            Guardar
-          </Button>
+          <DialogSubmitFooter submitLabel="Guardar" saving={saving} />
         </form>
       </DialogContent>
     </Dialog>

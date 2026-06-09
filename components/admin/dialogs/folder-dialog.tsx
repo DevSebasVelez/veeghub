@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { type FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { FolderPlus } from "lucide-react";
 
 import { createFolder, updateFolder } from "@/lib/admin/actions/drive/actions";
 import {
+  DialogSubmitFooter,
   EditTrigger,
   relationOptions,
   type EntityOption,
@@ -42,16 +43,24 @@ export function FolderEditDialog({
   projects: EntityOption[];
 }) {
   const [open, setOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
   const router = useRouter();
 
-  async function handleSave(formData: FormData) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (saving) return;
+
+    setSaving(true);
     try {
+      const formData = new FormData(event.currentTarget);
       await updateFolder(folder.id, formData);
       setOpen(false);
       router.refresh();
       toast.success("Carpeta actualizada.");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Error al guardar");
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -60,12 +69,12 @@ export function FolderEditDialog({
       <DialogTrigger asChild>
         <EditTrigger />
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent className="max-h-[90svh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Editar carpeta</DialogTitle>
           <DialogDescription>Actualiza nombre y contexto.</DialogDescription>
         </DialogHeader>
-        <form action={handleSave} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4">
           <FieldGroup>
             <input
               type="hidden"
@@ -93,9 +102,7 @@ export function FolderEditDialog({
               />
             </Field>
           </FieldGroup>
-          <Button type="submit" className="w-full">
-            Guardar
-          </Button>
+          <DialogSubmitFooter submitLabel="Guardar" saving={saving} />
         </form>
       </DialogContent>
     </Dialog>
@@ -112,16 +119,24 @@ export function CreateFolderDialog({
   projectId?: string | null;
 }) {
   const [open, setOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
   const router = useRouter();
 
-  async function handleSave(formData: FormData) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (saving) return;
+
+    setSaving(true);
     try {
+      const formData = new FormData(event.currentTarget);
       await createFolder(formData);
       setOpen(false);
       router.refresh();
       toast.success("Carpeta creada.");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Error al crear");
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -133,14 +148,14 @@ export function CreateFolderDialog({
           Nueva carpeta
         </Button>
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent className="max-h-[90svh] overflow-y-auto sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Nueva carpeta</DialogTitle>
           <DialogDescription>
             Ingresa el nombre de la carpeta.
           </DialogDescription>
         </DialogHeader>
-        <form action={handleSave} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4">
           <input type="hidden" name="parentId" value={parentId ?? "none"} />
           {clientId ? (
             <input type="hidden" name="clientId" value={clientId} />
@@ -154,9 +169,11 @@ export function CreateFolderDialog({
             autoFocus
             placeholder="Nombre de la carpeta"
           />
-          <Button type="submit" className="w-full">
-            Crear carpeta
-          </Button>
+          <DialogSubmitFooter
+            submitLabel="Crear carpeta"
+            saving={saving}
+            savingLabel="Creando..."
+          />
         </form>
       </DialogContent>
     </Dialog>
