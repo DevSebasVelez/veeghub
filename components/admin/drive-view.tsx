@@ -14,7 +14,10 @@ import {
 } from "react-icons/fa6";
 import { Download, Eye, Grid2X2, List, Trash2, X } from "lucide-react";
 
-import { deleteFolder, deleteDriveFile } from "@/lib/admin/actions/drive/actions";
+import {
+  deleteFolder,
+  deleteDriveFile,
+} from "@/lib/admin/actions/drive/actions";
 import { ConfirmationDialog } from "@/components/admin/confirmation-dialog";
 import { DriveFileEditDialog } from "@/components/admin/dialogs/drive-file-dialog";
 import { FolderEditDialog } from "@/components/admin/dialogs/folder-dialog";
@@ -104,18 +107,18 @@ function FilePreviewModal({
 
   return (
     <Dialog open={!!file} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="flex h-[95svh] max-h-[95svh] w-[95vw] max-w-[95vw] sm:max-w-[95vw] flex-col gap-0 p-0 [&>button:last-child]:hidden">
+      <DialogContent className="flex h-[95svh] max-h-[95svh] w-[95vw] max-w-[95vw] flex-col gap-0 p-0 sm:max-w-[95vw] [&>button:last-child]:hidden">
         {/* Header bar */}
-        <div className="flex shrink-0 items-center gap-3 border-b px-4 py-3">
+        <div className="flex shrink-0 flex-col gap-2 border-b px-3 py-3 sm:flex-row sm:items-center sm:gap-3 sm:px-4">
           <div className="min-w-0 flex-1">
             <DialogTitle className="truncate text-sm font-semibold">
               {file.name}
             </DialogTitle>
-            <p className="text-xs text-muted-foreground">
+            <p className="truncate text-xs text-muted-foreground">
               {file.mimeType} · {formatBytes(file.size)}
             </p>
           </div>
-          <div className="flex shrink-0 items-center gap-2">
+          <div className="flex shrink-0 items-center justify-between gap-2 sm:justify-end">
             <Button variant="outline" size="sm" asChild>
               <a
                 href={`${downloadUrl}?download=1`}
@@ -209,7 +212,7 @@ function FolderCard({
           {count > 0 ? `${count} elemento${count !== 1 ? "s" : ""}` : "Vacía"}
         </div>
       </div>
-      <div className="flex items-center gap-1 border-t px-2.5 py-1.5 transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
+      <div className="flex items-center gap-1 border-t px-2.5 py-1.5 sm:transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
         <div className="ml-auto flex items-center gap-1">
           <FolderEditDialog
             folder={folder}
@@ -291,7 +294,7 @@ function FileCard({
           {formatBytes(file.size)}
         </div>
       </div>
-      <div className="flex items-center gap-1 border-t px-2.5 py-1.5 transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
+      <div className="flex items-center gap-1 border-t px-2.5 py-1.5 sm:transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
         {canPreview ? (
           <Button
             variant="ghost"
@@ -359,7 +362,7 @@ function GridView({
   folderBase: string;
 }) {
   return (
-    <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
       {folders.map((folder) => (
         <FolderCard
           key={folder.id}
@@ -406,33 +409,29 @@ function ListView({
   const downloadUrl = (id: string) => `/admin/drive/download/${id}`;
 
   return (
-    <Table>
-      <TableHeader>
-        <TableRow>
-          <TableHead>Nombre</TableHead>
-          <TableHead>Tamaño</TableHead>
-          <TableHead>Contexto</TableHead>
-          <TableHead className="text-right">Acciones</TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
+    <>
+      <div className="space-y-2 md:hidden">
         {folders.map((folder) => (
-          <TableRow key={folder.id} className="group">
-            <TableCell>
+          <div key={folder.id} className="rounded-lg border bg-background p-3">
+            <div className="flex min-w-0 items-start gap-3">
               <Link
                 href={folderHref(folderBase, folder.id)}
-                className="flex items-center gap-2 font-medium hover:underline"
+                className="flex size-10 shrink-0 items-center justify-center rounded-md bg-amber-50 text-amber-500 dark:bg-amber-950/40 dark:text-amber-400"
               >
-                <FaFolder className="size-4 shrink-0 text-amber-500" />
-                {folder.name}
+                <FaFolder className="size-5" />
               </Link>
-            </TableCell>
-            <TableCell className="text-muted-foreground">—</TableCell>
-            <TableCell className="text-sm text-muted-foreground">
-              {folder.project?.name ?? folder.client?.name ?? "General"}
-            </TableCell>
-            <TableCell className="text-right">
-              <div className="flex items-center justify-end gap-1 transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
+              <div className="min-w-0 flex-1">
+                <Link
+                  href={folderHref(folderBase, folder.id)}
+                  className="block truncate text-sm font-medium"
+                >
+                  {folder.name}
+                </Link>
+                <p className="truncate text-xs text-muted-foreground">
+                  {folder.project?.name ?? folder.client?.name ?? "General"}
+                </p>
+              </div>
+              <div className="flex shrink-0 items-center gap-1">
                 <FolderEditDialog
                   folder={folder}
                   clients={clients}
@@ -442,8 +441,8 @@ function ListView({
                   trigger={
                     <Button
                       variant="ghost"
-                      size="sm"
-                      className="text-destructive hover:text-destructive"
+                      size="icon"
+                      className="size-8 text-destructive hover:text-destructive"
                     >
                       <Trash2 className="size-4" />
                     </Button>
@@ -455,35 +454,34 @@ function ListView({
                   onConfirm={() => onDeleteFolder(folder.id)}
                 />
               </div>
-            </TableCell>
-          </TableRow>
+            </div>
+          </div>
         ))}
         {files.map((file) => (
-          <TableRow key={file.id} className="group">
-            <TableCell>
-              <div className="flex items-center gap-2">
+          <div key={file.id} className="rounded-lg border bg-background p-3">
+            <div className="flex min-w-0 items-start gap-3">
+              <div className="flex size-10 shrink-0 items-center justify-center rounded-md bg-muted/50">
                 {fileIcon(file.mimeType)}
-                <span className="font-medium">{file.name}</span>
               </div>
-            </TableCell>
-            <TableCell className="text-sm text-muted-foreground">
-              {formatBytes(file.size)}
-            </TableCell>
-            <TableCell className="text-sm text-muted-foreground">
-              {file.project?.name ?? file.client?.name ?? "General"}
-            </TableCell>
-            <TableCell className="text-right">
-              <div className="flex items-center justify-end gap-1 transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium">{file.name}</p>
+                <p className="truncate text-xs text-muted-foreground">
+                  {formatBytes(file.size)} ·{" "}
+                  {file.project?.name ?? file.client?.name ?? "General"}
+                </p>
+              </div>
+              <div className="flex shrink-0 items-center gap-1">
                 {isPreviewable(file.mimeType) ? (
                   <Button
                     variant="ghost"
-                    size="sm"
+                    size="icon"
+                    className="size-8"
                     onClick={() => onPreview(file)}
                   >
                     <Eye className="size-4" />
                   </Button>
                 ) : null}
-                <Button variant="ghost" size="sm" asChild>
+                <Button variant="ghost" size="icon" className="size-8" asChild>
                   <a
                     href={`${downloadUrl(file.id)}?download=1`}
                     target="_blank"
@@ -497,38 +495,141 @@ function ListView({
                   clients={clients}
                   projects={projects}
                 />
-                <ConfirmationDialog
-                  trigger={
+              </div>
+            </div>
+          </div>
+        ))}
+        {folders.length === 0 && files.length === 0 ? (
+          <div className="rounded-lg border border-dashed py-12 text-center text-sm text-muted-foreground">
+            Esta carpeta está vacía.
+          </div>
+        ) : null}
+      </div>
+
+      <Table className="hidden md:table">
+        <TableHeader>
+          <TableRow>
+            <TableHead>Nombre</TableHead>
+            <TableHead>Tamaño</TableHead>
+            <TableHead>Contexto</TableHead>
+            <TableHead className="text-right">Acciones</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {folders.map((folder) => (
+            <TableRow key={folder.id} className="group">
+              <TableCell>
+                <Link
+                  href={folderHref(folderBase, folder.id)}
+                  className="flex items-center gap-2 font-medium hover:underline"
+                >
+                  <FaFolder className="size-4 shrink-0 text-amber-500" />
+                  {folder.name}
+                </Link>
+              </TableCell>
+              <TableCell className="text-muted-foreground">—</TableCell>
+              <TableCell className="text-sm text-muted-foreground">
+                {folder.project?.name ?? folder.client?.name ?? "General"}
+              </TableCell>
+              <TableCell className="text-right">
+                <div className="flex items-center justify-end gap-1 transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
+                  <FolderEditDialog
+                    folder={folder}
+                    clients={clients}
+                    projects={projects}
+                  />
+                  <ConfirmationDialog
+                    trigger={
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-destructive hover:text-destructive"
+                      >
+                        <Trash2 className="size-4" />
+                      </Button>
+                    }
+                    title="Eliminar carpeta"
+                    description={`¿Eliminar "${folder.name}"?`}
+                    confirmLabel="Eliminar"
+                    destructive
+                    onConfirm={() => onDeleteFolder(folder.id)}
+                  />
+                </div>
+              </TableCell>
+            </TableRow>
+          ))}
+          {files.map((file) => (
+            <TableRow key={file.id} className="group">
+              <TableCell>
+                <div className="flex items-center gap-2">
+                  {fileIcon(file.mimeType)}
+                  <span className="font-medium">{file.name}</span>
+                </div>
+              </TableCell>
+              <TableCell className="text-sm text-muted-foreground">
+                {formatBytes(file.size)}
+              </TableCell>
+              <TableCell className="text-sm text-muted-foreground">
+                {file.project?.name ?? file.client?.name ?? "General"}
+              </TableCell>
+              <TableCell className="text-right">
+                <div className="flex items-center justify-end gap-1 transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
+                  {isPreviewable(file.mimeType) ? (
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="text-destructive hover:text-destructive"
+                      onClick={() => onPreview(file)}
                     >
-                      <Trash2 className="size-4" />
+                      <Eye className="size-4" />
                     </Button>
-                  }
-                  title="Eliminar archivo"
-                  description={`¿Eliminar "${file.name}"?`}
-                  confirmLabel="Eliminar"
-                  destructive
-                  onConfirm={() => onDeleteFile(file.id)}
-                />
-              </div>
-            </TableCell>
-          </TableRow>
-        ))}
-        {folders.length === 0 && files.length === 0 ? (
-          <TableRow>
-            <TableCell
-              colSpan={4}
-              className="h-24 text-center text-muted-foreground"
-            >
-              Esta carpeta está vacía.
-            </TableCell>
-          </TableRow>
-        ) : null}
-      </TableBody>
-    </Table>
+                  ) : null}
+                  <Button variant="ghost" size="sm" asChild>
+                    <a
+                      href={`${downloadUrl(file.id)}?download=1`}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      <Download className="size-4" />
+                    </a>
+                  </Button>
+                  <DriveFileEditDialog
+                    file={file}
+                    clients={clients}
+                    projects={projects}
+                  />
+                  <ConfirmationDialog
+                    trigger={
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-destructive hover:text-destructive"
+                      >
+                        <Trash2 className="size-4" />
+                      </Button>
+                    }
+                    title="Eliminar archivo"
+                    description={`¿Eliminar "${file.name}"?`}
+                    confirmLabel="Eliminar"
+                    destructive
+                    onConfirm={() => onDeleteFile(file.id)}
+                  />
+                </div>
+              </TableCell>
+            </TableRow>
+          ))}
+          {folders.length === 0 && files.length === 0 ? (
+            <TableRow>
+              <TableCell
+                colSpan={4}
+                className="h-24 text-center text-muted-foreground"
+              >
+                Esta carpeta está vacía.
+              </TableCell>
+            </TableRow>
+          ) : null}
+        </TableBody>
+      </Table>
+    </>
   );
 }
 
@@ -572,24 +673,30 @@ export function DriveView({
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-end gap-1">
-        <Button
-          variant={view === "grid" ? "secondary" : "ghost"}
-          size="sm"
-          onClick={() => setView("grid")}
-          aria-label="Vista cuadrícula"
-        >
-          <Grid2X2 className="size-4" />
-        </Button>
-        <Button
-          variant={view === "list" ? "secondary" : "ghost"}
-          size="sm"
-          onClick={() => setView("list")}
-          aria-label="Vista lista"
-        >
-          <List className="size-4" />
-        </Button>
+    <div className="min-w-0 space-y-4">
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-xs font-medium text-muted-foreground">
+          {folders.length + files.length} elemento
+          {folders.length + files.length !== 1 ? "s" : ""}
+        </p>
+        <div className="flex items-center gap-1">
+          <Button
+            variant={view === "grid" ? "secondary" : "ghost"}
+            size="sm"
+            onClick={() => setView("grid")}
+            aria-label="Vista cuadrícula"
+          >
+            <Grid2X2 className="size-4" />
+          </Button>
+          <Button
+            variant={view === "list" ? "secondary" : "ghost"}
+            size="sm"
+            onClick={() => setView("list")}
+            aria-label="Vista lista"
+          >
+            <List className="size-4" />
+          </Button>
+        </div>
       </div>
 
       {isEmpty ? (

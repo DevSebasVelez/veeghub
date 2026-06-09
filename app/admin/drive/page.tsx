@@ -148,7 +148,7 @@ export default async function DrivePage({
   const isRootActive = !sectionLabel && breadcrumb.length === 0;
 
   return (
-    <div className="flex gap-6">
+    <div className="min-w-0 space-y-5 md:flex md:gap-6 md:space-y-0">
       <DriveSidebar
         clients={sidebarClients}
         projects={sidebarProjects}
@@ -158,18 +158,18 @@ export default async function DrivePage({
 
       <div className="min-w-0 flex-1 space-y-5">
         <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-          <div className="space-y-1.5">
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <div className="min-w-0 space-y-1.5">
+            <div className="flex min-w-0 items-center gap-1.5 overflow-hidden text-sm text-muted-foreground sm:gap-2">
               <Link
                 href="/admin/drive"
                 className={
                   isRootActive
-                    ? "flex items-center gap-1 font-medium text-foreground"
-                    : "flex items-center gap-1 hover:text-foreground"
+                    ? "flex shrink-0 items-center gap-1 font-medium text-foreground"
+                    : "flex shrink-0 items-center gap-1 hover:text-foreground"
                 }
               >
                 <HardDrive className="size-3.5" />
-                Drive
+                <span className="hidden sm:inline">Drive</span>
               </Link>
 
               {sectionLabel && sectionHref ? (
@@ -179,8 +179,8 @@ export default async function DrivePage({
                     href={sectionHref}
                     className={
                       breadcrumb.length === 0
-                        ? "max-w-48 truncate font-medium text-foreground"
-                        : "max-w-32 truncate hover:text-foreground"
+                        ? "min-w-0 max-w-[42vw] truncate font-medium text-foreground sm:max-w-48"
+                        : "min-w-0 max-w-[30vw] truncate hover:text-foreground sm:max-w-32"
                     }
                   >
                     {sectionLabel}
@@ -195,8 +195,8 @@ export default async function DrivePage({
                     href={appendFolder(sectionBase, crumb.id)}
                     className={
                       i === breadcrumb.length - 1
-                        ? "max-w-48 truncate font-medium text-foreground"
-                        : "max-w-32 truncate hover:text-foreground"
+                        ? "min-w-0 max-w-[42vw] truncate font-medium text-foreground sm:max-w-48"
+                        : "min-w-0 max-w-[30vw] truncate hover:text-foreground sm:max-w-32"
                     }
                   >
                     {crumb.name}
@@ -205,7 +205,7 @@ export default async function DrivePage({
               ))}
             </div>
 
-            <h1 className="text-2xl font-semibold tracking-tight">
+            <h1 className="wrap-break-word text-2xl font-semibold tracking-tight">
               {currentFolder?.name ?? sectionLabel ?? "Mi Drive"}
             </h1>
             <p className="text-sm text-muted-foreground">
@@ -215,7 +215,7 @@ export default async function DrivePage({
             </p>
           </div>
 
-          <div className="flex shrink-0 items-start gap-2">
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:shrink-0 sm:items-start">
             <CreateFolderDialog
               parentId={folderId}
               clientId={contextClientId}
