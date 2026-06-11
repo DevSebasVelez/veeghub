@@ -12,7 +12,7 @@ import {
 import { CashFlowChart, MonthlyBillingChart } from "@/components/admin/charts";
 import { StatusBadge } from "@/components/admin/status-badge";
 import { ReportFilter } from "@/app/admin/reportes/report-month-filter";
-import prisma from "@/lib/db/prisma";
+import { getReportsData } from "@/lib/admin/queries/reports";
 import {
   dateOnlyParts,
   formatCurrency,
@@ -48,47 +48,23 @@ export default async function ReportsPage({
     startOfMonth(subMonths(selectedDate, 11 - i)),
   );
 
-  const [
+  const {
     earliestInvoice,
     invoices,
     payments,
     receivables,
     selectedInvoices,
     selectedPayments,
-    pendingReceivables,
-  ] = await Promise.all([
-    prisma.invoice.findFirst({
-      select: { issueDate: true },
-      where: { issueDate: { not: null } },
-      orderBy: { issueDate: "asc" },
-    }),
-    prisma.invoice.findMany({
-      where: { issueDate: { gte: months[0] } },
-      include: { client: true },
-    }),
-    prisma.payment.findMany({
-      where: { paidAt: { gte: months[0] } },
-      include: { receivable: { include: { client: true, project: true } } },
-    }),
-    prisma.receivable.findMany({
-      where: { createdAt: { gte: months[0] } },
-    }),
-    prisma.invoice.findMany({
-      where: { issueDate: { gte: selectedStart, lte: selectedEnd } },
-      include: { client: true, project: true },
-      orderBy: { issueDate: "desc" },
-    }),
-    prisma.payment.findMany({
-      where: { paidAt: { gte: selectedStart, lte: selectedEnd } },
-      include: { receivable: { include: { client: true, project: true } } },
-      orderBy: { paidAt: "desc" },
-    }),
-    prisma.receivable.findMany({
-      where: { status: { not: "PAID" } },
-      include: { client: true, project: true },
-      orderBy: [{ dueDate: "asc" }, { createdAt: "desc" }],
-    }),
-  ]);
+    totalPending,
+    openReceivablesCount,
+    overdueReceivablesCount,
+    criticalReceivables,
+  } = await getReportsData({
+    firstChartMonth: months[0],
+    selectedStart,
+    selectedEnd,
+    now,
+  });
 
   const startYear = earliestInvoice?.issueDate
     ? dateOnlyParts(earliestInvoice.issueDate).year
@@ -137,17 +113,6 @@ export default async function ReportsPage({
     (sum, p) => sum + Number(p.amount),
     0,
   );
-  const outstandingReceivables = pendingReceivables.filter(
-    (r) => Number(r.amount) - Number(r.paidAmount) > 0,
-  );
-  const totalPending = outstandingReceivables.reduce(
-    (sum, r) => sum + Number(r.amount) - Number(r.paidAmount),
-    0,
-  );
-  const overdue = outstandingReceivables.filter(
-    (r) => r.dueDate && r.dueDate < new Date(),
-  );
-
   const periodLabel = format(selectedDate, "MMMM yyyy", { locale: es });
 
   return (
@@ -199,13 +164,13 @@ export default async function ReportsPage({
         <StatCard
           label="Total por cobrar"
           value={formatCurrency(totalPending)}
-          helper={`${outstandingReceivables.length} hitos abiertos`}
+          helper={`${openReceivablesCount} hitos abiertos`}
           icon={Clock}
           accent="text-amber-500"
         />
         <StatCard
           label="Hitos vencidos"
-          value={`${overdue.length}`}
+          value={`${overdueReceivablesCount}`}
           helper="Requieren atención inmediata"
           icon={AlertTriangle}
           accent="text-red-500"
@@ -251,7 +216,7 @@ export default async function ReportsPage({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {outstandingReceivables.slice(0, 10).map((item) => (
+              {criticalReceivables.map((item) => (
                 <TableRow key={item.id}>
                   <TableCell className="pl-5">
                     <div className="font-medium">{item.title}</div>
@@ -273,7 +238,7 @@ export default async function ReportsPage({
                   </TableCell>
                 </TableRow>
               ))}
-              {outstandingReceivables.length === 0 && (
+              {criticalReceivables.length === 0 && (
                 <TableRow>
                   <TableCell
                     colSpan={5}

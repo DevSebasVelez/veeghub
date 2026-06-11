@@ -54,6 +54,12 @@ enum InvoiceStatus {
   CANCELLED
 }
 
+enum MeetingStatus {
+  SCHEDULED
+  COMPLETED
+  CANCELLED
+}
+
 enum CredentialKind {
   LOGIN
   OAUTH
@@ -97,6 +103,7 @@ model Client {
   folders      DriveFolder[]
   files        DriveFile[]
   comments     Comment[]
+  meetings     Meeting[]
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
 
@@ -133,6 +140,8 @@ model Project {
 
   @@index([clientId])
   @@index([status])
+  @@index([status, createdAt], map: "project_status_created_idx")
+  @@index([clientId, status, createdAt], map: "project_client_status_created_idx")
 }
 
 model Task {
@@ -151,6 +160,8 @@ model Task {
   @@index([projectId])
   @@index([status])
   @@index([dueDate])
+  @@index([status, dueDate, createdAt], map: "task_status_due_created_idx")
+  @@index([projectId, status, dueDate], map: "task_project_status_due_idx")
 }
 
 model Receivable {
@@ -177,6 +188,10 @@ model Receivable {
   @@index([status])
   @@index([dueDate])
   @@index([invoiceId])
+  @@index([status, dueDate, createdAt], map: "receivable_status_due_created_idx")
+  @@index([clientId, status, dueDate], map: "receivable_client_status_due_idx")
+  @@index([projectId, status, createdAt], map: "receivable_project_status_created_idx")
+  @@index([invoiceId, status], map: "receivable_invoice_status_idx")
 }
 
 model Payment {
@@ -193,6 +208,7 @@ model Payment {
 
   @@index([receivableId])
   @@index([paidAt])
+  @@index([paidAt, receivableId], map: "payment_paid_receivable_idx")
 }
 
 model Invoice {
@@ -224,6 +240,9 @@ model Invoice {
   @@index([projectId])
   @@index([status])
   @@index([issueDate])
+  @@index([status, createdAt], map: "invoice_status_created_idx")
+  @@index([clientId, createdAt], map: "invoice_client_created_idx")
+  @@index([issueDate, status], map: "invoice_issue_status_idx")
 }
 
 model EmailDelivery {
@@ -261,6 +280,8 @@ model DriveFolder {
   @@index([parentId])
   @@index([clientId])
   @@index([projectId])
+  @@index([clientId, parentId, name], map: "drive_folder_client_parent_name_idx")
+  @@index([projectId, parentId, name], map: "drive_folder_project_parent_name_idx")
   @@unique([parentId, name])
 }
 
@@ -284,6 +305,9 @@ model DriveFile {
   @@index([folderId])
   @@index([clientId])
   @@index([projectId])
+  @@index([folderId, name], map: "drive_file_folder_name_idx")
+  @@index([clientId, folderId, name], map: "drive_file_client_folder_name_idx")
+  @@index([projectId, folderId, name], map: "drive_file_project_folder_name_idx")
 }
 
 model Credential {
@@ -309,6 +333,27 @@ model Credential {
   @@index([clientId])
   @@index([projectId])
   @@index([kind])
+  @@index([updatedAt], map: "credential_updated_idx")
+  @@index([clientId, updatedAt], map: "credential_client_updated_idx")
+  @@index([projectId, updatedAt], map: "credential_project_updated_idx")
+}
+
+model Meeting {
+  id        String        @id @default(cuid())
+  title     String
+  clientId  String?
+  client    Client?       @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  startsAt  DateTime
+  endsAt    DateTime
+  meetLink  String?
+  notes     String?
+  status    MeetingStatus @default(SCHEDULED)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  @@index([startsAt])
+  @@index([clientId])
+  @@index([status, startsAt], map: "meeting_status_starts_idx")
 }
 
 model Comment {

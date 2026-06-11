@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Upload } from "lucide-react";
 
-import { registerDriveFile } from "@/app/admin/actions";
+import { registerDriveFile } from "@/lib/admin/actions/drive/actions";
 import { Button } from "@/components/ui/button";
 
 export function DriveUploader({

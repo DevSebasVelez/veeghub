@@ -1,30 +1,20 @@
 import Link from "next/link";
-import { ExternalLink } from "lucide-react";
+import { ExternalLink, Send } from "lucide-react";
 
-import { sendInvoiceEmail } from "@/app/admin/actions";
+import { sendInvoiceEmail } from "@/lib/admin/actions/invoices/actions";
+import { InvoiceStatusFilter } from "@/app/admin/facturas/invoice-status-filter";
 import {
   CreateInvoiceDialog,
   InvoiceEditDialog,
 } from "@/components/admin/dialogs/invoice-dialog";
-import { getPage, Pagination } from "@/components/admin/pagination";
+import { Pagination } from "@/components/admin/pagination";
 import { StatusBadge } from "@/components/admin/status-badge";
 import { forInvoiceDialog } from "@/lib/admin/serialize";
-import prisma from "@/lib/db/prisma";
+import { getInvoicesPageData } from "@/lib/admin/queries/invoices";
 import { formatCurrency, formatDate, formatDateOnly } from "@/lib/admin/format";
-import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-
-const PAGE_SIZE = 12;
-
-const STATUS_FILTERS = [
-  { value: "", label: "Todas" },
-  { value: "READY_TO_SEND", label: "Por enviar" },
-  { value: "SENT", label: "Enviadas" },
-  { value: "PAID", label: "Pagadas" },
-  { value: "CANCELLED", label: "Canceladas" },
-] as const;
 
 export default async function InvoicesPage({
   searchParams,
@@ -32,98 +22,20 @@ export default async function InvoicesPage({
   searchParams: Promise<{ page?: string; status?: string }>;
 }) {
   const { page: pageParam, status: statusFilter } = await searchParams;
-  const page = getPage(pageParam);
-
-  const whereStatus =
-    statusFilter && statusFilter !== ""
-      ? {
-          status: statusFilter as
-            | "READY_TO_SEND"
-            | "SENT"
-            | "PAID"
-            | "CANCELLED",
-        }
-      : {};
-
-  const [clientsWithContext, clientsForEdit, invoices, total] =
-    await Promise.all([
-      // For create: only open receivables (no invoice yet)
-      prisma.client.findMany({
-        orderBy: { name: "asc" },
-        select: {
-          id: true,
-          name: true,
-          projects: {
-            orderBy: { name: "asc" },
-            select: { id: true, name: true },
-          },
-          receivables: {
-            where: { invoiceId: null, status: { notIn: ["CANCELLED"] } },
-            orderBy: { createdAt: "desc" },
-            select: { id: true, title: true, projectId: true, amount: true },
-          },
-        },
-      }),
-      // For edit: receivables not yet on another invoice (own ones included below)
-      prisma.client.findMany({
-        orderBy: { name: "asc" },
-        select: {
-          id: true,
-          name: true,
-          projects: {
-            orderBy: { name: "asc" },
-            select: { id: true, name: true },
-          },
-          receivables: {
-            orderBy: { createdAt: "desc" },
-            select: {
-              id: true,
-              title: true,
-              projectId: true,
-              amount: true,
-              invoiceId: true,
-            },
-          },
-        },
-      }),
-      prisma.invoice.findMany({
-        where: whereStatus,
-        orderBy: { createdAt: "desc" },
-        skip: (page - 1) * PAGE_SIZE,
-        take: PAGE_SIZE,
-        include: {
-          client: true,
-          project: true,
-          xmlFile: true,
-          rideFile: true,
-          receivables: { select: { id: true } },
-          emailLogs: { orderBy: { createdAt: "desc" }, take: 1 },
-        },
-      }),
-      prisma.invoice.count({ where: whereStatus }),
-    ]);
-
-  // Decimal -> string for the client dialog (plain serializable props)
-  const serializeRecv = (r: {
-    id: string;
-    title: string;
-    projectId: string | null;
-    amount: { toString(): string };
-  }) => ({
-    id: r.id,
-    title: r.title,
-    projectId: r.projectId,
-    amount: r.amount.toString(),
-  });
-  const clientsForCreate = clientsWithContext.map((c) => ({
-    ...c,
-    receivables: c.receivables.map(serializeRecv),
-  }));
+  const {
+    page,
+    pageSize,
+    clientsForCreate,
+    clientsForEdit,
+    invoices,
+    total,
+    serializeRecv,
+  } = await getInvoicesPageData({ pageParam, statusFilter });
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-        <div>
+        <div className="min-w-0">
           <h1 className="text-2xl font-semibold tracking-tight">
             Facturas SRI
           </h1>
@@ -138,26 +50,7 @@ export default async function InvoicesPage({
         <CardHeader className="pb-3">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <CardTitle>Facturas</CardTitle>
-            <div className="flex flex-wrap gap-1 rounded-lg border bg-background p-1">
-              {STATUS_FILTERS.map((f) => (
-                <Link
-                  key={f.value}
-                  href={
-                    f.value
-                      ? `/admin/facturas?status=${f.value}`
-                      : "/admin/facturas"
-                  }
-                  className={cn(
-                    "rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
-                    (statusFilter ?? "") === f.value
-                      ? "bg-primary text-primary-foreground"
-                      : "text-muted-foreground hover:text-foreground",
-                  )}
-                >
-                  {f.label}
-                </Link>
-              ))}
-            </div>
+            <InvoiceStatusFilter value={statusFilter} />
           </div>
         </CardHeader>
         <CardContent className="p-0">
@@ -191,7 +84,7 @@ export default async function InvoicesPage({
                 return (
                   <div
                     key={invoice.id}
-                    className="flex flex-col gap-3 px-6 py-4 sm:flex-row sm:items-center"
+                    className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:px-6"
                   >
                     <div className="min-w-0 flex-1 space-y-1">
                       <div className="flex flex-wrap items-center gap-2">
@@ -203,13 +96,15 @@ export default async function InvoicesPage({
                           {invoice.invoiceNumber ?? "Sin número"}
                         </Link>
                         {invoice.project ? (
-                          <span className="text-xs text-muted-foreground">
-                            · {invoice.project.name}
+                          <span className="min-w-0 truncate text-xs text-muted-foreground">
+                            {invoice.project.name}
                           </span>
                         ) : null}
                       </div>
-                      <div className="flex flex-wrap gap-3 text-sm text-muted-foreground">
-                        <span>{invoice.client.name}</span>
+                      <div className="flex flex-wrap gap-x-3 gap-y-1 text-sm text-muted-foreground">
+                        <span className="min-w-0 max-w-full truncate">
+                          {invoice.client.name}
+                        </span>
                         <span className="font-medium text-foreground">
                           {formatCurrency(invoice.total.toString())}
                         </span>
@@ -217,7 +112,7 @@ export default async function InvoicesPage({
                           <span>{formatDateOnly(invoice.issueDate)}</span>
                         ) : null}
                       </div>
-                      <div className="flex gap-3 text-xs">
+                      <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs">
                         <span
                           className={
                             invoice.xmlFile
@@ -237,7 +132,7 @@ export default async function InvoicesPage({
                           RIDE {invoice.rideFile ? "✓" : "pendiente"}
                         </span>
                         {lastEmail ? (
-                          <span className="text-muted-foreground">
+                          <span className="min-w-0 max-w-full truncate text-muted-foreground">
                             Enviado {formatDate(lastEmail.sentAt)} →{" "}
                             {lastEmail.to}
                           </span>
@@ -245,9 +140,12 @@ export default async function InvoicesPage({
                       </div>
                     </div>
 
-                    <div className="flex shrink-0 flex-wrap items-center gap-2">
+                    <div className="flex w-full shrink-0 flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center">
                       {invoice.xmlFile && invoice.rideFile ? (
-                        <form action={sendInvoiceEmail} className="flex gap-2">
+                        <form
+                          action={sendInvoiceEmail}
+                          className="grid w-full gap-2 sm:flex sm:w-auto"
+                        >
                           <input
                             type="hidden"
                             name="invoiceId"
@@ -262,10 +160,16 @@ export default async function InvoicesPage({
                               ""
                             }
                             placeholder="cliente@email.com"
-                            className="h-8 w-44 text-sm"
+                            className="h-9 w-full min-w-0 text-sm sm:h-8 sm:w-44"
                             required
                           />
-                          <Button type="submit" size="sm" variant="outline">
+                          <Button
+                            type="submit"
+                            size="sm"
+                            variant="outline"
+                            className="w-full sm:w-auto"
+                          >
+                            <Send className="size-3.5" />
                             Enviar
                           </Button>
                         </form>
@@ -274,30 +178,32 @@ export default async function InvoicesPage({
                           Sube XML y RIDE para enviar
                         </span>
                       )}
-                      <Button
-                        asChild
-                        variant="ghost"
-                        size="icon"
-                        className="size-8"
-                      >
-                        <Link href={`/admin/facturas/${invoice.id}`}>
-                          <ExternalLink className="size-4" />
-                        </Link>
-                      </Button>
-                      <InvoiceEditDialog
-                        invoice={forInvoiceDialog(invoice)}
-                        clientsWithContext={editCtx}
-                      />
+                      <div className="flex items-center justify-end gap-1">
+                        <Button
+                          asChild
+                          variant="ghost"
+                          size="icon"
+                          className="size-8"
+                        >
+                          <Link href={`/admin/facturas/${invoice.id}`}>
+                            <ExternalLink className="size-4" />
+                          </Link>
+                        </Button>
+                        <InvoiceEditDialog
+                          invoice={forInvoiceDialog(invoice)}
+                          clientsWithContext={editCtx}
+                        />
+                      </div>
                     </div>
                   </div>
                 );
               })}
             </div>
           )}
-          <div className="px-6 pb-4">
+          <div className="px-4 pb-4 sm:px-6">
             <Pagination
               page={page}
-              pageSize={PAGE_SIZE}
+              pageSize={pageSize}
               total={total}
               basePath="/admin/facturas"
               searchParams={{ status: statusFilter ?? "" }}

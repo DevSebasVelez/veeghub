@@ -9,7 +9,7 @@ import {
 import { HitosSection } from "@/components/admin/finance/hitos-section";
 import { PagosSection } from "@/components/admin/finance/pagos-section";
 import { ListGroupSkeleton, TableSkeleton } from "@/components/admin/skeletons";
-import prisma from "@/lib/db/prisma";
+import { getFinanceHeaderData } from "@/lib/admin/queries/finance";
 import { formatCurrency } from "@/lib/admin/format";
 import { cn } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -30,49 +30,14 @@ export default async function FinancePage({
   const isPagosSection = section === "pagos";
 
   // Lightweight data for the header dialogs + summary cards.
-  const [
+  const {
     clients,
     projects,
     pendingForPayment,
-    pendingAgg,
-    collectedAgg,
     overdueCount,
-  ] = await Promise.all([
-    prisma.client.findMany({
-      orderBy: { name: "asc" },
-      select: { id: true, name: true },
-    }),
-    prisma.project.findMany({
-      orderBy: { name: "asc" },
-      select: { id: true, name: true },
-    }),
-    prisma.receivable.findMany({
-      where: { status: { notIn: ["PAID", "CANCELLED"] } },
-      orderBy: [{ dueDate: "asc" }, { createdAt: "desc" }],
-      select: {
-        id: true,
-        title: true,
-        client: { select: { name: true } },
-        project: { select: { name: true } },
-      },
-    }),
-    prisma.receivable.aggregate({
-      where: { status: { notIn: ["PAID", "CANCELLED"] } },
-      _sum: { amount: true, paidAmount: true },
-    }),
-    prisma.payment.aggregate({ _sum: { amount: true } }),
-    prisma.receivable.count({
-      where: {
-        status: { notIn: ["PAID", "CANCELLED"] },
-        dueDate: { lt: new Date() },
-      },
-    }),
-  ]);
-
-  const totalPending =
-    Number(pendingAgg._sum.amount ?? 0) -
-    Number(pendingAgg._sum.paidAmount ?? 0);
-  const totalCollected = Number(collectedAgg._sum.amount ?? 0);
+    totalPending,
+    totalCollected,
+  } = await getFinanceHeaderData();
 
   return (
     <div className="space-y-6">

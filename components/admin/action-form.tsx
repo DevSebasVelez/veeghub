@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { AlertCircle, Loader2 } from "lucide-react";
 
-import type { AdminFormState } from "@/app/admin/actions";
+import type { AdminFormState } from "@/lib/admin/actions/types";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 

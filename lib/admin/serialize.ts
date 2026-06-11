@@ -131,6 +131,32 @@ export function forInvoiceDialog(i: {
   };
 }
 
+export function forMeeting(m: {
+  id: string;
+  title: string;
+  clientId: string | null;
+  startsAt: Date;
+  endsAt: Date;
+  meetLink: string | null;
+  notes: string | null;
+  status: string;
+  client?: { id: string; name: string } | null;
+}) {
+  return {
+    id: m.id,
+    title: m.title,
+    clientId: m.clientId,
+    startsAt: m.startsAt.toISOString(),
+    endsAt: m.endsAt.toISOString(),
+    meetLink: m.meetLink,
+    notes: m.notes,
+    status: m.status,
+    clientName: m.client?.name ?? null,
+  };
+}
+
+export type MeetingDTO = ReturnType<typeof forMeeting>;
+
 export function forCredentialDialog(c: {
   id: string;
   clientId: string | null;

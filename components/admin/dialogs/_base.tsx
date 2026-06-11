@@ -1,7 +1,8 @@
 "use client";
 
-import { Pencil, Plus } from "lucide-react";
+import { Loader2, Pencil, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { DialogClose, DialogFooter } from "@/components/ui/dialog";
 
 export type EntityOption = { id: string; name: string };
 export type DialogOption = { value: string; label: string };
@@ -37,5 +38,31 @@ export function CreateTrigger({
       <Plus className="size-3.5" />
       {label}
     </Button>
+  );
+}
+
+export function DialogSubmitFooter({
+  submitLabel,
+  saving = false,
+  savingLabel = "Guardando...",
+  disabled = false,
+}: {
+  submitLabel: string;
+  saving?: boolean;
+  savingLabel?: string;
+  disabled?: boolean;
+}) {
+  return (
+    <DialogFooter>
+      <DialogClose asChild>
+        <Button type="button" variant="outline" disabled={saving}>
+          Cancelar
+        </Button>
+      </DialogClose>
+      <Button type="submit" disabled={disabled || saving}>
+        {saving ? <Loader2 className="size-4 animate-spin" /> : null}
+        {saving ? savingLabel : submitLabel}
+      </Button>
+    </DialogFooter>
   );
 }

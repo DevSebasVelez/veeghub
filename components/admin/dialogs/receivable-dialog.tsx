@@ -1,17 +1,20 @@
 "use client";
 
-import { useState } from "react";
+import { type FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 import {
   createReceivable,
+  updateReceivable,
+} from "@/lib/admin/actions/receivables/actions";
+import {
   recordPayment,
   updatePayment,
-  updateReceivable,
-} from "@/app/admin/actions";
+} from "@/lib/admin/actions/payments/actions";
 import {
   CreateTrigger,
+  DialogSubmitFooter,
   EditTrigger,
   relationOptions,
   type EntityOption,
@@ -68,10 +71,16 @@ export function ReceivableDialog({
   fixedProjectId?: string;
 }) {
   const [open, setOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
   const router = useRouter();
 
-  async function handleSave(formData: FormData) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (saving) return;
+
+    setSaving(true);
     try {
+      const formData = new FormData(event.currentTarget);
       if (receivable) {
         await updateReceivable(receivable.id, formData);
       } else {
@@ -82,6 +91,8 @@ export function ReceivableDialog({
       toast.success("Hito guardado.");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Error al guardar");
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -103,7 +114,7 @@ export function ReceivableDialog({
             Gestiona entradas, avances y pagos finales.
           </DialogDescription>
         </DialogHeader>
-        <form action={handleSave} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4">
           <FieldGroup>
             {fixedClientId ? (
               <input type="hidden" name="clientId" value={fixedClientId} />
@@ -173,9 +184,7 @@ export function ReceivableDialog({
               />
             </Field>
           </FieldGroup>
-          <Button type="submit" className="w-full">
-            Guardar
-          </Button>
+          <DialogSubmitFooter submitLabel="Guardar" saving={saving} />
         </form>
       </DialogContent>
     </Dialog>
@@ -188,16 +197,24 @@ export function SinglePaymentDialog({
   receivable: { id: string; title: string; amount: string; remaining: string };
 }) {
   const [open, setOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
   const router = useRouter();
 
-  async function handleSave(formData: FormData) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (saving) return;
+
+    setSaving(true);
     try {
+      const formData = new FormData(event.currentTarget);
       await recordPayment(formData);
       setOpen(false);
       router.refresh();
       toast.success("Pago registrado.");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Error al guardar");
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -208,14 +225,14 @@ export function SinglePaymentDialog({
           Cobrar
         </Button>
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent className="max-h-[90svh] overflow-y-auto sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Registrar pago</DialogTitle>
           <DialogDescription className="truncate">
             {receivable.title} · pendiente {receivable.remaining}
           </DialogDescription>
         </DialogHeader>
-        <form action={handleSave} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4">
           <input type="hidden" name="receivableId" value={receivable.id} />
           <FieldGroup>
             <Field>
@@ -241,9 +258,7 @@ export function SinglePaymentDialog({
               <Input name="reference" />
             </Field>
           </FieldGroup>
-          <Button type="submit" className="w-full">
-            Guardar pago
-          </Button>
+          <DialogSubmitFooter submitLabel="Guardar pago" saving={saving} />
         </form>
       </DialogContent>
     </Dialog>
@@ -264,16 +279,24 @@ export function EditPaymentDialog({
   };
 }) {
   const [open, setOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
   const router = useRouter();
 
-  async function handleSave(formData: FormData) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (saving) return;
+
+    setSaving(true);
     try {
+      const formData = new FormData(event.currentTarget);
       await updatePayment(payment.id, formData);
       setOpen(false);
       router.refresh();
       toast.success("Pago actualizado.");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Error al guardar");
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -284,14 +307,14 @@ export function EditPaymentDialog({
           <Pencil className="size-3.5" />
         </Button>
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent className="max-h-[90svh] overflow-y-auto sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Editar pago</DialogTitle>
           <DialogDescription className="truncate">
             {payment.receivableTitle}
           </DialogDescription>
         </DialogHeader>
-        <form action={handleSave} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4">
           <FieldGroup>
             <Field>
               <FieldLabel>Monto</FieldLabel>
@@ -320,9 +343,7 @@ export function EditPaymentDialog({
               <Input name="reference" defaultValue={payment.reference ?? ""} />
             </Field>
           </FieldGroup>
-          <Button type="submit" className="w-full">
-            Guardar cambios
-          </Button>
+          <DialogSubmitFooter submitLabel="Guardar cambios" saving={saving} />
         </form>
       </DialogContent>
     </Dialog>
@@ -340,16 +361,24 @@ export function PaymentDialog({
   }>;
 }) {
   const [open, setOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
   const router = useRouter();
 
-  async function handleSave(formData: FormData) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (saving) return;
+
+    setSaving(true);
     try {
+      const formData = new FormData(event.currentTarget);
       await recordPayment(formData);
       setOpen(false);
       router.refresh();
       toast.success("Pago registrado.");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Error al guardar");
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -361,14 +390,14 @@ export function PaymentDialog({
           Registrar pago
         </Button>
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent className="max-h-[90svh] overflow-y-auto sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Registrar pago</DialogTitle>
           <DialogDescription>
             Permite pagos parciales o completos por hito.
           </DialogDescription>
         </DialogHeader>
-        <form action={handleSave} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4">
           <FieldGroup>
             <Field>
               <FieldLabel>Hito</FieldLabel>
@@ -398,9 +427,7 @@ export function PaymentDialog({
               <Input name="reference" />
             </Field>
           </FieldGroup>
-          <Button type="submit" className="w-full">
-            Guardar pago
-          </Button>
+          <DialogSubmitFooter submitLabel="Guardar pago" saving={saving} />
         </form>
       </DialogContent>
     </Dialog>

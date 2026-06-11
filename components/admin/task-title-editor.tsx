@@ -4,7 +4,7 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
-import { renameTask } from "@/app/admin/actions";
+import { renameTask } from "@/lib/admin/actions/tasks/actions";
 import { cn } from "@/lib/utils";
 
 export function TaskTitleEditor({

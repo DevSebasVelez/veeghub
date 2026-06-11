@@ -7,9 +7,9 @@ import {
   SinglePaymentDialog,
 } from "@/components/admin/dialogs/receivable-dialog";
 import { QuickInvoiceDialog } from "@/components/admin/dialogs/invoice-dialog";
-import { getPage, Pagination } from "@/components/admin/pagination";
+import { Pagination } from "@/components/admin/pagination";
 import { forReceivableDialog } from "@/lib/admin/serialize";
-import prisma from "@/lib/db/prisma";
+import { getReceivablesSectionData } from "@/lib/admin/queries/receivables";
 import { formatCurrency, formatDateOnly } from "@/lib/admin/format";
 import { cn } from "@/lib/utils";
 import {
@@ -28,8 +28,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
-const PAGE_SIZE = 15;
-
 export async function HitosSection({
   pageParam,
   showAll,
@@ -37,66 +35,8 @@ export async function HitosSection({
   pageParam?: string;
   showAll: boolean;
 }) {
-  const page = getPage(pageParam);
-
-  const [allReceivables, clients, projects, clientsWithContext] =
-    await Promise.all([
-      prisma.receivable.findMany({
-        orderBy: [{ dueDate: "asc" }, { createdAt: "desc" }],
-        include: {
-          client: { select: { id: true, name: true } },
-          project: { select: { id: true, name: true } },
-          invoice: { select: { id: true, invoiceNumber: true, status: true } },
-        },
-      }),
-      prisma.client.findMany({
-        orderBy: { name: "asc" },
-        select: { id: true, name: true },
-      }),
-      prisma.project.findMany({
-        orderBy: { name: "asc" },
-        select: { id: true, name: true },
-      }),
-      // Context for the quick "Facturar" action (free hitos only)
-      prisma.client.findMany({
-        orderBy: { name: "asc" },
-        select: {
-          id: true,
-          name: true,
-          projects: {
-            orderBy: { name: "asc" },
-            select: { id: true, name: true },
-          },
-          receivables: {
-            where: { invoiceId: null, status: { notIn: ["CANCELLED"] } },
-            orderBy: { createdAt: "desc" },
-            select: { id: true, title: true, projectId: true, amount: true },
-          },
-        },
-      }),
-    ]);
-
-  const invoiceCtx = clientsWithContext.map((c) => ({
-    ...c,
-    receivables: c.receivables.map((r) => ({
-      id: r.id,
-      title: r.title,
-      projectId: r.projectId,
-      amount: r.amount.toString(),
-    })),
-  }));
-
-  const visible = showAll
-    ? allReceivables
-    : allReceivables.filter(
-        (r) =>
-          r.status !== "PAID" &&
-          r.status !== "CANCELLED" &&
-          Number(r.amount) - Number(r.paidAmount) > 0,
-      );
-
-  const total = visible.length;
-  const receivables = visible.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const { page, pageSize, total, receivables, clients, projects, invoiceCtx } =
+    await getReceivablesSectionData({ pageParam, showAll });
 
   return (
     <Card className="rounded-lg">
@@ -275,10 +215,10 @@ export async function HitosSection({
           </>
         )}
         <div className="px-4 pb-4 sm:px-6">
-          <Pagination
-            page={page}
-            pageSize={PAGE_SIZE}
-            total={total}
+            <Pagination
+              page={page}
+              pageSize={pageSize}
+              total={total}
             basePath="/admin/finanzas"
             searchParams={{ tab: showAll ? "todos" : "" }}
           />

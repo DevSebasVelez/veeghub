@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
-import { toggleTaskStatus } from "@/app/admin/actions";
+import { toggleTaskStatus } from "@/lib/admin/actions/tasks/actions";
 import { Checkbox } from "@/components/ui/checkbox";
 
 export function TaskCheckbox({ id, done }: { id: string; done: boolean }) {

@@ -87,7 +87,7 @@ export default async function InvoiceDetailPage({
     <div className="space-y-6">
       {/* Back + header */}
       <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-        <div className="space-y-1.5">
+        <div className="min-w-0 space-y-1.5">
           <Link
             href="/admin/facturas"
             className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
@@ -95,23 +95,23 @@ export default async function InvoiceDetailPage({
             <ArrowLeft className="size-3.5" />
             Facturas
           </Link>
-          <div className="flex flex-wrap items-center gap-3">
-            <h1 className="text-2xl font-semibold tracking-tight">
+          <div className="flex min-w-0 flex-wrap items-center gap-3">
+            <h1 className="min-w-0 wrap-break-word text-2xl font-semibold tracking-tight">
               {invoice.invoiceNumber ?? "Factura sin número"}
             </h1>
             <StatusBadge value={invoice.status} />
           </div>
-          <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
+          <div className="flex min-w-0 flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
             <Link
               href={`/admin/clientes/${invoice.client.id}`}
-              className="hover:text-foreground hover:underline"
+              className="min-w-0 max-w-full truncate hover:text-foreground hover:underline"
             >
               {invoice.client.name}
             </Link>
             {invoice.project ? (
               <Link
                 href={`/admin/proyectos/${invoice.project.id}`}
-                className="hover:text-foreground hover:underline"
+                className="min-w-0 max-w-full truncate hover:text-foreground hover:underline"
               >
                 {invoice.project.name}
               </Link>
@@ -129,7 +129,7 @@ export default async function InvoiceDetailPage({
         </div>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
+      <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
         {/* Main: details + files */}
         <div className="space-y-5">
           {/* Amounts */}
@@ -191,9 +191,11 @@ export default async function InvoiceDetailPage({
                     {invoice.receivables.map((r) => (
                       <li
                         key={r.id}
-                        className="flex items-center justify-between gap-3 text-sm"
+                        className="flex flex-col gap-1 text-sm sm:flex-row sm:items-center sm:justify-between sm:gap-3"
                       >
-                        <span className="font-medium">{r.title}</span>
+                        <span className="min-w-0 wrap-break-word font-medium">
+                          {r.title}
+                        </span>
                         <span className="text-xs text-muted-foreground">
                           {formatCurrency(r.amount.toString())}
                         </span>
@@ -212,13 +214,13 @@ export default async function InvoiceDetailPage({
             </CardHeader>
             <CardContent className="space-y-3">
               {/* XML */}
-              <div className="flex items-center justify-between rounded-lg border p-3">
-                <div className="flex items-center gap-3">
+              <div className="flex flex-col gap-3 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex min-w-0 items-center gap-3">
                   <FileText className="size-5 shrink-0 text-emerald-600" />
-                  <div>
+                  <div className="min-w-0">
                     <p className="text-sm font-medium">XML autorizado</p>
                     {invoice.xmlFile ? (
-                      <p className="text-xs text-muted-foreground">
+                      <p className="break-all text-xs text-muted-foreground sm:break-normal">
                         {invoice.xmlFile.name}
                       </p>
                     ) : (
@@ -229,7 +231,12 @@ export default async function InvoiceDetailPage({
                   </div>
                 </div>
                 {invoice.xmlFile ? (
-                  <Button asChild variant="outline" size="sm">
+                  <Button
+                    asChild
+                    variant="outline"
+                    size="sm"
+                    className="w-full sm:w-auto"
+                  >
                     <a
                       href={`/admin/drive/download/${invoice.xmlFile.id}?download=1`}
                       target="_blank"
@@ -247,13 +254,13 @@ export default async function InvoiceDetailPage({
               </div>
 
               {/* RIDE */}
-              <div className="flex items-center justify-between rounded-lg border p-3">
-                <div className="flex items-center gap-3">
+              <div className="flex flex-col gap-3 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex min-w-0 items-center gap-3">
                   <FileText className="size-5 shrink-0 text-blue-600" />
-                  <div>
+                  <div className="min-w-0">
                     <p className="text-sm font-medium">RIDE PDF</p>
                     {invoice.rideFile ? (
-                      <p className="text-xs text-muted-foreground">
+                      <p className="break-all text-xs text-muted-foreground sm:break-normal">
                         {invoice.rideFile.name}
                       </p>
                     ) : (
@@ -264,7 +271,12 @@ export default async function InvoiceDetailPage({
                   </div>
                 </div>
                 {invoice.rideFile ? (
-                  <Button asChild variant="outline" size="sm">
+                  <Button
+                    asChild
+                    variant="outline"
+                    size="sm"
+                    className="w-full sm:w-auto"
+                  >
                     <a
                       href={`/admin/drive/download/${invoice.rideFile.id}?download=1`}
                       target="_blank"
@@ -291,7 +303,7 @@ export default async function InvoiceDetailPage({
         </div>
 
         {/* Sidebar: email + history */}
-        <div className="space-y-5">
+        <div className="min-w-0 space-y-5">
           {/* Send email */}
           <Card className="rounded-lg">
             <CardHeader className="pb-3">
@@ -346,7 +358,7 @@ export default async function InvoiceDetailPage({
               <CardContent className="space-y-3">
                 {invoice.emailLogs.map((log) => (
                   <div key={log.id} className="space-y-1">
-                    <div className="flex items-center gap-2">
+                    <div className="flex min-w-0 items-center gap-2">
                       {log.status === "FAILED" ? (
                         <XCircle className="size-3.5 shrink-0 text-destructive" />
                       ) : (

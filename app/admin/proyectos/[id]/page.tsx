@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import { FaGithub } from "react-icons/fa6";
 
-import { deletePayment } from "@/app/admin/actions";
+import { deletePayment } from "@/lib/admin/actions/payments/actions";
 import { ConfirmationDialog } from "@/components/admin/confirmation-dialog";
 import { CredentialDialog } from "@/components/admin/dialogs/credential-dialog";
 import { CredentialViewDialog } from "@/components/admin/dialogs/credential-view-dialog";
@@ -863,10 +863,10 @@ export default async function ProjectDetailPage({
                                       description={`¿Eliminar el pago de ${formatCurrency(payment.amount.toString())}? El saldo del hito se recalculará.`}
                                       confirmLabel="Eliminar"
                                       destructive
-                                      onConfirm={async () => {
-                                        "use server";
-                                        await deletePayment(payment.id);
-                                      }}
+                                      onConfirm={deletePayment.bind(
+                                        null,
+                                        payment.id,
+                                      )}
                                     />
                                   </div>
                                 </TableCell>

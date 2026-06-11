@@ -44,7 +44,7 @@ export function ConfirmationDialog({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>{trigger}</DialogTrigger>
-      <DialogContent className="sm:max-w-sm">
+      <DialogContent className="max-h-[90svh] overflow-y-auto sm:max-w-sm">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           {description ? (

@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { MessageSquare, Send, Trash2 } from "lucide-react";
 
-import { createComment, deleteComment } from "@/app/admin/actions";
+import { createComment, deleteComment } from "@/lib/admin/actions/comments/actions";
 import { ConfirmationDialog } from "@/components/admin/confirmation-dialog";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";

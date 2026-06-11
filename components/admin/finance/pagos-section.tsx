@@ -1,10 +1,10 @@
 import Link from "next/link";
 import { Trash2 } from "lucide-react";
 
-import { deletePayment } from "@/app/admin/actions";
+import { deletePayment } from "@/lib/admin/actions/payments/actions";
 import { ConfirmationDialog } from "@/components/admin/confirmation-dialog";
 import { EditPaymentDialog } from "@/components/admin/dialogs/receivable-dialog";
-import prisma from "@/lib/db/prisma";
+import { getPaymentsSectionData } from "@/lib/admin/queries/payments";
 import {
   dateOnlyParts,
   formatCurrency,
@@ -41,32 +41,8 @@ export async function PagosSection({ yearParam }: { yearParam?: string }) {
   const currentYear = new Date().getFullYear();
   const selectedYear = yearParam ? parseInt(yearParam) : currentYear;
 
-  const [paymentHistory, availableYears] = await Promise.all([
-    prisma.payment.findMany({
-      where: {
-        paidAt: {
-          gte: new Date(`${selectedYear}-01-01`),
-          lt: new Date(`${selectedYear + 1}-01-01`),
-        },
-      },
-      orderBy: { paidAt: "desc" },
-      include: {
-        receivable: {
-          select: {
-            id: true,
-            title: true,
-            client: { select: { name: true } },
-            project: { select: { id: true, name: true } },
-          },
-        },
-      },
-    }),
-    prisma.payment.findMany({
-      select: { paidAt: true },
-      orderBy: { paidAt: "asc" },
-      distinct: ["paidAt"],
-    }),
-  ]);
+  const [paymentHistory, availableYears] =
+    await getPaymentsSectionData(selectedYear);
 
   const years = [
     ...new Set(availableYears.map((p) => dateOnlyParts(p.paidAt).year)),
@@ -274,10 +250,7 @@ function DeletePaymentButton({ id, amount }: { id: string; amount: string }) {
       description={`¿Eliminar el pago de ${amount}? El saldo del hito se recalculará automáticamente.`}
       confirmLabel="Eliminar"
       destructive
-      onConfirm={async () => {
-        "use server";
-        await deletePayment(id);
-      }}
+      onConfirm={deletePayment.bind(null, id)}
     />
   );
 }

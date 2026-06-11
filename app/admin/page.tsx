@@ -10,10 +10,11 @@ import {
   KeyRound,
   Plus,
   Users,
+  Video,
 } from "lucide-react";
 
-import prisma from "@/lib/db/prisma";
 import { formatCurrency, formatDate, formatDateOnly } from "@/lib/admin/format";
+import { getAdminDashboardData } from "@/lib/admin/queries/dashboard";
 import { Button } from "@/components/ui/button";
 
 const PRIORITY_STYLES: Record<string, string> = {
@@ -33,53 +34,19 @@ const PRIORITY_LABELS: Record<string, string> = {
 };
 
 export default async function AdminPage() {
-  const now = new Date();
-
-  const [
+  const {
+    now,
     clients,
     activeProjects,
     openTasks,
-    receivables,
+    receivableBalance,
     pendingInvoices,
     credentials,
     recentTasks,
     upcomingReceivables,
-  ] = await Promise.all([
-    prisma.client.count(),
-    prisma.project.count({ where: { status: "ACTIVE" } }),
-    prisma.task.count({ where: { status: { not: "DONE" } } }),
-    prisma.receivable.findMany({
-      where: { status: { not: "PAID" } },
-      select: { amount: true, paidAmount: true },
-    }),
-    prisma.invoice.count({ where: { status: "READY_TO_SEND" } }),
-    prisma.credential.count(),
-    prisma.task.findMany({
-      where: { status: { not: "DONE" } },
-      orderBy: [{ dueDate: "asc" }, { createdAt: "desc" }],
-      take: 6,
-      include: { project: { select: { name: true } } },
-    }),
-    prisma.receivable.findMany({
-      where: { status: { not: "PAID" } },
-      orderBy: [{ dueDate: "asc" }, { createdAt: "desc" }],
-      include: {
-        client: { select: { name: true } },
-        project: { select: { name: true } },
-      },
-    }),
-  ]);
-
-  const outstandingReceivables = upcomingReceivables.filter(
-    (item) => Number(item.amount) - Number(item.paidAmount) > 0,
-  );
-  const receivableBalance = receivables.reduce(
-    (total, item) => total + Number(item.amount) - Number(item.paidAmount),
-    0,
-  );
-  const overdueCount = outstandingReceivables.filter(
-    (item) => item.dueDate && item.dueDate < now,
-  ).length;
+    overdueCount,
+    upcomingMeetings,
+  } = await getAdminDashboardData();
 
   return (
     <div className="space-y-6">
@@ -241,8 +208,8 @@ export default async function AdminPage() {
             </Link>
           </div>
           <div className="divide-y divide-border">
-            {outstandingReceivables.length ? (
-              outstandingReceivables.slice(0, 6).map((item) => {
+            {upcomingReceivables.length ? (
+              upcomingReceivables.map((item) => {
                 const balance = Number(item.amount) - Number(item.paidAmount);
                 const isOverdue = item.dueDate && item.dueDate < now;
                 return (
@@ -283,6 +250,57 @@ export default async function AdminPage() {
               })
             ) : (
               <EmptyState text="No hay cobros pendientes." />
+            )}
+          </div>
+        </div>
+
+        <div className="overflow-hidden rounded-xl border border-border bg-card">
+          <div className="flex items-center justify-between border-b border-border px-5 py-4">
+            <div>
+              <h2 className="text-sm font-semibold">Próximas reuniones</h2>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                Tus siguientes reuniones agendadas.
+              </p>
+            </div>
+            <Link
+              href="/admin/reuniones"
+              className="text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+            >
+              Ver calendario
+            </Link>
+          </div>
+          <div className="divide-y divide-border">
+            {upcomingMeetings.length ? (
+              upcomingMeetings.map((meeting) => (
+                <div
+                  key={meeting.id}
+                  className="flex items-center justify-between gap-3 px-5 py-3.5"
+                >
+                  <div className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-medium">
+                      {meeting.title}
+                    </span>
+                    <div className="mt-0.5 text-xs text-muted-foreground">
+                      {formatDate(meeting.startsAt)}
+                      {meeting.client ? ` · ${meeting.client.name}` : ""}
+                    </div>
+                  </div>
+                  {meeting.meetLink ? (
+                    <Button asChild variant="outline" size="sm">
+                      <a
+                        href={meeting.meetLink}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        <Video size={13} />
+                        Unirse
+                      </a>
+                    </Button>
+                  ) : null}
+                </div>
+              ))
+            ) : (
+              <EmptyState text="No hay reuniones agendadas." />
             )}
           </div>
         </div>

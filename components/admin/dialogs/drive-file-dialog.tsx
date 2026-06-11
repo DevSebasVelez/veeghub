@@ -1,17 +1,17 @@
 "use client";
 
-import { useState } from "react";
+import { type FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
-import { updateDriveFile } from "@/app/admin/actions";
+import { updateDriveFile } from "@/lib/admin/actions/drive/actions";
 import {
+  DialogSubmitFooter,
   EditTrigger,
   relationOptions,
   type EntityOption,
 } from "@/components/admin/dialogs/_base";
 import { FormSelect } from "@/components/admin/form-select";
-import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -41,16 +41,24 @@ export function DriveFileEditDialog({
   projects: EntityOption[];
 }) {
   const [open, setOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
   const router = useRouter();
 
-  async function handleSave(formData: FormData) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (saving) return;
+
+    setSaving(true);
     try {
+      const formData = new FormData(event.currentTarget);
       await updateDriveFile(file.id, formData);
       setOpen(false);
       router.refresh();
       toast.success("Archivo actualizado.");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Error al guardar");
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -59,12 +67,12 @@ export function DriveFileEditDialog({
       <DialogTrigger asChild>
         <EditTrigger />
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent className="max-h-[90svh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Editar archivo</DialogTitle>
           <DialogDescription>Actualiza nombre y contexto.</DialogDescription>
         </DialogHeader>
-        <form action={handleSave} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4">
           <FieldGroup>
             <input
               type="hidden"
@@ -92,9 +100,7 @@ export function DriveFileEditDialog({
               />
             </Field>
           </FieldGroup>
-          <Button type="submit" className="w-full">
-            Guardar
-          </Button>
+          <DialogSubmitFooter submitLabel="Guardar" saving={saving} />
         </form>
       </DialogContent>
     </Dialog>

@@ -21,6 +21,16 @@ const optionalDate = z.preprocess(
     .transform((v) => (v ? new Date(v) : null)),
 );
 
+const requiredDateTime = z.preprocess(
+  coerceStr,
+  z
+    .string()
+    .trim()
+    .min(1, "Campo requerido")
+    .transform((v) => new Date(v))
+    .refine((d) => !Number.isNaN(d.getTime()), "Fecha inválida"),
+);
+
 const optionalId = z.preprocess(
   coerceStr,
   z
@@ -157,6 +167,26 @@ export const driveFileSchema = z.object({
   clientId: optionalId,
   projectId: optionalId,
 });
+
+export const meetingSchema = z
+  .object({
+    title: requiredText,
+    clientId: optionalId,
+    startsAt: requiredDateTime,
+    endsAt: requiredDateTime,
+    meetLink: optionalText.refine(
+      (v) => v === null || /^https?:\/\//.test(v),
+      "El enlace debe iniciar con http:// o https://",
+    ),
+    notes: optionalText,
+    status: z
+      .enum(["SCHEDULED", "COMPLETED", "CANCELLED"])
+      .default("SCHEDULED"),
+  })
+  .refine((d) => d.endsAt > d.startsAt, {
+    message: "La hora de fin debe ser posterior a la de inicio.",
+    path: ["endsAt"],
+  });
 
 export const credentialSchema = z
   .object({
