@@ -54,6 +54,12 @@ enum InvoiceStatus {
   CANCELLED
 }
 
+enum MeetingStatus {
+  SCHEDULED
+  COMPLETED
+  CANCELLED
+}
+
 enum CredentialKind {
   LOGIN
   OAUTH
@@ -97,6 +103,7 @@ model Client {
   folders      DriveFolder[]
   files        DriveFile[]
   comments     Comment[]
+  meetings     Meeting[]
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
 
@@ -329,6 +336,24 @@ model Credential {
   @@index([updatedAt], map: "credential_updated_idx")
   @@index([clientId, updatedAt], map: "credential_client_updated_idx")
   @@index([projectId, updatedAt], map: "credential_project_updated_idx")
+}
+
+model Meeting {
+  id        String        @id @default(cuid())
+  title     String
+  clientId  String?
+  client    Client?       @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  startsAt  DateTime
+  endsAt    DateTime
+  meetLink  String?
+  notes     String?
+  status    MeetingStatus @default(SCHEDULED)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  @@index([startsAt])
+  @@index([clientId])
+  @@index([status, startsAt], map: "meeting_status_starts_idx")
 }
 
 model Comment {
