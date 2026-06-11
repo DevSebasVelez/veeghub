@@ -10,9 +10,10 @@ import {
   KeyRound,
   Plus,
   Users,
+  Video,
 } from "lucide-react";
 
-import { formatCurrency, formatDateOnly } from "@/lib/admin/format";
+import { formatCurrency, formatDate, formatDateOnly } from "@/lib/admin/format";
 import { getAdminDashboardData } from "@/lib/admin/queries/dashboard";
 import { Button } from "@/components/ui/button";
 
@@ -44,6 +45,7 @@ export default async function AdminPage() {
     recentTasks,
     upcomingReceivables,
     overdueCount,
+    upcomingMeetings,
   } = await getAdminDashboardData();
 
   return (
@@ -248,6 +250,57 @@ export default async function AdminPage() {
               })
             ) : (
               <EmptyState text="No hay cobros pendientes." />
+            )}
+          </div>
+        </div>
+
+        <div className="overflow-hidden rounded-xl border border-border bg-card">
+          <div className="flex items-center justify-between border-b border-border px-5 py-4">
+            <div>
+              <h2 className="text-sm font-semibold">Próximas reuniones</h2>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                Tus siguientes reuniones agendadas.
+              </p>
+            </div>
+            <Link
+              href="/admin/reuniones"
+              className="text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+            >
+              Ver calendario
+            </Link>
+          </div>
+          <div className="divide-y divide-border">
+            {upcomingMeetings.length ? (
+              upcomingMeetings.map((meeting) => (
+                <div
+                  key={meeting.id}
+                  className="flex items-center justify-between gap-3 px-5 py-3.5"
+                >
+                  <div className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-medium">
+                      {meeting.title}
+                    </span>
+                    <div className="mt-0.5 text-xs text-muted-foreground">
+                      {formatDate(meeting.startsAt)}
+                      {meeting.client ? ` · ${meeting.client.name}` : ""}
+                    </div>
+                  </div>
+                  {meeting.meetLink ? (
+                    <Button asChild variant="outline" size="sm">
+                      <a
+                        href={meeting.meetLink}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        <Video size={13} />
+                        Unirse
+                      </a>
+                    </Button>
+                  ) : null}
+                </div>
+              ))
+            ) : (
+              <EmptyState text="No hay reuniones agendadas." />
             )}
           </div>
         </div>

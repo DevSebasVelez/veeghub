@@ -13,6 +13,7 @@ export async function getAdminDashboardData() {
     recentTasks,
     upcomingReceivables,
     overdueCount,
+    upcomingMeetings,
   ] = await Promise.all([
     prisma.client.count(),
     prisma.project.count({ where: { status: "ACTIVE" } }),
@@ -44,6 +45,15 @@ export async function getAdminDashboardData() {
         dueDate: { lt: now },
       },
     }),
+    prisma.meeting.findMany({
+      where: {
+        status: "SCHEDULED",
+        endsAt: { gte: now },
+      },
+      orderBy: { startsAt: "asc" },
+      take: 5,
+      include: { client: { select: { name: true } } },
+    }),
   ]);
 
   const receivableBalance =
@@ -61,5 +71,6 @@ export async function getAdminDashboardData() {
     recentTasks,
     upcomingReceivables,
     overdueCount,
+    upcomingMeetings,
   };
 }
