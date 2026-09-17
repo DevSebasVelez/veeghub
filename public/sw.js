@@ -1,4 +1,4 @@
-const CACHE_VERSION = "veeghub-v3";
+const CACHE_VERSION = "veeghub-v4";
 
 self.addEventListener("install", (event) => {
   self.skipWaiting();
@@ -101,8 +101,9 @@ self.addEventListener("push", (event) => {
   event.waitUntil(
     self.registration.showNotification(title, {
       body: payload.body || "",
-      icon: "/web-app-manifest-192x192.png",
-      badge: "/web-app-manifest-192x192.png",
+      icon: "/icon-192.png",
+      // Android draws the badge as a silhouette from the alpha channel only.
+      badge: "/badge-96.png",
       vibrate: [100, 50, 100],
       // tag collapses repeat notifications for the same lead into one.
       tag: payload.tag || "veeghub",
