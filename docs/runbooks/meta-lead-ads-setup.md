@@ -181,32 +181,91 @@ Recién ahora la app aparece en la lista.
    leads automáticamente. Esa pestaña solo sirve para dar acceso a gente que **no** es admin
    (un vendedor, una agencia externa)
 
-### Paso 9 — Probar
+### Paso 9 — Probar de punta a punta
 
-1. `developers.facebook.com/tools/lead-ads-testing`
-2. Seleccionar Página + Formulario → **Create lead**
-3. El lead debe entrar por el webhook en segundos
-4. La misma herramienta tiene **Delete lead** para limpiar
-5. Si no llega: App Dashboard → Webhooks → **Historial de entregas** muestra cada intento y la
-   respuesta del servidor
+**Este es el único paso que prueba que los leads reales van a entrar.** Todo lo anterior se puede
+verificar por partes y dar verde sin que el circuito completo funcione.
 
-### Paso 10 — App Review (obligatorio para leads reales)
+#### 9.1 — Probar la entrega (aislado, no necesita formularios)
 
-En modo **Desarrollo** el webhook `leadgen` **solo dispara para admins, desarrolladores y testers de
-la app**. Sirve para probar, no para las campañas reales.
+App Dashboard → **Webhooks** → objeto Página → fila `leadgen` → botón **Probar / Test**.
 
-1. **App Review → Permisos y funciones** → pedir **Acceso Avanzado** a:
-   `leads_retrieval`, `pages_manage_metadata`, `pages_manage_ads`, `pages_read_engagement`,
-   `pages_show_list`, `ads_read`
-2. Adjuntar: descripción de uso, política de privacidad, y un **screencast** mostrando el flujo
-   completo (login → llega el lead → se gestiona)
-3. Pasar la app a **Live** con el switch del dashboard
-4. Tiempo típico: 1–7 días hábiles
+Manda un payload de ejemplo directo al endpoint. Qué significa cada resultado:
 
-**Puente mientras dura el review:** activar las notificaciones del **Centro de clientes potenciales**
-en Business Suite y cargar los CSV a mano con el importador. No dejar campañas activas sin recoger.
+| En tu tabla de eventos | Qué prueba |
+|---|---|
+| Aparece una fila, aunque sea `FAILED` con `Object with ID '444444444444' does not exist` | ✅ Meta entrega, la firma valida, el evento se persiste. El `FAILED` es correcto: ese ID es relleno |
+| No aparece nada | ❌ Meta no está entregando. Revisar conexiones A y B, y que el endpoint responda el handshake |
+| `Invalid signature` en los logs | ❌ Se está firmando algo distinto al cuerpo crudo |
 
----
+#### 9.2 — Probar un lead real
+
+`developers.facebook.com/tools/lead-ads-testing` → seleccionar Página y formulario →
+**Crear cliente potencial**. Solo se permite un lead de prueba por formulario; para repetir hay que
+eliminar el anterior.
+
+> **La app tiene que estar en Live (paso 10).** En modo Desarrollo, Meta crea el lead pero **no
+> entrega el webhook**, y el síntoma es confuso: la herramienta dice "Se envió tu cliente potencial
+> de prueba" y no llega nada.
+
+Si el lead no aparece pero 9.1 sí funcionó, el problema está entre Meta y la entrega, no en el
+código.
+
+#### 9.3 — Recuperar un lead que ya existe en Meta
+
+Si un lead quedó en Meta sin entregarse (por ejemplo, creado antes de terminar la configuración),
+se puede reinyectar mandando un webhook firmado con su `leadgen_id` real:
+
+```bash
+BODY="{\"object\":\"page\",\"entry\":[{\"id\":\"$PAGE_ID\",\"time\":$(date +%s),\"changes\":[{\"field\":\"leadgen\",\"value\":{\"leadgen_id\":\"$LEAD_ID\",\"page_id\":\"$PAGE_ID\",\"form_id\":\"$FORM_ID\"}}]}]}"
+SIG="sha256=$(printf '%s' "$BODY" | openssl dgst -sha256 -hmac "$APP_SECRET" | sed 's/^.*= //')"
+curl -s -X POST "$CALLBACK_URL" -H "content-type: application/json" \
+  -H "x-hub-signature-256: $SIG" -d "$BODY"
+```
+
+Para conseguir los `leadgen_id` existentes (requiere `pages_manage_ads`):
+
+```bash
+GET /{page-id}/leadgen_forms?fields=id,name,leads_count
+GET /{form_id}/leads
+```
+
+#### ⚠️ No dar por buena la configuración sin 9.2
+
+En la puesta en marcha de VeegSoft, **9.1 pasó y 9.2 nunca se llegó a validar**: el lead de prueba
+se creó con la app en modo Desarrollo, no se entregó, y después se cargó a mano con 9.3. Se
+verificaron la entrega, la lectura y el guardado por separado, pero no el circuito automático.
+
+Moraleja: pasar a Live **antes** del 9.2, y no declarar la integración terminada hasta ver un lead
+entrar solo.
+
+### Paso 10 — Pasar la app a Live
+
+**En modo Desarrollo, Meta solo entrega webhooks para usuarios con rol en la app.**
+Los leads de prueba que crea el propio administrador llegan; los de un desconocido que ve el
+anuncio y llena el formulario, **no**. Con la app en Desarrollo no se recibe ni un lead real.
+
+App Dashboard → selector junto al nombre de la app → **En vivo**.
+
+Requisitos para que deje: categoría, política de privacidad y URL de eliminación de datos
+completas (paso 2).
+
+#### ¿Hace falta App Review? Normalmente **no**
+
+Verificado el 2026-09-16 en la puesta en marcha de VeegSoft: se leyó un lead real con
+`GET /{form_id}/leads` y `leads_retrieval`, con la app en **acceso estándar** y en modo
+Desarrollo. Funcionó.
+
+La razón: los permisos sobre **activos del propio portafolio** se conceden por asignación en
+Business Manager al usuario del sistema, no por App Review. El App Review es para pedir permisos
+**a usuarios finales** vía Facebook Login — un camino que este procedimiento no usa.
+
+Síntoma que confunde: `leads_retrieval` **no aparece** en App Review → Permisos y funciones.
+Es correcto y esperado; solo aparecería agregando el producto Facebook Login for Business.
+
+**Cuándo sí hace falta App Review:** si la app necesita acceder a Páginas que **no** pertenecen al
+portafolio que la posee. Con el estándar de la sección 3 (una app por portafolio de cliente) ese
+caso no se da.
 
 ## 3. Clientes: una app propia dentro del portafolio del cliente
 
@@ -326,6 +385,11 @@ Todos observados en la puesta en marcha de VeegSoft el 2026-09-16.
 | `(#200) Requires leads_retrieval permission` al leer un lead | Falta el paso 8 (Lead Access Manager) o el scope | Asignar la app como CRM y revisar scopes |
 | El webhook no recibe nada, pero el handshake pasó | App en modo **Desarrollo**: solo dispara para admins/testers | Probar con la Lead Ads Testing Tool. Para leads reales, App Review + Live |
 | Meta reintenta y llegan leads duplicados | El endpoint tardó más de ~5s en responder 200 | Responder 200 primero y procesar en segundo plano. Deduplicar por `leadgen_id` único |
+| Los leads de prueba llegan pero los reales no | App en modo **Desarrollo** | Pasar a Live (paso 10). Desarrollo solo entrega para usuarios con rol en la app |
+| `leads_retrieval` no aparece en App Review → Permisos y funciones | Esa lista es para permisos pedidos vía Facebook Login | Es correcto. Con usuario del sistema sobre activos propios no se necesita |
+| La herramienta de prueba dice "App is not installed" y lista permisos faltantes que el token sí tiene | Esa herramienta evalúa el token del **usuario logueado**, no el del usuario del sistema | Ignorar si `subscribed_apps` y `debug_token` están correctos |
+| Todo deja de funcionar tras regenerar el token del usuario del sistema | El token de página cacheado quedó inválido | Descartar el token cacheado y volver a pedirlo ante un error Graph `190` |
+| El lead llega sin teléfono | El formulario nombró el campo `whatsapp_number` u otra variante | No asumir `phone_number`. Buscar por subcadena (`phone`, `celular`, `whatsapp`, `wpp`) |
 
 ---
 
@@ -340,9 +404,38 @@ Todos observados en la puesta en marcha de VeegSoft el 2026-09-16.
 [ ]  6. [A] App Dashboard → Webhooks → Page → leadgen    (panel)
 [ ]  7. [B] POST /{page-id}/subscribed_apps              (SOLO API)
 [ ]  8. [C] Lead Access Manager → CRMs → asignar la app  (panel)
-[ ]  9. Lead Ads Testing Tool → crear lead de prueba
-[ ] 10. App Review → acceso avanzado → app en Live
+[ ] 9.1 Botón Test de Webhooks → debe aparecer un evento
+[ ] 9.2 Lead Ads Testing Tool → el lead debe entrar SOLO (requiere Live primero)
+[ ] 10. Pasar la app a LIVE  (hacerlo ANTES del 9.2)
 ```
+
+> App Review normalmente **no** hace falta: ver el paso 10.
+
+---
+
+## 7.1 Independencia de la tecnología
+
+Nada de esto depende de Next.js. Meta solo necesita una URL HTTPS pública que cumpla un
+contrato de cuatro puntos, implementable en Laravel, Express, Django, Rails, Go o lo que sea:
+
+1. **`GET`** con `hub.mode`, `hub.verify_token` y `hub.challenge` → devolver el `challenge` en
+   texto plano con 200 si el token coincide; 403 si no.
+2. **`POST`** → validar la cabecera `X-Hub-Signature-256` = `sha256=` + HMAC-SHA256 del
+   **cuerpo crudo** con el App Secret. Comparar en tiempo constante.
+3. **Responder 200 en menos de ~5 segundos**, antes de llamar a Graph. Meta reintenta si tardás,
+   y esos reintentos son la fuente de los leads duplicados. Guardar el evento crudo y procesar
+   después (cola, job, worker, `after()`, lo que ofrezca tu stack).
+4. **Idempotencia**: índice único sobre el `leadgen_id`. Es lo único que garantiza que un
+   reintento no cree un lead repetido.
+
+Después, `GET /{leadgen_id}?fields=id,created_time,field_data,ad_id,form_id` con el token de
+página. Es HTTP plano: `Http::get()` en Laravel, `requests` en Django, `fetch` en Node.
+
+En Laravel el equivalente directo sería una ruta fuera del middleware CSRF, la validación de
+firma en un middleware propio, y el procesamiento en un Job encolado.
+
+Lo que **no** cambia según la tecnología: los 10 pasos de configuración en Meta, el orden de las
+tres conexiones, y el hecho de que la conexión B solo se puede hacer por API.
 
 ---
 
@@ -358,4 +451,7 @@ Todos observados en la puesta en marcha de VeegSoft el 2026-09-16.
 | Pasos 1–8 | ✅ hechos |
 | Callback | `https://veeghub.veegsoft.com/api/webhooks/meta/leads` — handshake y firma verificados en producción |
 | Webhook registrado por Meta en | `v26.0` (se alineó `META_GRAPH_VERSION` a la misma) |
-| Pasos 9 y 10 | pendientes |
+| Paso 9.1 (entrega) | ✅ probado con el botón Test |
+| Paso 9.2 (lead real de punta a punta) | ⚠️ **nunca validado** — se intentó en modo Desarrollo y no se repitió tras pasar a Live |
+| Lead real | leído por API y reinyectado a mano con 9.3 |
+| Paso 10 | ✅ app en Live, sin App Review |

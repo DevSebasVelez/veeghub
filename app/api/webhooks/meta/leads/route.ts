@@ -71,7 +71,6 @@ export async function POST(request: Request) {
       const result = await ingestLeadgen(change);
 
       if (result.status === "created") {
-        // TODO(F3): enviar push a los administradores con el lead recién creado.
         console.log("[meta] lead creado", result.leadId);
       }
     }

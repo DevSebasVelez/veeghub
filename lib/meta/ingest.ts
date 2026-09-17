@@ -10,6 +10,7 @@ import {
   MetaGraphError,
 } from "@/lib/meta/graph";
 import { mapLeadFields } from "@/lib/meta/lead-mapper";
+import { notifyNewLead } from "@/lib/notifications/lead-alert";
 
 export type LeadgenChange = {
   leadgenId: string;
@@ -190,7 +191,7 @@ export async function ingestLeadgen(
           },
         },
       },
-      select: { id: true, name: true, phone: true },
+      select: { id: true, name: true, phone: true, serviceTag: true },
     });
 
     await Promise.all([
@@ -204,6 +205,20 @@ export async function ingestLeadgen(
       }),
       flagPossibleDuplicate(lead.id, mapped.phone, mapped.email),
     ]);
+
+    // The alert is the point of the whole pipeline, but a failed notification
+    // must never turn a stored lead into a FAILED event that gets retried.
+    try {
+      await notifyNewLead({
+        id: lead.id,
+        name: lead.name,
+        phone: lead.phone,
+        serviceTag: lead.serviceTag,
+        campaign: adContext?.campaignName ?? null,
+      });
+    } catch (error) {
+      console.error("[meta] no se pudo notificar el lead", lead.id, error);
+    }
 
     return { status: "created", leadId: lead.id };
   } catch (error) {

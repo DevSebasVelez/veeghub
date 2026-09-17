@@ -1,4 +1,4 @@
-const CACHE_VERSION = "veeghub-v2";
+const CACHE_VERSION = "veeghub-v3";
 
 self.addEventListener("install", (event) => {
   self.skipWaiting();
@@ -81,4 +81,58 @@ self.addEventListener("fetch", (event) => {
         }),
     );
   }
+});
+
+// --- Notificaciones push de leads ---
+
+self.addEventListener("push", (event) => {
+  if (!event.data) return;
+
+  let payload = {};
+
+  try {
+    payload = event.data.json();
+  } catch {
+    payload = { title: "Veeghub", body: event.data.text() };
+  }
+
+  const title = payload.title || "Veeghub";
+
+  event.waitUntil(
+    self.registration.showNotification(title, {
+      body: payload.body || "",
+      icon: "/web-app-manifest-192x192.png",
+      badge: "/web-app-manifest-192x192.png",
+      vibrate: [100, 50, 100],
+      // tag collapses repeat notifications for the same lead into one.
+      tag: payload.tag || "veeghub",
+      renotify: true,
+      // A lead is worth an alert that waits on screen until it is seen.
+      requireInteraction: true,
+      data: { url: payload.url || "/admin/leads" },
+    }),
+  );
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+
+  const target = (event.notification.data && event.notification.data.url) || "/admin/leads";
+
+  event.waitUntil(
+    self.clients
+      .matchAll({ type: "window", includeUncontrolled: true })
+      .then((clientList) => {
+        // Reuse an open Veeghub window instead of stacking new tabs.
+        for (const client of clientList) {
+          if (client.url.includes(self.location.origin) && "focus" in client) {
+            client.focus();
+            if ("navigate" in client) client.navigate(target);
+            return;
+          }
+        }
+
+        return self.clients.openWindow(target);
+      }),
+  );
 });

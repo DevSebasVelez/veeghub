@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { ArrowLeft, Briefcase, Megaphone, UserCheck } from "lucide-react";
 
 import { getLeadDetail } from "@/lib/admin/queries/leads";
-import { formatCurrency, formatDate } from "@/lib/admin/format";
+import { formatCurrency, formatDate, formatDateOnly } from "@/lib/admin/format";
 import { ConvertLeadDialog } from "@/components/admin/dialogs/convert-lead-dialog";
 import { LeadActivityForm } from "@/components/admin/leads/lead-activity-form";
 import { LeadActivityTimeline } from "@/components/admin/leads/lead-activity-timeline";
@@ -151,7 +151,9 @@ export default async function LeadDetailPage({
               <Row
                 label="Seguimiento"
                 value={
-                  lead.nextFollowUpAt ? formatDate(lead.nextFollowUpAt) : null
+                  lead.nextFollowUpAt
+                    ? formatDateOnly(lead.nextFollowUpAt)
+                    : null
                 }
               />
               <Row
