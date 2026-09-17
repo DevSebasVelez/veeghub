@@ -21,13 +21,36 @@ const optionalDate = z.preprocess(
     .transform((v) => (v ? new Date(v) : null)),
 );
 
+// Ecuador (mainland) is UTC-05:00 all year — it does not observe DST — so a
+// fixed offset is exact, not an approximation.
+const ECUADOR_UTC_OFFSET = "-05:00";
+const HAS_OFFSET = /([zZ]|[+-]\d{2}:?\d{2})$/;
+
+/**
+ * A datetime-local input submits "2026-09-20T15:00" with no offset, and
+ * `new Date()` then reads it in the RUNTIME's timezone. On a UTC host that
+ * silently stores 15:00 as 10:00 Ecuador time. Pinning the offset here makes
+ * the value mean the same instant on any host, without depending on TZ.
+ */
+export function parseLocalDateTime(value: string) {
+  const trimmed = value.trim();
+
+  if (HAS_OFFSET.test(trimmed)) return new Date(trimmed);
+
+  const withSeconds = /T\d{2}:\d{2}$/.test(trimmed)
+    ? `${trimmed}:00`
+    : trimmed;
+
+  return new Date(`${withSeconds}${ECUADOR_UTC_OFFSET}`);
+}
+
 const requiredDateTime = z.preprocess(
   coerceStr,
   z
     .string()
     .trim()
     .min(1, "Campo requerido")
-    .transform((v) => new Date(v))
+    .transform((v) => parseLocalDateTime(v))
     .refine((d) => !Number.isNaN(d.getTime()), "Fecha inválida"),
 );
 

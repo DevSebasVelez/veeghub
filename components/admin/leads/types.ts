@@ -1,3 +1,6 @@
+import { minutesSince, shortAge } from "@/lib/admin/format";
+import { STALE_MINUTES } from "@/components/admin/leads/constants";
+
 /** Lead shape passed from server components to the board/table (Decimal already serialized). */
 export type LeadCardData = {
   id: string;
@@ -16,6 +19,12 @@ export type LeadCardData = {
   nextFollowUpAt: string | null;
   convertedClientId: string | null;
   createdAt: string;
+  // Derived on the server: computing "hace 6 min" inside a client component
+  // makes it disagree with the server render and React flags a hydration
+  // mismatch, and on a UTC host the comparison would use the wrong clock.
+  ageLabel: string;
+  stale: boolean;
+  followUpDue: boolean;
 };
 
 export function forLeadCard(lead: {
@@ -53,5 +62,11 @@ export function forLeadCard(lead: {
     nextFollowUpAt: lead.nextFollowUpAt?.toISOString() ?? null,
     convertedClientId: lead.convertedClientId,
     createdAt: lead.createdAt.toISOString(),
+    ageLabel: shortAge(lead.createdAt),
+    stale:
+      lead.stage === "NEW" && minutesSince(lead.createdAt) >= STALE_MINUTES,
+    followUpDue: lead.nextFollowUpAt
+      ? lead.nextFollowUpAt.getTime() <= Date.now()
+      : false,
   };
 }

@@ -6,21 +6,12 @@ import { CalendarClock, Megaphone } from "lucide-react";
 import { formatCurrency } from "@/lib/admin/format";
 import { LeadQuickActions } from "@/components/admin/leads/lead-quick-actions";
 import { LeadStageSelect } from "@/components/admin/leads/lead-stage-select";
-import {
-  SOURCE_LABELS,
-  STALE_MINUTES,
-  minutesSince,
-  shortAge,
-} from "@/components/admin/leads/constants";
+import { SOURCE_LABELS } from "@/components/admin/leads/constants";
 import type { LeadCardData } from "@/components/admin/leads/types";
 
 export function LeadCard({ lead }: { lead: LeadCardData }) {
   // A NEW lead going cold is the one thing this board must shout about.
-  const stale =
-    lead.stage === "NEW" && minutesSince(lead.createdAt) >= STALE_MINUTES;
-
-  const followUpDue =
-    lead.nextFollowUpAt && new Date(lead.nextFollowUpAt) <= new Date();
+  const { stale, followUpDue } = lead;
 
   return (
     <div
@@ -42,7 +33,7 @@ export function LeadCard({ lead }: { lead: LeadCardData }) {
             stale ? "font-medium text-destructive" : "text-muted-foreground"
           }`}
         >
-          {shortAge(lead.createdAt)}
+          {lead.ageLabel}
         </span>
       </div>
 

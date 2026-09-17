@@ -142,6 +142,8 @@ export async function setLeadFollowUp(id: string, date: string | null) {
 
   await prisma.lead.update({
     where: { id },
+    // A date-only value ("2026-09-20") is parsed as UTC midnight by spec and
+    // displayed with formatDateOnly, matching how @db.Date fields behave here.
     data: { nextFollowUpAt: date ? new Date(date) : null },
   });
 

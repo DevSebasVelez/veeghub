@@ -42,24 +42,6 @@ export const STAGE_TEXT_COLOR: Record<string, string> = {
 /** Minutes a NEW lead can sit before the card turns red. */
 export const STALE_MINUTES = 30;
 
-export function minutesSince(date: string) {
-  return Math.floor((Date.now() - new Date(date).getTime()) / 60000);
-}
-
-/** Compact "hace 3 h" style age, for cards where space is tight. */
-export function shortAge(date: string) {
-  const minutes = minutesSince(date);
-
-  if (minutes < 1) return "recién";
-  if (minutes < 60) return `hace ${minutes} min`;
-
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `hace ${hours} h`;
-
-  const days = Math.floor(hours / 24);
-  return `hace ${days} d`;
-}
-
 /** wa.me needs E.164 with no plus sign. */
 export function waLink(phone: string | null, name: string) {
   if (!phone) return null;
