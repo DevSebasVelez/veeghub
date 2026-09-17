@@ -48,7 +48,7 @@ import {
 } from "@/lib/admin/format";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { AreaTabs } from "@/components/admin/area-nav";
 import {
   Table,
   TableBody,
@@ -409,34 +409,18 @@ export default async function ClientDetailPage({
       </Card>
 
       {/* Tabs */}
-      <Tabs defaultValue={query.tab ?? "resumen"} className="gap-0">
-        <div className="-mx-4 mb-4 overflow-x-auto border-b border-border px-4 pb-1 scrollbar-none [&::-webkit-scrollbar]:hidden md:mx-0 md:border-0 md:pb-0 md:px-0">
-          <TabsList className="h-auto w-max gap-1 rounded-lg p-1">
-            <TabsTrigger value="resumen" className="rounded-md">
-              Resumen
-            </TabsTrigger>
-            <TabsTrigger value="notas" className="rounded-md">
-              Notas
-              {client._count.comments > 0 ? ` (${client._count.comments})` : ""}
-            </TabsTrigger>
-            <TabsTrigger value="pagos" className="rounded-md">
-              Pagos
-              {clientPayments.length > 0 ? ` (${clientPayments.length})` : ""}
-            </TabsTrigger>
-            <TabsTrigger value="invoices" className="rounded-md">
-              Facturas{invoicesTotal > 0 ? ` (${invoicesTotal})` : ""}
-            </TabsTrigger>
-            <TabsTrigger value="drive" className="rounded-md">
-              Drive{client._count.files > 0 ? ` (${client._count.files})` : ""}
-            </TabsTrigger>
-            <TabsTrigger value="credentials" className="rounded-md">
-              Credenciales{credentialsTotal > 0 ? ` (${credentialsTotal})` : ""}
-            </TabsTrigger>
-          </TabsList>
-        </div>
-
-        {/* Resumen tab */}
-        <TabsContent value="resumen" className="mt-0">
+      <AreaTabs
+        initial={query.tab ?? "resumen"}
+        items={[
+          { key: "resumen", label: "Resumen" },
+          { key: "notas", label: "Notas", count: client._count.comments },
+          { key: "pagos", label: "Pagos", count: clientPayments.length },
+          { key: "invoices", label: "Facturas", count: invoicesTotal },
+          { key: "drive", label: "Drive", count: client._count.files },
+          { key: "credentials", label: "Credenciales", count: credentialsTotal },
+        ]}
+        panels={{
+          resumen: (
           <div className="grid gap-5 lg:grid-cols-[1fr_360px]">
             <Card className="rounded-lg">
               <CardHeader className="pb-3">
@@ -600,10 +584,8 @@ export default async function ClientDetailPage({
               </CardContent>
             </Card>
           </div>
-        </TabsContent>
-
-        {/* Notas tab */}
-        <TabsContent value="notas" className="mt-0">
+          ),
+          notas: (
           <Card className="rounded-lg">
             <CardContent className="p-5">
               <CommentSection
@@ -616,10 +598,8 @@ export default async function ClientDetailPage({
               />
             </CardContent>
           </Card>
-        </TabsContent>
-
-        {/* Pagos tab */}
-        <TabsContent value="pagos" className="mt-0">
+          ),
+          pagos: (
           <div className="space-y-4">
             <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
               <p className="text-sm text-muted-foreground">
@@ -743,10 +723,8 @@ export default async function ClientDetailPage({
               ))
             )}
           </div>
-        </TabsContent>
-
-        {/* Facturas tab */}
-        <TabsContent value="invoices" className="mt-0">
+          ),
+          invoices: (
           <Card className="rounded-lg">
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
@@ -820,10 +798,8 @@ export default async function ClientDetailPage({
               </div>
             </CardContent>
           </Card>
-        </TabsContent>
-
-        {/* Drive tab */}
-        <TabsContent value="drive" className="mt-0">
+          ),
+          drive: (
           <div className="space-y-3">
             {/* Breadcrumb */}
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -867,10 +843,8 @@ export default async function ClientDetailPage({
               folderBase={driveFolderBase}
             />
           </div>
-        </TabsContent>
-
-        {/* Credenciales tab */}
-        <TabsContent value="credentials" className="mt-0">
+          ),
+          credentials: (
           <Card className="rounded-lg">
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
@@ -952,8 +926,9 @@ export default async function ClientDetailPage({
               </div>
             </CardContent>
           </Card>
-        </TabsContent>
-      </Tabs>
+          ),
+        }}
+      />
     </div>
   );
 }

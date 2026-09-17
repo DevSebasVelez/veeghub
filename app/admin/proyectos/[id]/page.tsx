@@ -50,7 +50,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { AreaTabs } from "@/components/admin/area-nav";
 import {
   Table,
   TableBody,
@@ -412,40 +412,17 @@ export default async function ProjectDetailPage({
       </Card>
 
       {/* Tabs */}
-      <Tabs defaultValue={tab ?? "tareas"} className="gap-0">
-        <div className="-mx-4 mb-4 overflow-x-auto border-b border-border px-4 pb-1 scrollbar-none [&::-webkit-scrollbar]:hidden md:mx-0 md:border-0 md:pb-0 md:px-0">
-          <TabsList className="h-auto w-max gap-1 rounded-lg p-1">
-            <TabsTrigger value="tareas" className="rounded-md">
-              Tareas
-              {project.tasks.length > 0 ? ` (${project.tasks.length})` : ""}
-            </TabsTrigger>
-            <TabsTrigger value="notas" className="rounded-md">
-              Notas
-              {project.comments.length > 0
-                ? ` (${project.comments.length})`
-                : ""}
-            </TabsTrigger>
-            <TabsTrigger value="archivos" className="rounded-md">
-              Archivos
-              {project._count.files > 0 ? ` (${project._count.files})` : ""}
-            </TabsTrigger>
-            <TabsTrigger value="pagos" className="rounded-md">
-              Pagos
-              {project.receivables.length > 0
-                ? ` (${project.receivables.length})`
-                : ""}
-            </TabsTrigger>
-            <TabsTrigger value="credenciales" className="rounded-md">
-              Credenciales
-              {project.credentials.length > 0
-                ? ` (${project.credentials.length})`
-                : ""}
-            </TabsTrigger>
-          </TabsList>
-        </div>
-
-        {/* Tareas */}
-        <TabsContent value="tareas" className="mt-0">
+      <AreaTabs
+        initial={tab ?? "tareas"}
+        items={[
+          { key: "tareas", label: "Tareas", count: project.tasks.length },
+          { key: "notas", label: "Notas", count: project.comments.length },
+          { key: "archivos", label: "Archivos", count: project._count.files },
+          { key: "pagos", label: "Pagos", count: project.receivables.length },
+          { key: "credenciales", label: "Credenciales", count: project.credentials.length },
+        ]}
+        panels={{
+          tareas: (
           <Card className="rounded-lg">
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
@@ -572,10 +549,8 @@ export default async function ProjectDetailPage({
               )}
             </CardContent>
           </Card>
-        </TabsContent>
-
-        {/* Notas */}
-        <TabsContent value="notas" className="mt-0">
+          ),
+          notas: (
           <Card className="rounded-lg">
             <CardContent className="p-5">
               <CommentSection
@@ -588,10 +563,8 @@ export default async function ProjectDetailPage({
               />
             </CardContent>
           </Card>
-        </TabsContent>
-
-        {/* Archivos — drive contextual */}
-        <TabsContent value="archivos" className="mt-0">
+          ),
+          archivos: (
           <div className="space-y-3">
             {/* Drive breadcrumb */}
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -637,10 +610,8 @@ export default async function ProjectDetailPage({
               folderBase={driveFolderBase}
             />
           </div>
-        </TabsContent>
-
-        {/* Pagos */}
-        <TabsContent value="pagos" className="mt-0">
+          ),
+          pagos: (
           <div className="space-y-5">
             {/* Hitos card */}
             <Card className="rounded-lg">
@@ -881,10 +852,8 @@ export default async function ProjectDetailPage({
               )}
             </div>
           </div>
-        </TabsContent>
-
-        {/* Credenciales */}
-        <TabsContent value="credenciales" className="mt-0">
+          ),
+          credenciales: (
           <Card className="rounded-lg">
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
@@ -960,8 +929,9 @@ export default async function ProjectDetailPage({
               )}
             </CardContent>
           </Card>
-        </TabsContent>
-      </Tabs>
+          ),
+        }}
+      />
     </div>
   );
 }
