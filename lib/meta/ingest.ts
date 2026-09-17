@@ -105,6 +105,7 @@ function errorMessage(error: unknown) {
 export type IngestResult =
   | { status: "created"; leadId: string }
   | { status: "duplicate"; leadId: string }
+  | { status: "discarded" }
   | { status: "failed"; error: string };
 
 /**
@@ -114,6 +115,18 @@ export type IngestResult =
 export async function ingestLeadgen(
   change: LeadgenChange,
 ): Promise<IngestResult> {
+  // A lead deleted by hand leaves its event marked IGNORED. Without this check
+  // the lead row is gone, so nothing else would stop a redelivery or the
+  // backfill from bringing the same junk back.
+  const event = await prisma.metaWebhookEvent.findUnique({
+    where: { leadgenId: change.leadgenId },
+    select: { status: true },
+  });
+
+  if (event?.status === "IGNORED") {
+    return { status: "discarded" };
+  }
+
   const existing = await prisma.lead.findUnique({
     where: { metaLeadId: change.leadgenId },
     select: { id: true },

@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { DeleteLeadButton } from "@/components/admin/leads/delete-lead-button";
 import { LeadCard } from "@/components/admin/leads/lead-card";
 
 import { formatCurrency, formatDate } from "@/lib/admin/format";
@@ -98,7 +99,7 @@ export function LeadTable({ leads }: { leads: LeadCardData[] }) {
                       {formatDate(lead.createdAt)}
                     </TableCell>
                     <TableCell className="pr-5">
-                      <div className="flex justify-end">
+                      <div className="flex items-center justify-end gap-1">
                         <LeadQuickActions
                           id={lead.id}
                           name={lead.name}
@@ -106,6 +107,7 @@ export function LeadTable({ leads }: { leads: LeadCardData[] }) {
                           email={lead.email}
                           contacted={Boolean(lead.firstContactedAt)}
                         />
+                        <DeleteLeadButton id={lead.id} name={lead.name} />
                       </div>
                     </TableCell>
                   </TableRow>

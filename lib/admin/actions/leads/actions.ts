@@ -150,10 +150,35 @@ export async function setLeadFollowUp(id: string, date: string | null) {
   revalidateLeads(id);
 }
 
+/**
+ * Deletes a lead for good. If it came from Meta, its webhook event is kept and
+ * marked IGNORED rather than removed: the event row is what stops a retry — or
+ * the backfill — from recreating a lead that was deliberately thrown away.
+ * The row holds only the id and the original payload, no separate copy of the
+ * person's data beyond what Meta already has.
+ */
 export async function deleteLead(id: string) {
   await requireAdmin();
 
-  await prisma.lead.delete({ where: { id } });
+  const lead = await prisma.lead.findUniqueOrThrow({
+    where: { id },
+    select: { metaLeadId: true },
+  });
+
+  await prisma.$transaction(async (tx) => {
+    await tx.lead.delete({ where: { id } });
+
+    if (lead.metaLeadId) {
+      await tx.metaWebhookEvent.updateMany({
+        where: { leadgenId: lead.metaLeadId },
+        data: {
+          status: "IGNORED",
+          processedAt: new Date(),
+          error: "Lead eliminado manualmente.",
+        },
+      });
+    }
+  });
 
   revalidateLeads();
 }
