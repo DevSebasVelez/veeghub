@@ -45,8 +45,10 @@ export function LeadQuickActions({
     });
   }
 
+  // 40px en móvil: por debajo de eso, fallar el botón de WhatsApp es común.
   const buttonClass =
-    size === "icon" ? "size-9 md:size-7" : "size-9 md:h-7 md:w-auto md:px-2";
+    size === "icon" ? "size-10 md:size-7" : "size-10 md:h-7 md:w-auto md:px-2";
+  const iconClass = "size-[18px] md:size-3.5";
 
   return (
     <div className="flex items-center gap-0.5 md:gap-1">
@@ -60,7 +62,7 @@ export function LeadQuickActions({
               className={`${buttonClass} text-emerald-600 hover:text-emerald-700 dark:text-emerald-400`}
             >
               <a href={whatsapp} target="_blank" rel="noopener noreferrer">
-                <MessageCircle className="size-3.5" />
+                <MessageCircle className={iconClass} />
                 <span className="sr-only">WhatsApp</span>
               </a>
             </Button>
@@ -74,7 +76,7 @@ export function LeadQuickActions({
           <TooltipTrigger asChild>
             <Button asChild variant="ghost" size="icon" className={buttonClass}>
               <a href={`tel:${phone}`}>
-                <Phone className="size-3.5" />
+                <Phone className={iconClass} />
                 <span className="sr-only">Llamar</span>
               </a>
             </Button>
@@ -88,7 +90,7 @@ export function LeadQuickActions({
           <TooltipTrigger asChild>
             <Button asChild variant="ghost" size="icon" className={buttonClass}>
               <a href={`mailto:${email}`}>
-                <Mail className="size-3.5" />
+                <Mail className={iconClass} />
                 <span className="sr-only">Email</span>
               </a>
             </Button>
@@ -108,7 +110,7 @@ export function LeadQuickActions({
               disabled={pending}
               onClick={handleContacted}
             >
-              <Check className="size-3.5" />
+              <Check className={iconClass} />
               <span className="sr-only">Marcar contactado</span>
             </Button>
           </TooltipTrigger>
