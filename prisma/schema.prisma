@@ -71,22 +71,61 @@ enum CredentialKind {
   OTHER
 }
 
+enum LeadStage {
+  NEW
+  CONTACTED
+  QUALIFIED
+  PROPOSAL
+  NEGOTIATION
+  WON
+  LOST
+}
+
+enum LeadSource {
+  META_ADS
+  INSTAGRAM
+  WHATSAPP
+  REFERRAL
+  WEBSITE
+  MANUAL
+  CSV_IMPORT
+  OTHER
+}
+
+enum LeadActivityType {
+  NOTE
+  CALL
+  WHATSAPP
+  EMAIL
+  MEETING
+  STAGE_CHANGE
+  SYSTEM
+}
+
+enum MetaEventStatus {
+  PENDING
+  PROCESSED
+  FAILED
+  IGNORED
+}
+
 model User {
-  id            String   @id @default(cuid())
-  name          String?
-  email         String   @unique
-  emailVerified DateTime?
-  passwordHash  String
-  role          UserRole @default(ADMIN)
-  image         String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id                String             @id @default(cuid())
+  name              String?
+  email             String             @unique
+  emailVerified     DateTime?
+  passwordHash      String
+  role              UserRole           @default(ADMIN)
+  image             String?
+  pushSubscriptions PushSubscription[]
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
 
   @@index([role])
 }
 
 model Client {
-  id           String       @id @default(cuid())
+  id           String        @id @default(cuid())
   name         String
   legalName    String?
   taxId        String?
@@ -104,30 +143,31 @@ model Client {
   files        DriveFile[]
   comments     Comment[]
   meetings     Meeting[]
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
+  leadOrigin   Lead?         @relation("LeadClientConversion")
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
 
   @@index([name])
   @@index([taxId])
 }
 
 model Project {
-  id            String       @id @default(cuid())
+  id            String        @id @default(cuid())
   name          String
-  slug          String       @unique
+  slug          String        @unique
   clientId      String?
-  client        Client?      @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  client        Client?       @relation(fields: [clientId], references: [id], onDelete: SetNull)
   status        ProjectStatus @default(ACTIVE)
   description   String?
   stack         String?
   repositoryUrl String?
   productionUrl String?
   stagingUrl    String?
-  budget        Decimal?     @db.Decimal(12, 2)
-  currency      String       @default("USD")
-  startDate     DateTime?    @db.Date
-  dueDate       DateTime?    @db.Date
-  completedAt   DateTime?    @db.Date
+  budget        Decimal?      @db.Decimal(12, 2)
+  currency      String        @default("USD")
+  startDate     DateTime?     @db.Date
+  dueDate       DateTime?     @db.Date
+  completedAt   DateTime?     @db.Date
   tasks         Task[]
   receivables   Receivable[]
   invoices      Invoice[]
@@ -135,8 +175,9 @@ model Project {
   folders       DriveFolder[]
   files         DriveFile[]
   comments      Comment[]
-  createdAt     DateTime     @default(now())
-  updatedAt     DateTime     @updatedAt
+  leadOrigin    Lead?         @relation("LeadProjectConversion")
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
 
   @@index([clientId])
   @@index([status])
@@ -277,30 +318,30 @@ model DriveFolder {
   createdAt DateTime      @default(now())
   updatedAt DateTime      @updatedAt
 
+  @@unique([parentId, name])
   @@index([parentId])
   @@index([clientId])
   @@index([projectId])
   @@index([clientId, parentId, name], map: "drive_folder_client_parent_name_idx")
   @@index([projectId, parentId, name], map: "drive_folder_project_parent_name_idx")
-  @@unique([parentId, name])
 }
 
 model DriveFile {
-  id                String     @id @default(cuid())
-  name              String
-  objectKey         String     @unique
-  mimeType          String
-  size              Int
-  folderId          String?
-  folder            DriveFolder? @relation(fields: [folderId], references: [id], onDelete: SetNull)
-  clientId          String?
-  client            Client?    @relation(fields: [clientId], references: [id], onDelete: SetNull)
-  projectId         String?
-  project           Project?   @relation(fields: [projectId], references: [id], onDelete: SetNull)
-  invoiceXmlFor     Invoice[]  @relation("InvoiceXmlFile")
-  invoiceRideFor    Invoice[]  @relation("InvoiceRideFile")
-  createdAt         DateTime   @default(now())
-  updatedAt         DateTime   @updatedAt
+  id             String       @id @default(cuid())
+  name           String
+  objectKey      String       @unique
+  mimeType       String
+  size           Int
+  folderId       String?
+  folder         DriveFolder? @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  clientId       String?
+  client         Client?      @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  projectId      String?
+  project        Project?     @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  invoiceXmlFor  Invoice[]    @relation("InvoiceXmlFile")
+  invoiceRideFor Invoice[]    @relation("InvoiceRideFile")
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
 
   @@index([folderId])
   @@index([clientId])
@@ -368,4 +409,117 @@ model Comment {
 
   @@index([clientId])
   @@index([projectId])
+}
+
+model Lead {
+  id       String  @id @default(cuid())
+  name     String
+  email    String?
+  phone    String?
+  phoneRaw String?
+  company  String?
+  message  String?
+
+  stage          LeadStage  @default(NEW)
+  source         LeadSource @default(META_ADS)
+  serviceTag     String?
+  estimatedValue Decimal?   @db.Decimal(12, 2)
+  currency       String     @default("USD")
+  notes          String?
+  lostReason     String?
+
+  metaLeadId       String?   @unique
+  metaFormId       String?
+  metaFormName     String?
+  metaPageId       String?
+  metaAdId         String?
+  metaAdName       String?
+  metaAdsetId      String?
+  metaAdsetName    String?
+  metaCampaignId   String?
+  metaCampaignName String?
+  metaCreatedAt    DateTime?
+  rawPayload       Json?
+
+  firstContactedAt DateTime?
+  nextFollowUpAt   DateTime?
+  stageChangedAt   DateTime  @default(now())
+
+  convertedClientId  String?   @unique
+  convertedClient    Client?   @relation("LeadClientConversion", fields: [convertedClientId], references: [id], onDelete: SetNull)
+  convertedProjectId String?   @unique
+  convertedProject   Project?  @relation("LeadProjectConversion", fields: [convertedProjectId], references: [id], onDelete: SetNull)
+  convertedAt        DateTime?
+
+  activities LeadActivity[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([stage, createdAt], map: "lead_stage_created_idx")
+  @@index([stage, nextFollowUpAt], map: "lead_stage_followup_idx")
+  @@index([source, createdAt], map: "lead_source_created_idx")
+  @@index([metaCampaignId])
+  @@index([phone])
+  @@index([email])
+  @@index([createdAt])
+}
+
+model LeadActivity {
+  id         String           @id @default(cuid())
+  leadId     String
+  lead       Lead             @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  type       LeadActivityType
+  body       String?
+  fromStage  LeadStage?
+  toStage    LeadStage?
+  occurredAt DateTime         @default(now())
+  createdAt  DateTime         @default(now())
+
+  @@index([leadId, occurredAt], map: "lead_activity_lead_occurred_idx")
+}
+
+model MetaPage {
+  id             String    @id @default(cuid())
+  pageId         String    @unique
+  pageName       String?
+  encryptedToken String?
+  tokenIv        String?
+  tokenTag       String?
+  tokenPreview   String?
+  subscribed     Boolean   @default(false)
+  subscribedAt   DateTime?
+  lastEventAt    DateTime?
+  lastBackfillAt DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+}
+
+model MetaWebhookEvent {
+  id          String          @id @default(cuid())
+  leadgenId   String          @unique
+  pageId      String?
+  formId      String?
+  payload     Json
+  status      MetaEventStatus @default(PENDING)
+  attempts    Int             @default(0)
+  error       String?
+  receivedAt  DateTime        @default(now())
+  processedAt DateTime?
+
+  @@index([status, receivedAt], map: "meta_event_status_received_idx")
+}
+
+model PushSubscription {
+  id         String    @id @default(cuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  endpoint   String    @unique
+  p256dh     String
+  auth       String
+  userAgent  String?
+  lastUsedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([userId])
 }
