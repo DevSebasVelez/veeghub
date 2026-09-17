@@ -12,6 +12,7 @@ import {
   KeyRound,
   LayoutDashboard,
   Magnet,
+  Megaphone,
   Users,
 } from "lucide-react";
 import { FaChartLine } from "react-icons/fa6";
@@ -34,6 +35,7 @@ import { UserMenu } from "@/components/admin/user-menu";
 const navItems = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
   { href: "/admin/leads", label: "Leads", icon: Magnet },
+  { href: "/admin/campanas", label: "Campañas", icon: Megaphone },
   { href: "/admin/clientes", label: "Clientes", icon: Users },
   { href: "/admin/proyectos", label: "Proyectos", icon: BriefcaseBusiness },
   { href: "/admin/tareas", label: "Tareas", icon: CheckSquare },

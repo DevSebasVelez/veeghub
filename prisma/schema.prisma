@@ -523,3 +523,39 @@ model PushSubscription {
 
   @@index([userId])
 }
+
+model MetaAdAccount {
+  id             String    @id @default(cuid())
+  accountId      String    @unique
+  name           String?
+  currency       String    @default("USD")
+  lastSyncedAt   DateTime?
+  // Última lectura de X-Business-Use-Case-Usage. Son porcentajes sobre una
+  // ventana móvil de una hora; con el tier development_access el margen es corto.
+  usageCallCount Int?
+  usageCpuTime   Int?
+  usageResetMin  Int?
+  accessTier     String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+}
+
+model MetaCampaignInsight {
+  id           String   @id @default(cuid())
+  accountId    String
+  campaignId   String
+  campaignName String
+  // Día de calendario, no instante: se muestra con formatDateOnly (UTC).
+  date         DateTime @db.Date
+  spend        Decimal  @db.Decimal(12, 2)
+  impressions  Int      @default(0)
+  clicks       Int      @default(0)
+  reach        Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Hace que volver a sincronizar el mismo rango sea idempotente.
+  @@unique([campaignId, date])
+  @@index([accountId, date])
+  @@index([date])
+}

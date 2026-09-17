@@ -188,7 +188,19 @@ export default async function LeadDetailPage({
                 </CardTitle>
               </CardHeader>
               <CardContent className="divide-y pt-0">
-                <Row label="Campaña" value={lead.metaCampaignName} />
+                <Row
+                  label="Campaña"
+                  value={
+                    lead.metaCampaignName ? (
+                      <Link
+                        href="/admin/campanas"
+                        className="underline underline-offset-2"
+                      >
+                        {lead.metaCampaignName}
+                      </Link>
+                    ) : null
+                  }
+                />
                 <Row label="Conjunto" value={lead.metaAdsetName} />
                 <Row label="Anuncio" value={lead.metaAdName} />
                 <Row label="Formulario" value={lead.metaFormName} />

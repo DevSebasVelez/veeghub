@@ -133,3 +133,45 @@ export function shortAge(value: Date | string) {
   const days = Math.floor(hours / 24);
   return `hace ${days} d`;
 }
+
+/**
+ * Calendar day of an instant, as "yyyy-MM-dd", in the business timezone.
+ *
+ * Meta reports ad spend by the ad account's own calendar day (Ecuador), so
+ * anything joined against it — lead counts, range bounds — has to be bucketed
+ * the same way. Using UTC instead shifts everything after 19:00 local into the
+ * next day and the two series stop lining up.
+ */
+export function dayKeyInAppZone(value: Date | string, zone = APP_TIME_ZONE) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: zone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date(value));
+
+  const get = (type: string) =>
+    parts.find((part) => part.type === type)?.value ?? "";
+
+  return `${get("year")}-${get("month")}-${get("day")}`;
+}
+
+/** That same calendar day as the UTC-midnight instant @db.Date columns store. */
+export function dayStartUtc(value: Date | string, zone = APP_TIME_ZONE) {
+  return new Date(`${dayKeyInAppZone(value, zone)}T00:00:00.000Z`);
+}
+
+/**
+ * The actual instant that calendar day BEGINS, for comparing against timestamp
+ * columns like createdAt.
+ *
+ * Not the same value as dayStartUtc: Ecuador's 16 September starts at
+ * 05:00 UTC, so using the UTC-midnight form to filter timestamps drops every
+ * record created after 19:00 local.
+ */
+export function dayStartInstant(value: Date | string, zone = APP_TIME_ZONE) {
+  const utcMidnight = dayStartUtc(value, zone);
+  const offset = zoneOffsetMinutes(utcMidnight, zone);
+
+  return new Date(utcMidnight.getTime() - offset * 60000);
+}
