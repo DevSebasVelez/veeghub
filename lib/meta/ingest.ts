@@ -6,6 +6,7 @@ import {
   fetchFormName,
   fetchLead,
   getPageAccessToken,
+  isInvalidTokenError,
   MetaGraphError,
 } from "@/lib/meta/graph";
 import { mapLeadFields } from "@/lib/meta/lead-mapper";
@@ -133,8 +134,21 @@ export async function ingestLeadgen(
       throw new Error("El evento no trae page_id y META_PAGE_ID no está definido.");
     }
 
-    const pageToken = await getPageAccessToken(pageId);
-    const metaLead = await fetchLead(change.leadgenId, pageToken);
+    let pageToken = await getPageAccessToken(pageId);
+    let metaLead;
+
+    try {
+      metaLead = await fetchLead(change.leadgenId, pageToken);
+    } catch (error) {
+      // Regenerating the system user token invalidates the cached page token.
+      // Without this retry the integration would stay broken until someone
+      // cleared the MetaPage row by hand.
+      if (!isInvalidTokenError(error)) throw error;
+
+      pageToken = await getPageAccessToken(pageId, true);
+      metaLead = await fetchLead(change.leadgenId, pageToken);
+    }
+
     const mapped = mapLeadFields(metaLead);
 
     const formId = metaLead.form_id ?? change.formId;
