@@ -27,10 +27,10 @@ function StatCard({
   tone?: "default" | "alert";
 }) {
   return (
-    <Card className="rounded-lg">
-      <CardContent className="flex items-center gap-3 p-4">
+    <Card className="min-w-[8.5rem] shrink-0 snap-start rounded-lg sm:min-w-0 sm:shrink">
+      <CardContent className="flex items-center gap-2.5 p-3 sm:gap-3 sm:p-4">
         <div
-          className={`flex size-9 items-center justify-center rounded-lg ${
+          className={`flex size-8 shrink-0 items-center justify-center rounded-lg sm:size-9 ${
             tone === "alert"
               ? "bg-destructive/10 text-destructive"
               : "bg-muted text-muted-foreground"
@@ -39,8 +39,12 @@ function StatCard({
           <Icon className="size-4" />
         </div>
         <div className="min-w-0">
-          <div className="text-xl font-semibold tabular-nums">{value}</div>
-          <div className="truncate text-xs text-muted-foreground">{label}</div>
+          <div className="text-lg font-semibold tabular-nums sm:text-xl">
+            {value}
+          </div>
+          <div className="truncate text-[11px] leading-tight text-muted-foreground sm:text-xs">
+            {label}
+          </div>
         </div>
       </CardContent>
     </Card>
@@ -94,7 +98,7 @@ export default async function LeadsPage({
         </div>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="-mx-4 flex snap-x gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:mx-0 sm:grid sm:grid-cols-2 sm:gap-3 sm:overflow-visible sm:px-0 sm:pb-0 xl:grid-cols-4">
         <StatCard label="Sin contactar" value={stats.newCount} icon={Inbox} />
         <StatCard
           label="Enfriándose (+2 h)"
@@ -112,7 +116,7 @@ export default async function LeadsPage({
       </div>
 
       <Tabs defaultValue={filters.vista === "lista" ? "lista" : "pipeline"}>
-        <TabsList>
+        <TabsList className="sticky top-14 z-10 md:static">
           <TabsTrigger value="pipeline">Pipeline</TabsTrigger>
           <TabsTrigger value="lista">Lista</TabsTrigger>
         </TabsList>

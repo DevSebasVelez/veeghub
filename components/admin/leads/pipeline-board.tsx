@@ -9,7 +9,7 @@ export function PipelineBoard({
   columns: Array<{ stage: string; leads: LeadCardData[] }>;
 }) {
   return (
-    <div className="-mx-4 overflow-x-auto px-4 pb-2 md:mx-0 md:px-0">
+    <div className="-mx-4 snap-x snap-mandatory overflow-x-auto px-4 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:mx-0 md:snap-none md:px-0">
       <div className="flex min-w-max gap-3 md:grid md:min-w-0 md:grid-cols-3 xl:grid-cols-5">
         {columns.map((column) => {
           const total = column.leads.reduce(
@@ -20,7 +20,7 @@ export function PipelineBoard({
           return (
             <section
               key={column.stage}
-              className="flex w-72 shrink-0 flex-col rounded-lg bg-muted/40 md:w-auto"
+              className="flex w-[85vw] max-w-[20rem] shrink-0 snap-start flex-col rounded-lg bg-muted/40 md:w-auto md:max-w-none md:shrink"
             >
               <header className="flex items-baseline justify-between gap-2 px-3 py-2.5">
                 <h2 className="text-sm font-semibold">

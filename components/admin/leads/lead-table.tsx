@@ -1,5 +1,7 @@
 import Link from "next/link";
 
+import { LeadCard } from "@/components/admin/leads/lead-card";
+
 import { formatCurrency, formatDate } from "@/lib/admin/format";
 import { LeadQuickActions } from "@/components/admin/leads/lead-quick-actions";
 import { LeadStageSelect } from "@/components/admin/leads/lead-stage-select";
@@ -17,7 +19,18 @@ import type { LeadCardData } from "@/components/admin/leads/types";
 
 export function LeadTable({ leads }: { leads: LeadCardData[] }) {
   return (
-    <Card className="rounded-lg">
+    <>
+      <div className="flex flex-col gap-2 md:hidden">
+        {leads.length === 0 ? (
+          <p className="py-10 text-center text-sm text-muted-foreground">
+            No hay leads con estos filtros.
+          </p>
+        ) : (
+          leads.map((lead) => <LeadCard key={lead.id} lead={lead} />)
+        )}
+      </div>
+
+      <Card className="hidden rounded-lg md:block">
       <CardContent className="p-0">
         <div className="overflow-x-auto">
           <Table>
@@ -102,6 +115,7 @@ export function LeadTable({ leads }: { leads: LeadCardData[] }) {
           </Table>
         </div>
       </CardContent>
-    </Card>
+      </Card>
+    </>
   );
 }

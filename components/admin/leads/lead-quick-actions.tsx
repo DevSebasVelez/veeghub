@@ -45,10 +45,11 @@ export function LeadQuickActions({
     });
   }
 
-  const buttonClass = size === "icon" ? "size-7" : "h-7 px-2";
+  const buttonClass =
+    size === "icon" ? "size-9 md:size-7" : "size-9 md:h-7 md:w-auto md:px-2";
 
   return (
-    <div className="flex items-center gap-1">
+    <div className="flex items-center gap-0.5 md:gap-1">
       {whatsapp ? (
         <Tooltip>
           <TooltipTrigger asChild>
