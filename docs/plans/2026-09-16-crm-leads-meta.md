@@ -621,6 +621,7 @@ Meta deja de optimizar por "cantidad de formularios llenados" y empieza a buscar
 | Teléfonos sin prefijo de país                   | `phoneRaw` + normalización a E.164 con `DEFAULT_PHONE_COUNTRY=EC`.                                                   |
 | Leads duplicados entre campañas                 | Detección por teléfono/email, marcado como posible duplicado. Nunca fusión automática.                               |
 | PII de leads                                    | Meta exige URL de eliminación de datos. Definir retención: leads `LOST` con > 12 meses se anonimizan (tarea futura). |
+| Fechas corridas por la zona horaria del host | Formateo anclado a Guayaquil y parseo con offset fijo. Verificado en UTC, Guayaquil y Tokio |
 | Tocar sin querer el módulo de clientes          | Regla: solo relaciones inversas en `Client`/`Project`. Revisar el diff de `schema.prisma` en cada PR.                |
 
 
@@ -631,6 +632,9 @@ Meta deja de optimizar por "cantidad de formularios llenados" y empieza a buscar
 - Queries en `lib/admin/queries/`, actions en `lib/admin/actions/<modulo>/actions.ts`
 - Serialización de `Decimal` con `lib/admin/serialize.ts` antes de pasar a componentes cliente
 - Cifrado de tokens con `lib/security/credentials.ts` (AES-256-GCM, mismo patrón que `Credential`)
+- **Fechas:** ver [`docs/runbooks/fechas-y-zona-horaria.md`](../runbooks/fechas-y-zona-horaria.md).
+  Instantes con `formatDate()` (fija Guayaquil), días de calendario con `formatDateOnly()` (UTC),
+  y nunca `new Date()` sobre texto de formulario: usar `parseLocalDateTime()`
 - UI en español, `shadcn` + Tailwind v4, `lucide-react`
 - **Antes de escribir código leer** `node_modules/next/dist/docs/` — este Next 16 tiene cambios sobre lo conocido (`proxy.ts` en vez de `middleware.ts`, `params` como `Promise`, Cache Components)
 
@@ -678,5 +682,6 @@ Sesión 7   → F7 métricas + Conversions API
 | 2026-09-16 | F2 | Fix: el formulario real usa `whatsapp_number`, no `phone_number`. El matcheo exacto perdía el teléfono. Ahora hay coincidencia por subcadena y los valores se humanizan | — |
 | 2026-09-16 | F2 | App pasada a **Live**. Lead real de prueba inyectado y almacenado | — |
 | 2026-09-16 | F3 | Web push completo: envío, fallback por email, limpieza de dispositivos muertos, listeners en el SW, botón con caso iOS | Cargar claves VAPID en producción y probar en el celular |
+| 2026-09-16 | fix | Zona horaria: el host en UTC corría el día al leer y guardaba las reuniones 5 horas desplazadas. Anclado a Guayaquil en lectura y escritura. Runbook en `docs/runbooks/fechas-y-zona-horaria.md` | — |
 
 
