@@ -69,12 +69,23 @@ async function graphPost<T>(
   return payload as T;
 }
 
+/** Graph error code for an invalid or revoked access token. */
+export const INVALID_TOKEN_CODE = 190;
+
+export function isInvalidTokenError(error: unknown) {
+  return error instanceof MetaGraphError && error.code === INVALID_TOKEN_CODE;
+}
+
 /**
- * Page access tokens derived from a system user never expire, so they are
- * cached (encrypted) in MetaPage and only re-fetched when missing.
+ * Page access tokens derived from a system user do not expire on their own, so
+ * they are cached (encrypted) in MetaPage. They DO become invalid when the
+ * system user token is regenerated, which is a routine operation — pass
+ * forceRefresh to discard the cached copy and fetch a new one.
  */
-export async function getPageAccessToken(pageId: string) {
-  const stored = await prisma.metaPage.findUnique({ where: { pageId } });
+export async function getPageAccessToken(pageId: string, forceRefresh = false) {
+  const stored = forceRefresh
+    ? null
+    : await prisma.metaPage.findUnique({ where: { pageId } });
 
   if (stored?.encryptedToken && stored.tokenIv && stored.tokenTag) {
     return decryptSecret({
