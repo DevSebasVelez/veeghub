@@ -127,4 +127,24 @@
   html {
     @apply font-sans;
   }
+
+  /* Tailwind v4's preflight gives buttons cursor: default, so every control in
+     the app lost its pointer. Restored here rather than per component, and
+     kept off disabled ones, where a pointer would promise something. */
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  [role="tab"],
+  [role="option"],
+  [role="menuitem"],
+  [role="menuitemradio"],
+  [role="menuitemcheckbox"],
+  summary,
+  label[for] {
+    cursor: pointer;
+  }
+
+  button:disabled,
+  [aria-disabled="true"] {
+    cursor: not-allowed;
+  }
 }
