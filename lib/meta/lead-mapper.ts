@@ -20,6 +20,10 @@ const FIRST_NAME_KEYS = ["first_name", "nombre"];
 const LAST_NAME_KEYS = ["last_name", "apellido", "apellidos"];
 const EMAIL_KEYS = ["email", "correo", "correo_electrónico", "correo_electronico"];
 const PHONE_KEYS = ["phone_number", "telefono", "teléfono", "celular", "whatsapp"];
+// Form builders let you rename fields freely ("whatsapp_number", "tu_celular"),
+// so an exact match is not enough — these are matched as substrings too.
+const PHONE_HINTS = ["phone", "telefono", "celular", "whatsapp", "movil", "wpp"];
+const EMAIL_HINTS = ["email", "correo", "mail"];
 const COMPANY_KEYS = ["company_name", "empresa", "compañía", "compania"];
 
 // Custom questions that identify which service the lead is after.
@@ -46,6 +50,54 @@ function pick(fields: MetaFieldEntry[], keys: string[]) {
   );
 
   return firstValue(match);
+}
+
+/** Exact match first, then a substring pass for renamed fields. */
+function pickFuzzy(
+  fields: MetaFieldEntry[],
+  keys: string[],
+  hints: string[],
+) {
+  const exact = pick(fields, keys);
+  if (exact) return exact;
+
+  const normalizedHints = hints.map(normalizeKey);
+
+  const match = fields.find((field) => {
+    const key = normalizeKey(field.name);
+    return normalizedHints.some((hint) => key.includes(hint));
+  });
+
+  return firstValue(match);
+}
+
+function isPhoneField(name: string) {
+  const key = normalizeKey(name);
+  return (
+    PHONE_KEYS.map(normalizeKey).includes(key) ||
+    PHONE_HINTS.some((hint) => key.includes(normalizeKey(hint)))
+  );
+}
+
+function isEmailField(name: string) {
+  const key = normalizeKey(name);
+  return (
+    EMAIL_KEYS.map(normalizeKey).includes(key) ||
+    EMAIL_HINTS.some((hint) => key.includes(normalizeKey(hint)))
+  );
+}
+
+/**
+ * Meta returns option values in snake_case ("software_a_medida"). Shown raw on a
+ * card it reads like a database key, so underscores become spaces for display.
+ */
+export function humanizeValue(value: string | null) {
+  if (!value) return null;
+
+  const cleaned = value.replace(/_/g, " ").replace(/\s+/g, " ").trim();
+  if (!cleaned) return null;
+
+  return cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
 }
 
 /**
@@ -113,7 +165,7 @@ export function mapLeadFields(lead: MetaLead): MappedLead {
 
   const name = fullName || [firstName, lastName].filter(Boolean).join(" ").trim();
 
-  const phoneRaw = pick(fields, PHONE_KEYS);
+  const phoneRaw = pickFuzzy(fields, PHONE_KEYS, PHONE_HINTS);
 
   const knownKeys = new Set(
     [
@@ -126,15 +178,21 @@ export function mapLeadFields(lead: MetaLead): MappedLead {
     ].map(normalizeKey),
   );
 
-  const custom = fields.filter(
-    (field) => !knownKeys.has(normalizeKey(field.name)),
-  );
+  const custom = fields.filter((field) => {
+    const key = normalizeKey(field.name);
+    return (
+      !knownKeys.has(key) && !isPhoneField(field.name) && !isEmailField(field.name)
+    );
+  });
 
   const message =
     custom
       .map((field) => {
         const value = firstValue(field);
-        return value ? `${field.name}: ${value}` : null;
+        if (!value) return null;
+        // Question keys arrive as "¿que_necesitas?" — readable in the timeline
+        // only once the underscores are gone.
+        return `${humanizeValue(field.name)}: ${humanizeValue(value)}`;
       })
       .filter(Boolean)
       .join("\n") || null;
@@ -146,11 +204,11 @@ export function mapLeadFields(lead: MetaLead): MappedLead {
 
   return {
     name: name || "Lead sin nombre",
-    email: pick(fields, EMAIL_KEYS),
+    email: pickFuzzy(fields, EMAIL_KEYS, EMAIL_HINTS),
     phone: normalizePhone(phoneRaw),
     phoneRaw,
     company: pick(fields, COMPANY_KEYS),
     message,
-    serviceTag: firstValue(serviceField),
+    serviceTag: humanizeValue(firstValue(serviceField)),
   };
 }
