@@ -6,6 +6,42 @@
 
 ---
 
+## 0. Para retomar en otra sesión
+
+**Estado: el CRM de leads está en producción y funcionando.** Meta entrega leads reales solos.
+
+### Lo que está hecho
+
+| | |
+|---|---|
+| F1 esquema · F2 webhook · F3 push · F4 pipeline · F5 conversión | ✅ |
+| Módulo de campañas (`/admin/campanas`) con costo por cliente ganado | ✅ |
+| Meta: los 10 pasos, app en **Live**, sin App Review | ✅ |
+| UX móvil, menú de usuario, borrado de leads, íconos PWA | ✅ |
+
+### Pendientes concretos
+
+1. **Cargar las claves VAPID en producción** (`NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`,
+   `VAPID_SUBJECT`). Sin esto los avisos de leads no llegan al teléfono. Están en el `.env` local.
+2. **F6 — cron de backfill.** Ya desbloqueado (`pages_manage_ads` concedido). Red de seguridad por
+   si el webhook pierde una entrega.
+3. **F7 — métricas y Conversions API.** Devolverle a Meta los leads ganados para que optimice.
+4. **Reuniones creadas antes del fix de zona horaria** están 5 horas corridas en la base. Falta
+   decidir si se corrigen con un script.
+5. Menores: importador CSV de leads, chip de origen en el detalle de cliente, y alinear `AreaTabs`
+   al patrón de art-roofing.
+
+### Dónde está cada cosa
+
+| Documento | Para qué |
+|---|---|
+| Este plan | Qué se construyó, en qué orden, y el registro de decisiones |
+| [`runbooks/meta-lead-ads-setup.md`](../runbooks/meta-lead-ads-setup.md) | **Reutilizable.** Los 10 pasos en Meta, dónde está cada opción, errores reales y sus causas, alcance de la API y límites de uso |
+| [`runbooks/webhook-a-crm-modelo-de-datos.md`](../runbooks/webhook-a-crm-modelo-de-datos.md) | **Reutilizable.** Qué tablas, idempotencia y mapeo de campos. Agnóstico de tecnología |
+| [`runbooks/fechas-y-zona-horaria.md`](../runbooks/fechas-y-zona-horaria.md) | Qué campo lleva qué tratamiento y por qué |
+
+---
+
 ## 1. Objetivo
 
 Hoy: entrar a cada campaña de Meta → descargar CSV → llamar. Manual, lento, se pierden leads.
@@ -690,6 +726,10 @@ Sesión 7   → F7 métricas + Conversions API
 | 2026-09-16 | Campañas | Módulo `/admin/campanas`: gasto de Meta + leads propios → CPL y costo por cliente ganado. Snapshots diarios, refresco manual con guarda de TTL y tope de uso de API | Cron de refresco (con F6) |
 | 2026-09-16 | fix | Los días se agrupan en hora de Ecuador, no UTC: Meta reporta el gasto por el día de la cuenta publicitaria y las series se desalineaban después de las 19:00 | — |
 | 2026-09-16 | fix | Íconos de la PWA: eran negros sobre transparente y se declaraban `maskable` y `any` a la vez. Un archivo por propósito, fondo opaco, logo en blanco | — |
-| 2026-09-16 | ⚠️ | **Paso 9.2 de Meta nunca validado**: el lead de prueba se creó en modo Desarrollo y no se entregó. Se verificaron entrega, lectura y guardado por separado; falta ver un lead entrar solo ahora que la app está en Live | **Repetir el paso 9.2** |
+| 2026-09-16 | ✅ | **Circuito de Meta validado de punta a punta**: con la app en Live, un lead de prueba desde la herramienta de Meta entró solo. Antes falló en modo Desarrollo, que no entrega para usuarios sin rol en la app | — |
+| 2026-09-16 | UI | Tabs de shadcn reemplazadas por `AreaNav`/`AreaTabs` (nav con subrayado). Leads y reuniones por URL; cliente y proyecto con estado local + History API | Alinear `AreaTabs` al patrón `<a href>` + `preventDefault` + `pushState` de art-roofing |
+| 2026-09-16 | UI | Tamaños táctiles de 44px en selects, dropdowns e iconos de acción en móvil | — |
+| 2026-09-16 | fix | Tailwind v4 quita `cursor: pointer` de los botones: restaurado en `globals.css` para toda la app | — |
+| 2026-09-16 | fix | Tablero de leads con swipe (carrusel a ancho completo) en vez de scroll horizontal; métricas en rejilla de 2 columnas. Sin desborde | — |
 
 
