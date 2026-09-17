@@ -336,9 +336,10 @@ GET /{form_id}/leads
 
 #### ⚠️ No dar por buena la configuración sin 10.2
 
-En la puesta en marcha de VeegSoft, **10.1 pasó y 10.2 nunca se llegó a validar**: el lead de prueba
-se creó con la app en modo Desarrollo, no se entregó, y después se cargó a mano con 10.3. Se
-verificaron la entrega, la lectura y el guardado por separado, pero no el circuito automático.
+En la puesta en marcha de VeegSoft, el primer intento de 10.2 se hizo con la app en **modo
+Desarrollo**: Meta creó el lead y no entregó nada. Se verificaron la entrega, la lectura y el
+guardado por separado —lo que daba una falsa sensación de terminado— y el lead se cargó a mano con
+10.3. Al pasar la app a **Live** y repetir 10.2, el lead entró solo. ✅
 
 Moraleja: no declarar la integración terminada hasta ver un lead entrar solo. Por eso en este
 runbook pasar a Live es el paso 9 y probar es el 10, y no al revés.
@@ -637,5 +638,5 @@ números no cuadran. Ver [`fechas-y-zona-horaria.md`](./fechas-y-zona-horaria.md
 | Webhook registrado por Meta en | `v26.0` (se alineó `META_GRAPH_VERSION` a la misma) |
 | Paso 9 (Live) | ✅ app publicada, sin App Review |
 | Paso 10.1 (entrega) | ✅ probado con el botón Test |
-| Paso 10.2 (lead real de punta a punta) | ⚠️ **nunca validado** — se intentó en modo Desarrollo y no se repitió tras publicar |
+| Paso 10.2 (lead real de punta a punta) | ✅ validado con la app en Live: el lead entró solo |
 | Lead real | leído por API y reinyectado a mano con 10.3 |
