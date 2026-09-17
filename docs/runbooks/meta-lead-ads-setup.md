@@ -531,6 +531,10 @@ firma en un middleware propio, y el procesamiento en un Job encolado.
 Lo que **no** cambia según la tecnología: los 10 pasos de configuración en Meta, el orden de las
 tres conexiones, y el hecho de que la conexión B solo se puede hacer por API.
 
+> El **lado de tu aplicación** —qué tablas, qué garantías de idempotencia y cómo mapear campos
+> que cambian en cada formulario— está en
+> [`webhook-a-crm-modelo-de-datos.md`](./webhook-a-crm-modelo-de-datos.md).
+
 ---
 
 ## 8. Registro de esta implementación (VeegSoft)
