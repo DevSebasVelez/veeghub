@@ -683,5 +683,7 @@ Sesión 7   → F7 métricas + Conversions API
 | 2026-09-16 | F2 | App pasada a **Live**. Lead real de prueba inyectado y almacenado | — |
 | 2026-09-16 | F3 | Web push completo: envío, fallback por email, limpieza de dispositivos muertos, listeners en el SW, botón con caso iOS | Cargar claves VAPID en producción y probar en el celular |
 | 2026-09-16 | fix | Zona horaria: el host en UTC corría el día al leer y guardaba las reuniones 5 horas desplazadas. Anclado a Guayaquil en lectura y escritura. Runbook en `docs/runbooks/fechas-y-zona-horaria.md` | — |
+| 2026-09-16 | fix | `TZ` es reservada en Vercel. La zona pasa a `NEXT_PUBLIC_APP_TIME_ZONE` y el offset se calcula vía `Intl` (maneja horario de verano) en vez de estar fijo en −05:00 | — |
+| 2026-09-16 | ⚠️ | **Paso 9.2 de Meta nunca validado**: el lead de prueba se creó en modo Desarrollo y no se entregó. Se verificaron entrega, lectura y guardado por separado; falta ver un lead entrar solo ahora que la app está en Live | **Repetir el paso 9.2** |
 
 

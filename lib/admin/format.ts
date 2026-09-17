@@ -1,14 +1,46 @@
 /**
- * The business runs on Ecuador time. Hosts run on UTC, so every timestamp shown
- * to a person is pinned to this zone explicitly: a lead that arrived at 19:30
+ * The zone this business operates in. Hosts run on UTC, so every timestamp
+ * shown to a person is pinned here explicitly: a lead that arrived at 19:30
  * would otherwise render as 00:30 the next day.
  *
- * Set TZ=America/Guayaquil in the environment as well — that is what makes
- * `new Date("2026-09-20T15:00")` from a datetime-local input mean 15:00 here
- * instead of 15:00 UTC. Pinning the formatters keeps DISPLAY correct even if
- * that variable is ever missing.
+ * Deliberately NOT the `TZ` variable: Vercel reserves that name, and relying on
+ * the process zone would leave correctness to a deployment setting. Reading it
+ * here instead means a deployment for a client in another country only changes
+ * this value — parsing follows the same zone, DST included.
  */
-export const APP_TIME_ZONE = "America/Guayaquil";
+export const APP_TIME_ZONE =
+  process.env.NEXT_PUBLIC_APP_TIME_ZONE || "America/Guayaquil";
+
+/**
+ * Minutes to add to a wall-clock reading in `zone` to get UTC, at that instant.
+ * Derived from the IANA database via Intl, so zones with DST are handled.
+ */
+export function zoneOffsetMinutes(instant: Date, zone = APP_TIME_ZONE) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: zone,
+    hour12: false,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  }).formatToParts(instant);
+
+  const get = (type: string) =>
+    Number(parts.find((part) => part.type === type)?.value ?? "0");
+
+  const asIfUtc = Date.UTC(
+    get("year"),
+    get("month") - 1,
+    get("day"),
+    get("hour") % 24,
+    get("minute"),
+    get("second"),
+  );
+
+  return (asIfUtc - instant.getTime()) / 60000;
+}
 
 export function formatCurrency(value: number | string | null | undefined) {
   const amount = Number(value ?? 0);

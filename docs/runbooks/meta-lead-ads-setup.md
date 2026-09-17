@@ -181,14 +181,63 @@ Recién ahora la app aparece en la lista.
    leads automáticamente. Esa pestaña solo sirve para dar acceso a gente que **no** es admin
    (un vendedor, una agencia externa)
 
-### Paso 9 — Probar
+### Paso 9 — Probar de punta a punta
 
-1. `developers.facebook.com/tools/lead-ads-testing`
-2. Seleccionar Página + Formulario → **Create lead**
-3. El lead debe entrar por el webhook en segundos
-4. La misma herramienta tiene **Delete lead** para limpiar
-5. Si no llega: App Dashboard → Webhooks → **Historial de entregas** muestra cada intento y la
-   respuesta del servidor
+**Este es el único paso que prueba que los leads reales van a entrar.** Todo lo anterior se puede
+verificar por partes y dar verde sin que el circuito completo funcione.
+
+#### 9.1 — Probar la entrega (aislado, no necesita formularios)
+
+App Dashboard → **Webhooks** → objeto Página → fila `leadgen` → botón **Probar / Test**.
+
+Manda un payload de ejemplo directo al endpoint. Qué significa cada resultado:
+
+| En tu tabla de eventos | Qué prueba |
+|---|---|
+| Aparece una fila, aunque sea `FAILED` con `Object with ID '444444444444' does not exist` | ✅ Meta entrega, la firma valida, el evento se persiste. El `FAILED` es correcto: ese ID es relleno |
+| No aparece nada | ❌ Meta no está entregando. Revisar conexiones A y B, y que el endpoint responda el handshake |
+| `Invalid signature` en los logs | ❌ Se está firmando algo distinto al cuerpo crudo |
+
+#### 9.2 — Probar un lead real
+
+`developers.facebook.com/tools/lead-ads-testing` → seleccionar Página y formulario →
+**Crear cliente potencial**. Solo se permite un lead de prueba por formulario; para repetir hay que
+eliminar el anterior.
+
+> **La app tiene que estar en Live (paso 10).** En modo Desarrollo, Meta crea el lead pero **no
+> entrega el webhook**, y el síntoma es confuso: la herramienta dice "Se envió tu cliente potencial
+> de prueba" y no llega nada.
+
+Si el lead no aparece pero 9.1 sí funcionó, el problema está entre Meta y la entrega, no en el
+código.
+
+#### 9.3 — Recuperar un lead que ya existe en Meta
+
+Si un lead quedó en Meta sin entregarse (por ejemplo, creado antes de terminar la configuración),
+se puede reinyectar mandando un webhook firmado con su `leadgen_id` real:
+
+```bash
+BODY="{\"object\":\"page\",\"entry\":[{\"id\":\"$PAGE_ID\",\"time\":$(date +%s),\"changes\":[{\"field\":\"leadgen\",\"value\":{\"leadgen_id\":\"$LEAD_ID\",\"page_id\":\"$PAGE_ID\",\"form_id\":\"$FORM_ID\"}}]}]}"
+SIG="sha256=$(printf '%s' "$BODY" | openssl dgst -sha256 -hmac "$APP_SECRET" | sed 's/^.*= //')"
+curl -s -X POST "$CALLBACK_URL" -H "content-type: application/json" \
+  -H "x-hub-signature-256: $SIG" -d "$BODY"
+```
+
+Para conseguir los `leadgen_id` existentes (requiere `pages_manage_ads`):
+
+```bash
+GET /{page-id}/leadgen_forms?fields=id,name,leads_count
+GET /{form_id}/leads
+```
+
+#### ⚠️ No dar por buena la configuración sin 9.2
+
+En la puesta en marcha de VeegSoft, **9.1 pasó y 9.2 nunca se llegó a validar**: el lead de prueba
+se creó con la app en modo Desarrollo, no se entregó, y después se cargó a mano con 9.3. Se
+verificaron la entrega, la lectura y el guardado por separado, pero no el circuito automático.
+
+Moraleja: pasar a Live **antes** del 9.2, y no declarar la integración terminada hasta ver un lead
+entrar solo.
 
 ### Paso 10 — Pasar la app a Live
 
@@ -355,8 +404,9 @@ Todos observados en la puesta en marcha de VeegSoft el 2026-09-16.
 [ ]  6. [A] App Dashboard → Webhooks → Page → leadgen    (panel)
 [ ]  7. [B] POST /{page-id}/subscribed_apps              (SOLO API)
 [ ]  8. [C] Lead Access Manager → CRMs → asignar la app  (panel)
-[ ]  9. Lead Ads Testing Tool → crear lead de prueba
-[ ] 10. Pasar la app a LIVE  (en Desarrollo NO llegan leads reales)
+[ ] 9.1 Botón Test de Webhooks → debe aparecer un evento
+[ ] 9.2 Lead Ads Testing Tool → el lead debe entrar SOLO (requiere Live primero)
+[ ] 10. Pasar la app a LIVE  (hacerlo ANTES del 9.2)
 ```
 
 > App Review normalmente **no** hace falta: ver el paso 10.
@@ -401,5 +451,7 @@ tres conexiones, y el hecho de que la conexión B solo se puede hacer por API.
 | Pasos 1–8 | ✅ hechos |
 | Callback | `https://veeghub.veegsoft.com/api/webhooks/meta/leads` — handshake y firma verificados en producción |
 | Webhook registrado por Meta en | `v26.0` (se alineó `META_GRAPH_VERSION` a la misma) |
-| Paso 9 | ✅ lead real leído por API |
+| Paso 9.1 (entrega) | ✅ probado con el botón Test |
+| Paso 9.2 (lead real de punta a punta) | ⚠️ **nunca validado** — se intentó en modo Desarrollo y no se repitió tras pasar a Live |
+| Lead real | leído por API y reinyectado a mano con 9.3 |
 | Paso 10 | ✅ app en Live, sin App Review |

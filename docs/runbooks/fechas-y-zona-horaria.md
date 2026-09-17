@@ -53,26 +53,32 @@ parsear. El resultado es idéntico corra el host en UTC, Guayaquil o Tokio — v
 
 ---
 
-## Por qué el offset fijo es correcto (y no una aproximación)
+## No usar `TZ`
 
-Ecuador continental es **UTC−05:00 todo el año**: no aplica horario de verano. Por eso
-`-05:00` es exacto y no hace falta una librería de zonas horarias.
+**Vercel reserva la variable `TZ`.** Y renombrarla no sirve: Node solo lee ese nombre exacto, así
+que un `APP_TZ` quedaría decorativo y daría falsa confianza.
 
-Si algún día se opera en un país **con** horario de verano, este atajo deja de valer y hay que
-convertir con la zona IANA en vez de con un offset fijo.
-
----
-
-## `TZ` en el entorno
+La zona se configura acá, y **el código no depende de la zona del proceso**:
 
 ```bash
-TZ="America/Guayaquil"
+NEXT_PUBLIC_APP_TIME_ZONE="America/Guayaquil"   # opcional; es el valor por defecto
 ```
 
-Está en `.env` y conviene tenerla en producción, pero **el código ya no depende de ella**: los
-formateadores fijan la zona y el parseo fija el offset. La variable es defensa en profundidad,
-no un requisito. Cualquier código nuevo que use `new Date()` sobre texto sin offset se beneficia
-de tenerla.
+## El offset se calcula, no se escribe a mano
+
+`zoneOffsetMinutes()` lo obtiene de la base IANA a través de `Intl`, para el instante concreto.
+Eso significa que **el horario de verano se resuelve solo**, y que un despliegue para un cliente en
+otro país solo cambia esa variable.
+
+Verificado:
+
+| Zona | Enero | Julio |
+|---|---|---|
+| `America/Guayaquil` | −05:00 | −05:00 (Ecuador no tiene horario de verano) |
+| `Europe/Madrid` | +01:00 | +02:00 (cambia solo) |
+
+El offset se consulta **dos veces**: depende del instante que se está calculando, y en el día del
+cambio de hora la primera estimación puede caer del lado equivocado.
 
 ---
 
