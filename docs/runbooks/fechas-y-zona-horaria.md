@@ -58,11 +58,17 @@ parsear. El resultado es idéntico corra el host en UTC, Guayaquil o Tokio — v
 **Vercel reserva la variable `TZ`.** Y renombrarla no sirve: Node solo lee ese nombre exacto, así
 que un `APP_TZ` quedaría decorativo y daría falsa confianza.
 
-La zona se configura acá, y **el código no depende de la zona del proceso**:
+La zona vive en el código, con Ecuador por defecto, y **no depende de la zona del proceso**:
 
-```bash
-NEXT_PUBLIC_APP_TIME_ZONE="America/Guayaquil"   # opcional; es el valor por defecto
+```ts
+// lib/admin/format.ts
+export const APP_TIME_ZONE =
+  process.env.NEXT_PUBLIC_APP_TIME_ZONE || "America/Guayaquil";
 ```
+
+**Para este proyecto no hay nada que configurar**: la variable no está definida en ningún entorno
+y no hace falta. La rama del `process.env` existe solo para que un despliegue distinto de este
+código, en otro país, no requiera tocar la lógica — no para VeegSoft.
 
 ## El offset se calcula, no se escribe a mano
 
