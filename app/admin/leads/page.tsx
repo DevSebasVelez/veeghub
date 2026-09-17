@@ -1,4 +1,5 @@
-import { Flame, Inbox, TrendingUp, Trophy } from "lucide-react";
+import Link from "next/link";
+import { Flame, Inbox, Plug, TrendingUp, Trophy } from "lucide-react";
 
 import {
   getLeadStats,
@@ -81,7 +82,16 @@ export default async function LeadsPage({
             {stats.openCount} en el pipeline · {stats.newCount} sin contactar
           </p>
         </div>
-        <CreateLeadDialog />
+        <div className="flex items-center gap-2">
+          <Link
+            href="/admin/leads/configuracion"
+            className="inline-flex h-8 items-center gap-1.5 rounded-md border px-3 text-sm hover:bg-muted"
+          >
+            <Plug className="size-3.5" />
+            Integración Meta
+          </Link>
+          <CreateLeadDialog />
+        </div>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
