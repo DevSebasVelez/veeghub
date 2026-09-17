@@ -37,7 +37,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { AreaNav } from "@/components/admin/area-nav";
 
 type CalendarView = "mes" | "semana" | "agenda";
 
@@ -64,6 +64,10 @@ export function MeetingsCalendar({
 
   function navigate(view: CalendarView, date: Date) {
     router.push(`/admin/reuniones?vista=${view}&fecha=${dayKey(date)}`);
+  }
+
+  function viewHref(view: CalendarView) {
+    return `/admin/reuniones?vista=${view}&fecha=${dayKey(anchor)}`;
   }
 
   function step(direction: 1 | -1) {
@@ -137,16 +141,17 @@ export function MeetingsCalendar({
         </div>
 
         <div className="flex items-center justify-between gap-2 lg:justify-end">
-          <Tabs
-            value={vista}
-            onValueChange={(value) => navigate(value as CalendarView, anchor)}
-          >
-            <TabsList>
-              <TabsTrigger value="mes">Mes</TabsTrigger>
-              <TabsTrigger value="semana">Semana</TabsTrigger>
-              <TabsTrigger value="agenda">Agenda</TabsTrigger>
-            </TabsList>
-          </Tabs>
+          {/* Cada vista trae sus propios datos del servidor, así que van por
+              URL: con Link, Next las precarga en vez de esperar al click. */}
+          <AreaNav
+            active={vista}
+            className="mb-0 border-b-0"
+            items={[
+              { key: "mes", label: "Mes", href: viewHref("mes") },
+              { key: "semana", label: "Semana", href: viewHref("semana") },
+              { key: "agenda", label: "Agenda", href: viewHref("agenda") },
+            ]}
+          />
           <MeetingDialog mode="create" clients={clients} defaultDate={fecha} />
         </div>
       </div>

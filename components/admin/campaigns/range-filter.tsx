@@ -34,10 +34,14 @@ export function CampaignRangeFilter() {
   }
 
   return (
-    <div className="flex items-center gap-2 rounded-xl border border-border bg-card px-3 py-2">
+    <div className="flex min-w-0 items-center gap-2 rounded-xl border border-border bg-card px-3 py-2">
       <CalendarDays size={15} className="shrink-0 text-muted-foreground" />
       <Select value={params.get("dias") ?? "30"} onValueChange={setRange}>
-        <SelectTrigger size="sm" aria-label="Período" className="border-0 shadow-none">
+        <SelectTrigger
+          size="sm"
+          aria-label="Período"
+          className="w-full border-0 shadow-none md:w-40"
+        >
           <SelectValue />
         </SelectTrigger>
         <SelectContent>

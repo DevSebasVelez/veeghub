@@ -41,9 +41,9 @@ export function DeleteLeadButton({
         type="button"
         variant="ghost"
         size="icon"
-        className="size-9 text-muted-foreground hover:text-destructive md:size-7"
+        className="size-10 text-muted-foreground hover:text-destructive md:size-7"
       >
-        <Trash2 className="size-3.5" />
+        <Trash2 className="size-[18px] md:size-3.5" />
         <span className="sr-only">Eliminar lead</span>
       </Button>
     ) : (

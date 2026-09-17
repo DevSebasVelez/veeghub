@@ -49,7 +49,7 @@ export function LeadStageSelect({
   return (
     <Select value={value} onValueChange={handleChange} disabled={pending}>
       <SelectTrigger
-        className={`h-7 w-full border-transparent bg-transparent px-2 text-xs font-medium shadow-none hover:border-border hover:bg-muted/40 focus:ring-0 ${STAGE_TEXT_COLOR[value] ?? ""} ${className}`}
+        className={`h-9 w-full border-transparent bg-transparent px-2 text-sm font-medium shadow-none hover:border-border hover:bg-muted/40 focus:ring-0 md:h-7 md:text-xs ${STAGE_TEXT_COLOR[value] ?? ""} ${className}`}
       >
         <SelectValue />
       </SelectTrigger>
@@ -58,7 +58,7 @@ export function LeadStageSelect({
           <SelectItem
             key={option}
             value={option}
-            className={`text-xs ${STAGE_TEXT_COLOR[option] ?? ""}`}
+            className={`text-sm md:text-xs ${STAGE_TEXT_COLOR[option] ?? ""}`}
           >
             {STAGE_LABELS[option]}
           </SelectItem>

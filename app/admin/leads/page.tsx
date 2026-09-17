@@ -13,7 +13,7 @@ import { LeadTable } from "@/components/admin/leads/lead-table";
 import { Pagination } from "@/components/admin/pagination";
 import { PipelineBoard } from "@/components/admin/leads/pipeline-board";
 import { Card, CardContent } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { AreaNav } from "@/components/admin/area-nav";
 
 function StatCard({
   label,
@@ -27,7 +27,7 @@ function StatCard({
   tone?: "default" | "alert";
 }) {
   return (
-    <Card className="min-w-[8.5rem] shrink-0 snap-start rounded-lg sm:min-w-0 sm:shrink">
+    <Card className="rounded-lg">
       <CardContent className="flex items-center gap-2.5 p-3 sm:gap-3 sm:p-4">
         <div
           className={`flex size-8 shrink-0 items-center justify-center rounded-lg sm:size-9 ${
@@ -64,18 +64,34 @@ export default async function LeadsPage({
 }) {
   const filters = await searchParams;
 
+  const view = filters.vista === "lista" ? "lista" : "pipeline";
+
+  // Only the visible view is queried. Fetching both meant every load paid for
+  // the whole pipeline plus a filtered, paginated list, and showed one of them.
   const [stats, columns, listData] = await Promise.all([
     getLeadStats(),
-    getPipelineLeads(),
-    getLeadsPageData(filters),
+    view === "pipeline" ? getPipelineLeads() : Promise.resolve(null),
+    view === "lista" ? getLeadsPageData(filters) : Promise.resolve(null),
   ]);
 
-  const boardColumns = columns.map((column) => ({
-    stage: column.stage as string,
-    leads: column.leads.map(forLeadCard),
-  }));
+  const boardColumns =
+    columns?.map((column) => ({
+      stage: column.stage as string,
+      leads: column.leads.map(forLeadCard),
+    })) ?? [];
 
-  const listLeads = listData.leads.map(forLeadCard);
+  const listLeads = listData?.leads.map(forLeadCard) ?? [];
+
+  const viewHref = (value: string) => {
+    const next = new URLSearchParams();
+    if (value === "lista") next.set("vista", "lista");
+    if (filters.stage) next.set("stage", filters.stage);
+    if (filters.source) next.set("source", filters.source);
+    if (filters.q) next.set("q", filters.q);
+
+    const qs = next.toString();
+    return qs ? `/admin/leads?${qs}` : "/admin/leads";
+  };
 
   return (
     <div className="space-y-6">
@@ -98,7 +114,7 @@ export default async function LeadsPage({
         </div>
       </div>
 
-      <div className="-mx-4 flex snap-x gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:mx-0 sm:grid sm:grid-cols-2 sm:gap-3 sm:overflow-visible sm:px-0 sm:pb-0 xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-2 sm:gap-3 xl:grid-cols-4">
         <StatCard label="Sin contactar" value={stats.newCount} icon={Inbox} />
         <StatCard
           label="Enfriándose (+2 h)"
@@ -115,33 +131,36 @@ export default async function LeadsPage({
         <StatCard label="Ganados" value={stats.wonCount} icon={Trophy} />
       </div>
 
-      <Tabs defaultValue={filters.vista === "lista" ? "lista" : "pipeline"}>
-        <TabsList className="sticky top-14 z-10 md:static">
-          <TabsTrigger value="pipeline">Pipeline</TabsTrigger>
-          <TabsTrigger value="lista">Lista</TabsTrigger>
-        </TabsList>
+      <AreaNav
+        active={view}
+        items={[
+          { key: "pipeline", label: "Pipeline", href: viewHref("pipeline") },
+          { key: "lista", label: "Lista", href: viewHref("lista") },
+        ]}
+      />
 
-        <TabsContent value="pipeline" className="mt-4">
-          <PipelineBoard columns={boardColumns} />
-        </TabsContent>
-
-        <TabsContent value="lista" className="mt-4 space-y-4">
+      {view === "pipeline" ? (
+        <PipelineBoard columns={boardColumns} />
+      ) : (
+        <div className="space-y-4">
           <LeadFilters />
           <LeadTable leads={listLeads} />
-          <Pagination
-            page={listData.page}
-            pageSize={listData.pageSize}
-            total={listData.total}
-            basePath="/admin/leads"
-            searchParams={{
-              stage: filters.stage,
-              source: filters.source,
-              q: filters.q,
-              vista: "lista",
-            }}
-          />
-        </TabsContent>
-      </Tabs>
+          {listData ? (
+            <Pagination
+              page={listData.page}
+              pageSize={listData.pageSize}
+              total={listData.total}
+              basePath="/admin/leads"
+              searchParams={{
+                stage: filters.stage,
+                source: filters.source,
+                q: filters.q,
+                vista: "lista",
+              }}
+            />
+          ) : null}
+        </div>
+      )}
     </div>
   );
 }
