@@ -507,12 +507,13 @@ Decisiones de UI:
 - **Importador CSV** (`app/admin/leads/importar/page.tsx`): sube el CSV de Meta, mapea columnas, dedup por `metaLeadId`/teléfono. Necesario como puente durante el App Review y útil después para histórico.
 - **Dashboard** (`lib/admin/queries/dashboard.ts` + `app/admin/page.tsx`): tarjeta "Leads sin contactar" con conteo `NEW` y el más antiguo destacado. Es una **adición** a la query existente, sin tocar el resto.
 
-- [ ] Queries + actions + schemas
-- [ ] Board + tabla + detalle + timeline
-- [ ] Quick actions (WhatsApp / llamada / email)
-- [ ] Item en nav + colores de badge
+- [x] Queries + actions + schemas
+- [x] Board + tabla + detalle + timeline
+- [x] Quick actions (WhatsApp / llamada / email / marcar contactado)
+- [x] Item en nav + colores de badge + shortcut en el manifest
+- [x] Tarjeta en dashboard
+- [x] Conversión lead → cliente (se adelantó F5)
 - [ ] Importador CSV
-- [ ] Tarjeta en dashboard
 
 ---
 
@@ -533,9 +534,10 @@ Decisiones de UI:
 
 En el detalle del cliente: un chip discreto "Origen: Meta Ads · {campaña}" con link al lead. Lectura pura, no cambia nada del módulo de clientes.
 
-- [ ] Server action transaccional
-- [ ] Dialog con datos prellenados y checkboxes de proyecto/hito
-- [ ] Chip de origen en el detalle de cliente
+- [x] Server action transaccional (claim atómico con `updateMany`, no check-then-act)
+- [x] Dialog con datos prellenados y checkboxes de proyecto/hito
+- [x] Aviso de conversión en el detalle del lead, con links a cliente y proyecto
+- [ ] Chip de origen en el detalle de **cliente**
 - [ ] Manejo de "este teléfono/email ya existe como cliente" → ofrecer vincular en vez de duplicar
 
 ---
@@ -663,5 +665,8 @@ Sesión 7   → F7 métricas + Conversions API
 | 2026-09-16 | F1 | Migración `20260917004435_add_leads_crm` aplicada en la base local | — |
 | 2026-09-16 | F2 | `lib/meta/*` + webhook completos y probados local (firma, handshake, idempotencia, token de página cifrado) | Página de configuración, deploy, paso 6 en Meta |
 | 2026-09-16 | docs | Runbook reutilizable `docs/runbooks/meta-lead-ads-setup.md`; estándar definido: app de cliente siempre en el portafolio del cliente | — |
+| 2026-09-16 | F2 | Desplegado en `veeghub.veegsoft.com`. Pasos 6, 7 y 8 de Meta cerrados: conexión A activa (`callback_url`, `leadgen`), app instalada en la Página, CRM asignado | Paso 9 (lead de prueba) y paso 10 (App Review) |
+| 2026-09-16 | F4+F5 | Pipeline, tabla, detalle con timeline, quick actions y conversión a cliente. Build limpio, queries y transacción verificadas con datos sembrados | Importador CSV; chip de origen en detalle de cliente |
+| 2026-09-16 | F4 | Bug encontrado y corregido: el guard de doble conversión estaba fuera de la transacción y dejaba un cliente huérfano | — |
 
 
