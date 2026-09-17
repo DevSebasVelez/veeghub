@@ -531,6 +531,96 @@ firma en un middleware propio, y el procesamiento en un Job encolado.
 Lo que **no** cambia según la tecnología: los 10 pasos de configuración en Meta, el orden de las
 tres conexiones, y el hecho de que la conexión B solo se puede hacer por API.
 
+> El **lado de tu aplicación** —qué tablas, qué garantías de idempotencia y cómo mapear campos
+> que cambian en cada formulario— está en
+> [`webhook-a-crm-modelo-de-datos.md`](./webhook-a-crm-modelo-de-datos.md).
+
+---
+
+## 7.2 Qué más se puede traer con estos permisos
+
+Con los siete permisos del paso 3, sin pedirle nada nuevo a Meta:
+
+### Por webhook (llegan solos)
+
+| Campo | Qué trae | Permiso | ¿App Review? |
+|---|---|---|---|
+| `leadgen` | Formularios de clientes potenciales | `leads_retrieval` | **No** (comprobado) |
+| `feed` | Publicaciones y comentarios en la Página | `pages_read_engagement` | probablemente no |
+| `mention` | Menciones de la Página | `pages_read_engagement` | probablemente no |
+| `messages` | Mensajes de Messenger | `pages_messaging` | **sí, casi seguro** |
+| `ratings` | Reseñas | `pages_read_engagement` | probablemente no |
+
+Instagram va por su propio objeto de webhook (`comments`, `mentions`, `story_insights`) con
+`instagram_manage_comments`.
+
+> Solo `leads_retrieval` está verificado. Que funcione con acceso estándar **no garantiza** que
+> `pages_messaging` haga lo mismo: la mensajería es la superficie más restringida de Meta.
+
+### Por consulta
+
+| Qué | Endpoint | Permiso |
+|---|---|---|
+| Gasto, impresiones, clics, CTR | `GET /{ad_account}/insights` | `ads_read` |
+| Campañas, conjuntos, anuncios | `GET /{ad_account}/campaigns` | `ads_read` |
+| Formularios y leads históricos | `GET /{page-id}/leadgen_forms`, `GET /{form_id}/leads` | `pages_manage_ads` |
+| Métricas de la Página | `GET /{page-id}/insights` | `pages_read_engagement` |
+
+---
+
+## 7.3 Límites de uso de la API
+
+Cada respuesta trae la cabecera **`X-Business-Use-Case-Usage`**:
+
+```json
+{"<id>": [{
+  "type": "ads_insights",
+  "call_count": 1,                        // % consumido, ventana móvil de 1 hora
+  "total_cputime": 1,
+  "total_time": 1,
+  "estimated_time_to_regain_access": 0,   // minutos hasta recuperar acceso
+  "ads_api_access_tier": "development_access"
+}]}
+```
+
+- Son **porcentajes sobre una ventana móvil de una hora**, no un contador que se reinicia a horario
+  fijo.
+- Hay **cuotas separadas** por tipo: `ads_insights`, `ads_management`, `pages`.
+- **`development_access` es el tier por defecto** y tiene límites bajos. `standard_access` se
+  consigue cumpliendo requisitos de la Marketing API.
+
+**Cómo convivir con eso:** guardar los datos en la propia base y agregarlos desde ahí, en vez de
+llamar a Meta en cada carga de página. Una llamada con `time_increment=1` devuelve una fila por día
+y cubre cualquier rango posterior sin volver a pedir nada. Leer la cabecera en cada llamada y
+negarse a llamar por encima del ~80%.
+
+---
+
+## 7.4 Dos trampas de los insights
+
+### `date_preset` excluye el día de hoy
+
+`last_30d`, `last_7d` y compañía **no incluyen hoy**. Una campaña que gastó esta mañana devuelve
+`{"data": []}` y parece que la integración está rota. Usar siempre `time_range` explícito:
+
+```
+time_range={"since":"2026-08-18","until":"2026-09-16"}
+```
+
+### Los `action_type` de leads no son estables
+
+En esta cuenta el lead llegó como `offsite_complete_registration_add_meta_leads`; en otras es
+`lead` o `onsite_conversion.lead_grouped`. El nombre depende de cómo se armó la campaña.
+
+**No cuentes leads desde los insights.** Tomá de Meta el gasto y las métricas de entrega, y contá
+los leads desde tus propios registros: es estable y refleja lo que realmente recibiste.
+
+### La zona horaria del gasto
+
+Meta reporta el gasto por el **día calendario de la cuenta publicitaria**, no en UTC. Si agrupás
+tus leads por día UTC, después de las 19:00 de Ecuador las dos series caen en días distintos y los
+números no cuadran. Ver [`fechas-y-zona-horaria.md`](./fechas-y-zona-horaria.md).
+
 ---
 
 ## 8. Registro de esta implementación (VeegSoft)

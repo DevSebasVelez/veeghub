@@ -5,6 +5,7 @@ import { ArrowLeft, Briefcase, Megaphone, UserCheck } from "lucide-react";
 import { getLeadDetail } from "@/lib/admin/queries/leads";
 import { formatCurrency, formatDate, formatDateOnly } from "@/lib/admin/format";
 import { ConvertLeadDialog } from "@/components/admin/dialogs/convert-lead-dialog";
+import { DeleteLeadButton } from "@/components/admin/leads/delete-lead-button";
 import { LeadActivityForm } from "@/components/admin/leads/lead-activity-form";
 import { LeadActivityTimeline } from "@/components/admin/leads/lead-activity-timeline";
 import { LeadEditDialog } from "@/components/admin/dialogs/lead-dialog";
@@ -93,6 +94,12 @@ export default async function LeadDetailPage({
               }}
             />
           ) : null}
+          <DeleteLeadButton
+            id={lead.id}
+            name={lead.name}
+            variant="button"
+            redirectTo="/admin/leads"
+          />
         </div>
       </div>
 
@@ -181,7 +188,19 @@ export default async function LeadDetailPage({
                 </CardTitle>
               </CardHeader>
               <CardContent className="divide-y pt-0">
-                <Row label="Campaña" value={lead.metaCampaignName} />
+                <Row
+                  label="Campaña"
+                  value={
+                    lead.metaCampaignName ? (
+                      <Link
+                        href="/admin/campanas"
+                        className="underline underline-offset-2"
+                      >
+                        {lead.metaCampaignName}
+                      </Link>
+                    ) : null
+                  }
+                />
                 <Row label="Conjunto" value={lead.metaAdsetName} />
                 <Row label="Anuncio" value={lead.metaAdName} />
                 <Row label="Formulario" value={lead.metaFormName} />

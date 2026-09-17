@@ -12,6 +12,7 @@ import {
   KeyRound,
   LayoutDashboard,
   Magnet,
+  Megaphone,
   Users,
 } from "lucide-react";
 import { FaChartLine } from "react-icons/fa6";
@@ -19,6 +20,7 @@ import { FaChartLine } from "react-icons/fa6";
 import {
   Sidebar,
   SidebarContent,
+  SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
   SidebarGroupLabel,
@@ -28,10 +30,12 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar";
+import { UserMenu } from "@/components/admin/user-menu";
 
 const navItems = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
   { href: "/admin/leads", label: "Leads", icon: Magnet },
+  { href: "/admin/campanas", label: "Campañas", icon: Megaphone },
   { href: "/admin/clientes", label: "Clientes", icon: Users },
   { href: "/admin/proyectos", label: "Proyectos", icon: BriefcaseBusiness },
   { href: "/admin/tareas", label: "Tareas", icon: CheckSquare },
@@ -43,7 +47,11 @@ const navItems = [
   { href: "/admin/credenciales", label: "Credenciales", icon: KeyRound },
 ];
 
-export function AdminNav() {
+export function AdminNav({
+  user,
+}: {
+  user: { name: string | null; email: string | null };
+}) {
   const pathname = usePathname();
   const { isMobile, setOpenMobile } = useSidebar();
 
@@ -98,6 +106,9 @@ export function AdminNav() {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
+      <SidebarFooter>
+        <UserMenu name={user.name} email={user.email} />
+      </SidebarFooter>
     </Sidebar>
   );
 }

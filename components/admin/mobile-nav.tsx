@@ -5,8 +5,8 @@ import { usePathname } from "next/navigation";
 import {
   BadgeDollarSign,
   BriefcaseBusiness,
-  CheckSquare,
   LayoutDashboard,
+  Magnet,
   Users,
 } from "lucide-react";
 
@@ -14,6 +14,7 @@ import { cn } from "@/lib/utils";
 
 const NAV_ITEMS = [
   { href: "/admin", label: "Inicio", icon: LayoutDashboard, exact: true },
+  { href: "/admin/leads", label: "Leads", icon: Magnet, exact: false },
   { href: "/admin/clientes", label: "Clientes", icon: Users, exact: false },
   {
     href: "/admin/proyectos",
@@ -21,7 +22,6 @@ const NAV_ITEMS = [
     icon: BriefcaseBusiness,
     exact: false,
   },
-  { href: "/admin/tareas", label: "Tareas", icon: CheckSquare, exact: false },
   {
     href: "/admin/finanzas",
     label: "Finanzas",

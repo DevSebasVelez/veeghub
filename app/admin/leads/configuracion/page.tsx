@@ -3,8 +3,6 @@ import { AlertTriangle, ArrowLeft, Check, X } from "lucide-react";
 
 import { getMetaIntegrationStatus } from "@/lib/admin/queries/meta-integration";
 import { countPushDevices } from "@/lib/admin/actions/notifications/actions";
-import { PushSubscribeButton } from "@/components/admin/push-subscribe-button";
-import { pushConfigured } from "@/lib/notifications/push";
 import { requireAdmin } from "@/lib/auth/require-admin";
 import { formatDate } from "@/lib/admin/format";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -66,32 +64,12 @@ export default async function MetaConfigPage() {
             {allOk
               ? "Todo conectado. Los leads de Meta deberían entrar solos."
               : "Hay algo que revisar. Mirá los puntos marcados abajo."}
+            <div className="mt-1 text-xs text-muted-foreground">
+              {devices === 0
+                ? "Ningún dispositivo recibe avisos. Activalos desde tu menú de usuario, abajo a la izquierda."
+                : `${devices} dispositivo${devices === 1 ? "" : "s"} recibirá${devices === 1 ? "" : "n"} un aviso al entrar un lead.`}
+            </div>
           </div>
-        </CardContent>
-      </Card>
-
-      <Card className="rounded-lg">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm">Avisos de leads nuevos</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <p className="text-sm text-muted-foreground">
-            {devices === 0
-              ? "Ningún dispositivo registrado. Sin esto, un lead que entra de noche lo ves al día siguiente."
-              : `${devices} dispositivo${devices === 1 ? "" : "s"} recibirá${devices === 1 ? "" : "n"} un aviso apenas entre un lead.`}
-          </p>
-          {pushConfigured() ? (
-            <PushSubscribeButton />
-          ) : (
-            <p className="text-xs text-amber-700 dark:text-amber-400">
-              Faltan las claves VAPID en el entorno
-              (NEXT_PUBLIC_VAPID_PUBLIC_KEY y VAPID_PRIVATE_KEY).
-            </p>
-          )}
-          <p className="text-xs text-muted-foreground">
-            Activalo en cada dispositivo donde quieras recibirlos. En iPhone hay
-            que instalar Veeghub en la pantalla de inicio primero.
-          </p>
         </CardContent>
       </Card>
 

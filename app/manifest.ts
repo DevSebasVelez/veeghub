@@ -15,36 +15,42 @@ export default function manifest(): MetadataRoute.Manifest {
     lang: "es",
     categories: ["productivity", "business", "finance"],
     prefer_related_applications: false,
+    // Separate files per purpose. Declaring one transparent image as both left
+    // the launcher compositing a dark logo onto its own light background, and
+    // cropping the maskable version into the artwork.
     icons: [
       {
-        src: "/web-app-manifest-192x192.png",
+        // Full bleed: the launcher crops this to its own shape, so the artwork
+        // sits inside the central safe zone.
+        src: "/icon-maskable-192.png",
         sizes: "192x192",
         type: "image/png",
         purpose: "maskable",
       },
       {
-        src: "/web-app-manifest-512x512.png",
+        src: "/icon-maskable-512.png",
         sizes: "512x512",
         type: "image/png",
         purpose: "maskable",
       },
       {
-        src: "/web-app-manifest-192x192.png",
+        // Shown as-is, so it carries its own rounded corners.
+        src: "/icon-192.png",
         sizes: "192x192",
         type: "image/png",
         purpose: "any",
       },
       {
-        src: "/web-app-manifest-512x512.png",
+        src: "/icon-512.png",
         sizes: "512x512",
         type: "image/png",
         purpose: "any",
       },
     ],
     shortcuts: [
-      { name: "Dashboard", url: "/admin" },
       { name: "Leads", url: "/admin/leads" },
-      { name: "Proyectos", url: "/admin/proyectos" },
+      { name: "Campañas", url: "/admin/campanas" },
+      { name: "Dashboard", url: "/admin" },
       { name: "Finanzas", url: "/admin/finanzas" },
     ],
   };
