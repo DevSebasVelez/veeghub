@@ -46,6 +46,8 @@ export default async function AdminPage() {
     upcomingReceivables,
     overdueCount,
     upcomingMeetings,
+    newLeads,
+    uncontactedLeads,
   } = await getAdminDashboardData();
 
   return (
@@ -250,6 +252,63 @@ export default async function AdminPage() {
               })
             ) : (
               <EmptyState text="No hay cobros pendientes." />
+            )}
+          </div>
+        </div>
+
+        <div className="overflow-hidden rounded-xl border border-border bg-card">
+          <div className="flex items-center justify-between border-b border-border px-5 py-4">
+            <div>
+              <h2 className="text-sm font-semibold">
+                Leads sin contactar
+                {newLeads > 0 ? (
+                  <span className="ml-2 rounded-full bg-destructive/10 px-2 py-0.5 text-xs font-semibold text-destructive tabular-nums">
+                    {newLeads}
+                  </span>
+                ) : null}
+              </h2>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                Los más antiguos primero. Llamar cuanto antes.
+              </p>
+            </div>
+            <Link
+              href="/admin/leads"
+              className="text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+            >
+              Ver pipeline
+            </Link>
+          </div>
+          <div className="divide-y divide-border">
+            {uncontactedLeads.length ? (
+              uncontactedLeads.map((lead) => (
+                <div
+                  key={lead.id}
+                  className="flex items-center justify-between gap-3 px-5 py-3.5"
+                >
+                  <div className="min-w-0 flex-1">
+                    <Link
+                      href={`/admin/leads/${lead.id}`}
+                      className="block truncate text-sm font-medium underline-offset-2 hover:underline"
+                    >
+                      {lead.name}
+                    </Link>
+                    <div className="mt-0.5 truncate text-xs text-muted-foreground">
+                      {formatDate(lead.createdAt)}
+                      {lead.serviceTag ? ` · ${lead.serviceTag}` : ""}
+                      {lead.metaCampaignName
+                        ? ` · ${lead.metaCampaignName}`
+                        : ""}
+                    </div>
+                  </div>
+                  {lead.phone ? (
+                    <Button asChild variant="outline" size="sm">
+                      <a href={`tel:${lead.phone}`}>Llamar</a>
+                    </Button>
+                  ) : null}
+                </div>
+              ))
+            ) : (
+              <EmptyState text="No hay leads sin contactar." />
             )}
           </div>
         </div>

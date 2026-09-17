@@ -11,6 +11,7 @@ import {
   Folder,
   KeyRound,
   LayoutDashboard,
+  Magnet,
   Users,
 } from "lucide-react";
 import { FaChartLine } from "react-icons/fa6";
@@ -30,6 +31,7 @@ import {
 
 const navItems = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/admin/leads", label: "Leads", icon: Magnet },
   { href: "/admin/clientes", label: "Clientes", icon: Users },
   { href: "/admin/proyectos", label: "Proyectos", icon: BriefcaseBusiness },
   { href: "/admin/tareas", label: "Tareas", icon: CheckSquare },
