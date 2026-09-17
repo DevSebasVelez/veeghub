@@ -188,6 +188,69 @@ export const meetingSchema = z
     path: ["endsAt"],
   });
 
+export const LEAD_STAGES = [
+  "NEW",
+  "CONTACTED",
+  "QUALIFIED",
+  "PROPOSAL",
+  "NEGOTIATION",
+  "WON",
+  "LOST",
+] as const;
+
+export const LEAD_SOURCES = [
+  "META_ADS",
+  "INSTAGRAM",
+  "WHATSAPP",
+  "REFERRAL",
+  "WEBSITE",
+  "MANUAL",
+  "CSV_IMPORT",
+  "OTHER",
+] as const;
+
+export const LEAD_ACTIVITY_TYPES = [
+  "NOTE",
+  "CALL",
+  "WHATSAPP",
+  "EMAIL",
+  "MEETING",
+] as const;
+
+export const leadSchema = z.object({
+  name: requiredText,
+  email: optionalText,
+  phone: optionalText,
+  company: optionalText,
+  message: optionalText,
+  stage: z.enum(LEAD_STAGES).default("NEW"),
+  source: z.enum(LEAD_SOURCES).default("MANUAL"),
+  serviceTag: optionalText,
+  estimatedValue: optionalMoney,
+  nextFollowUpAt: optionalDate,
+  notes: optionalText,
+  lostReason: optionalText,
+});
+
+export const leadActivitySchema = z.object({
+  type: z.enum(LEAD_ACTIVITY_TYPES).default("NOTE"),
+  body: requiredText,
+});
+
+// Conversion pre-fills a Client from the lead; project and receivable are opt-in
+// so a won lead that is not a project yet still becomes a client.
+export const leadConvertSchema = z.object({
+  clientName: requiredText,
+  email: optionalText,
+  phone: optionalText,
+  createProject: z.preprocess((v) => v === "on" || v === "true", z.boolean()),
+  projectName: optionalText,
+  budget: optionalMoney,
+  createReceivable: z.preprocess((v) => v === "on" || v === "true", z.boolean()),
+  receivableTitle: optionalText,
+  receivableAmount: optionalMoney,
+});
+
 export const credentialSchema = z
   .object({
     clientId: optionalId,

@@ -1,7 +1,8 @@
 // Central place for Meta/Graph configuration. Every accessor fails loudly in
 // production so a misconfigured deploy is obvious instead of silently dropping leads.
 
-const DEFAULT_GRAPH_VERSION = "v23.0";
+// Matches the version Meta registers new Page webhook subscriptions with.
+const DEFAULT_GRAPH_VERSION = "v26.0";
 
 function required(name: string) {
   const value = process.env[name];

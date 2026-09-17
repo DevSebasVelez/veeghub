@@ -27,8 +27,20 @@ botón, ni en el App Dashboard, ni en Business Suite, ni en la configuración de
 obligatoriamente una llamada a la API.
 
 **Y de ahí sale el síntoma más común:** la app **no aparece** en la lista de CRMs de Lead Access
-Manager (conexión C) porque todavía no está instalada en la Página (conexión B). C solo lista apps
-que ya pasaron por B. No es un bug ni un permiso faltante — es orden.
+Manager (conexión C). No es un bug ni un permiso faltante — es orden: **C solo lista apps que ya
+pasaron por A y por B.** Verificado en la puesta en marcha de VeegSoft: con B hecha pero A sin
+hacer, la app seguía sin aparecer; apenas se declaró el webhook en el App Dashboard (A), apareció
+en la lista y se pudo asignar.
+
+Diagnóstico rápido de cuál falta:
+
+```bash
+# ¿A hecha?  Debe traer callback_url, active: true y el campo leadgen
+GET /{app-id}/subscriptions?access_token={app-id}|{app-secret}
+
+# ¿B hecha?  Debe listar la app. Requiere TOKEN DE PÁGINA
+GET /{page-id}/subscribed_apps?access_token={page-token}
+```
 
 ### Las dos formas de hacer la conexión B (sin terminal, si se prefiere)
 
@@ -304,7 +316,7 @@ Todos observados en la puesta en marcha de VeegSoft el 2026-09-16.
 
 | Error | Causa real | Solución |
 |---|---|---|
-| La app **no aparece** en Lead Access Manager → CRMs | No está instalada en la Página (conexión B) | Ejecutar el paso 7. Verificar que `subscribed_apps` no devuelva `data: []` |
+| La app **no aparece** en Lead Access Manager → CRMs | Falta la conexión A, la B, o las dos | Verificar `GET /{app-id}/subscriptions` (A) y `GET /{page-id}/subscribed_apps` con token de página (B). **Las dos** tienen que estar antes de que C la liste |
 | Pestaña **Personas** vacía en Lead Access | No es un error | Los admins de la Página ya tienen acceso. Solo asignar gente que no sea admin |
 | `{"data": []}` en `subscribed_apps` | Ídem: falta el paso 7 | Ejecutar el `POST` |
 | `190 (2069032) User Access Token Is Not Supported — A Page access token is required for this call for the new Pages experience` | Se usó el token del usuario del sistema donde va **token de página** | Derivar el token de página primero |
@@ -343,5 +355,7 @@ Todos observados en la puesta en marcha de VeegSoft el 2026-09-16.
 | Usuario del sistema | id `122107878357471639`, `expires_at: 0` |
 | Scopes actuales | `ads_read`, `business_management`, `leads_retrieval`, `pages_manage_metadata`, `pages_read_engagement`, `pages_show_list`, `public_profile` |
 | Falta | `pages_manage_ads` (regenerar token) |
-| Pasos 1–4, 7 | ✅ hechos |
-| Pasos 5, 6, 8, 9, 10 | pendientes |
+| Pasos 1–8 | ✅ hechos |
+| Callback | `https://veeghub.veegsoft.com/api/webhooks/meta/leads` — handshake y firma verificados en producción |
+| Webhook registrado por Meta en | `v26.0` (se alineó `META_GRAPH_VERSION` a la misma) |
+| Pasos 9 y 10 | pendientes |
