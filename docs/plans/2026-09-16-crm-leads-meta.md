@@ -1,7 +1,7 @@
 # Plan: Módulo CRM de Leads + integración Meta Lead Ads
 
 **Creado:** 2026-09-16
-**Estado:** F0 pendiente
+**Estado:** F1–F5 completas · pendientes F6 (cron) y F7 (métricas)
 **Rama sugerida:** `feat/leads-crm`
 
 ---
@@ -458,11 +458,15 @@ Detalles que muerden:
 - **Fallback:** si el lead es `NEW` y no hay suscripciones push activas (o todas fallan) → email vía Resend a `LEAD_ALERT_EMAIL` reusando `lib/email/resend.ts`.
 - El envío del push va dentro del `after()` de la ingesta, nunca bloqueando el 200 a Meta.
 
-- [ ] Generar claves VAPID y cargarlas en `.env` + Vercel
-- [ ] `lib/notifications/push.ts` + actions
-- [ ] Botón de suscripción (ponerlo en `/admin/leads` y en configuración)
-- [ ] Listeners en `sw.js` + bump de versión
-- [ ] Probar en el celular con la PWA instalada, usando el botón "enviar push de prueba"
+- [x] Claves VAPID generadas y en `.env`
+- [x] `lib/notifications/push.ts` + `lead-alert.ts` (con fallback por email) + actions
+- [x] Botón de suscripción en `/admin/leads/configuracion`, con aviso específico para iOS
+- [x] Listeners `push` y `notificationclick` en `sw.js`, `CACHE_VERSION` a v3
+- [x] Headers `no-store` para `/sw.js` en `next.config.ts`
+- [x] Conectado a la ingesta, envuelto para que un fallo de push no marque el evento como FAILED
+- [x] Limpieza de dispositivos muertos (404/410) verificada
+- [ ] **Cargar `NEXT_PUBLIC_VAPID_PUBLIC_KEY` y `VAPID_PRIVATE_KEY` en producción**
+- [ ] Probar en el celular con la PWA instalada
 
 ---
 
@@ -668,5 +672,11 @@ Sesión 7   → F7 métricas + Conversions API
 | 2026-09-16 | F2 | Desplegado en `veeghub.veegsoft.com`. Pasos 6, 7 y 8 de Meta cerrados: conexión A activa (`callback_url`, `leadgen`), app instalada en la Página, CRM asignado | Paso 9 (lead de prueba) y paso 10 (App Review) |
 | 2026-09-16 | F4+F5 | Pipeline, tabla, detalle con timeline, quick actions y conversión a cliente. Build limpio, queries y transacción verificadas con datos sembrados | Importador CSV; chip de origen en detalle de cliente |
 | 2026-09-16 | F4 | Bug encontrado y corregido: el guard de doble conversión estaba fuera de la transacción y dejaba un cliente huérfano | — |
+| 2026-09-16 | F2 | Página de diagnóstico `/admin/leads/configuracion`: verifica token, acceso a la Página, conexiones A y B, y lista los últimos eventos recibidos | — |
+| 2026-09-16 | F2 | **Confirmado que NO hace falta App Review**: se leyó un lead real con acceso estándar, app en modo Desarrollo, sobre activos propios del portafolio | — |
+| 2026-09-16 | F2 | Fix: el token de página cifrado en `MetaPage` nunca se refrescaba; al regenerar el token del sistema la integración quedaba rota en silencio. Ahora reintenta con refresh ante Graph 190 | — |
+| 2026-09-16 | F2 | Fix: el formulario real usa `whatsapp_number`, no `phone_number`. El matcheo exacto perdía el teléfono. Ahora hay coincidencia por subcadena y los valores se humanizan | — |
+| 2026-09-16 | F2 | App pasada a **Live**. Lead real de prueba inyectado y almacenado | — |
+| 2026-09-16 | F3 | Web push completo: envío, fallback por email, limpieza de dispositivos muertos, listeners en el SW, botón con caso iOS | Cargar claves VAPID en producción y probar en el celular |
 
 
