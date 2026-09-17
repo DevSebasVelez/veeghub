@@ -684,6 +684,12 @@ Sesión 7   → F7 métricas + Conversions API
 | 2026-09-16 | F3 | Web push completo: envío, fallback por email, limpieza de dispositivos muertos, listeners en el SW, botón con caso iOS | Cargar claves VAPID en producción y probar en el celular |
 | 2026-09-16 | fix | Zona horaria: el host en UTC corría el día al leer y guardaba las reuniones 5 horas desplazadas. Anclado a Guayaquil en lectura y escritura. Runbook en `docs/runbooks/fechas-y-zona-horaria.md` | — |
 | 2026-09-16 | fix | `TZ` es reservada en Vercel. La zona pasa a `NEXT_PUBLIC_APP_TIME_ZONE` y el offset se calcula vía `Intl` (maneja horario de verano) en vez de estar fijo en −05:00 | — |
+| 2026-09-16 | F4 UX | Pipeline usable en móvil: métricas en tira horizontal, columnas con snap, lista como tarjetas, áreas táctiles de 44px, Leads en el nav flotante | — |
+| 2026-09-16 | — | Menú de usuario en el pie de la barra lateral: nombre, tema, avisos de leads y cerrar sesión. Los avisos salen de la página de Meta | — |
+| 2026-09-16 | — | Borrado de leads con bloqueo de reingreso. Bug encontrado: el evento `IGNORED` no bastaba, `ingestLeadgen` solo miraba si existía el `Lead` | — |
+| 2026-09-16 | Campañas | Módulo `/admin/campanas`: gasto de Meta + leads propios → CPL y costo por cliente ganado. Snapshots diarios, refresco manual con guarda de TTL y tope de uso de API | Cron de refresco (con F6) |
+| 2026-09-16 | fix | Los días se agrupan en hora de Ecuador, no UTC: Meta reporta el gasto por el día de la cuenta publicitaria y las series se desalineaban después de las 19:00 | — |
+| 2026-09-16 | fix | Íconos de la PWA: eran negros sobre transparente y se declaraban `maskable` y `any` a la vez. Un archivo por propósito, fondo opaco, logo en blanco | — |
 | 2026-09-16 | ⚠️ | **Paso 9.2 de Meta nunca validado**: el lead de prueba se creó en modo Desarrollo y no se entregó. Se verificaron entrega, lectura y guardado por separado; falta ver un lead entrar solo ahora que la app está en Live | **Repetir el paso 9.2** |
 
 
