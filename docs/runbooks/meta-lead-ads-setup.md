@@ -1,7 +1,11 @@
 # Runbook: conectar Meta Lead Ads a una app propia
 
 **Reutilizable.** Sirve para VeegSoft y para cualquier app futura de un cliente.
-Última verificación contra la API: **2026-09-16**, Graph `v23.0`.
+Última verificación contra la API: **2026-09-16**, Graph `v26.0`.
+
+> Usá la **misma versión** en los `curl` y en el código. Meta registra la suscripción del
+> webhook con la versión vigente al crearla (acá quedó en `v26.0`); si el código llama a una
+> distinta, las diferencias de payload aparecen mucho después y cuestan de rastrear.
 
 ---
 
@@ -53,6 +57,33 @@ Ambas hacen exactamente la misma llamada. No hay una tercera vía.
 
 ---
 
+## 1.1 Dónde encontrar cada cosa
+
+Meta reparte estas opciones entre **tres paneles distintos** con nombres parecidos. Esta tabla
+evita la mitad del tiempo perdido.
+
+| Qué buscás | Panel | Ruta exacta |
+|---|---|---|
+| Crear la app, App ID, App Secret | **App Dashboard**<br>`developers.facebook.com/apps` | la app → Configuración → Básica |
+| Configurar el webhook (conexión A) | App Dashboard | la app → Productos → Webhooks → objeto **Página** |
+| Publicar la app (Desarrollo → Live) | App Dashboard | selector arriba, junto al nombre de la app |
+| Permisos y funciones / App Review | App Dashboard | la app → Revisión de la app |
+| Usuario del sistema y su token | **Business Settings**<br>`business.facebook.com/settings` | Usuarios → Usuarios del sistema |
+| Asignar Página / cuenta publicitaria a ese usuario | Business Settings | Usuarios del sistema → *tu usuario* → Agregar activos |
+| Lead Access Manager (conexión C) | Business Settings | Integraciones → Acceso a clientes potenciales |
+| Verificación del negocio | Business Settings | Centro de seguridad |
+| Agregar un socio a tu portafolio | Business Settings | Socios |
+| **Crear formularios** de clientes potenciales | **Business Suite**<br>`business.facebook.com` | Todas las herramientas → Formularios de clientes potenciales |
+| Ver y descargar leads a mano (CSV) | Business Suite | Centro de clientes potenciales |
+| Crear leads de prueba | **Herramienta suelta** | `developers.facebook.com/tools/lead-ads-testing` |
+| Probar tokens y llamadas a la API | Herramienta suelta | `developers.facebook.com/tools/explorer` |
+| Ver qué entregó Meta y con qué respuesta | App Dashboard | la app → Webhooks → Historial de entregas |
+
+> **App Dashboard ≠ Business Settings.** El primero configura la *app*; el segundo, los *activos del
+> negocio* (Páginas, cuentas publicitarias, usuarios). La conexión A vive en uno y la C en el otro.
+
+---
+
 ## 2. Procedimiento estándar — los 10 pasos
 
 Aplica igual para VeegSoft y para cualquier cliente. La app siempre vive en el portafolio dueño
@@ -65,6 +96,15 @@ de la Página (ver sección 3). **Orden correcto, uno por uno.**
 - [ ] URL pública de política de privacidad — HTTPS, sin login
 - [ ] URL de instrucciones de eliminación de datos (puede ser un ancla de la anterior)
 - [ ] Dominio HTTPS público donde corre la app. **`localhost` no sirve** para el webhook
+- [ ] Al menos un **formulario para clientes potenciales** en esa Página
+
+> **Verificá de qué tipo son las campañas.** Esta integración solo captura campañas con
+> **formulario instantáneo** (Lead Ads). Las campañas de **mensajes** (Messenger/WhatsApp) no
+> generan leads por esta API y no llegan por acá.
+>
+> Los formularios se crean y se ven en **Meta Business Suite → Todas las herramientas →
+> Formularios de clientes potenciales**, o al armar el anuncio en el Administrador de anuncios.
+> Para listar los que ya existen: `GET /{page-id}/leadgen_forms` (paso 10.3).
 
 ### Paso 2 — Crear la app
 
@@ -73,8 +113,18 @@ de la Página (ver sección 3). **Orden correcto, uno por uno.**
 3. **Vincularla al portafolio comercial verificado.** Si no se vincula, después no se puede pedir
    acceso avanzado
 4. **Configuración → Básica** → copiar **App ID** y **Clave secreta**
-5. En la misma pantalla llenar: política de privacidad, instrucciones de eliminación de datos,
-   categoría, ícono
+5. En la misma pantalla llenar **todo esto**, porque la categoría vacía impide publicar la app
+   (paso 9) y el resto lo ve cualquiera que revise:
+
+   | Campo | Qué poner |
+   |---|---|
+   | **Categoría** | obligatoria para publicar. "Empresas y páginas" |
+   | URL de la política de privacidad | la del negocio dueño de la app |
+   | Eliminación de datos de usuario | elegir **URL de instrucciones** (no la de callback, que requiere programar) y apuntar a un ancla con los pasos concretos |
+   | URL de Condiciones del servicio | la propia. **No dejar `https://www.facebook.com/`**, que es el placeholder |
+   | Dominios de la app | el dominio del negocio y el de la app |
+   | Correo de contacto | uno corporativo, no personal |
+   | Ícono | opcional, pero mejora la revisión |
 
 → `META_APP_ID`, `META_APP_SECRET`
 
@@ -104,10 +154,17 @@ No usar token de usuario normal: expira en 60 días y rompe la integración sin 
 
 → `META_SYSTEM_USER_TOKEN`
 
+> **Al regenerar este token (para agregar un permiso o rotarlo), los tokens de página derivados
+> quedan inválidos.** Si tu app los cachea, tiene que descartarlos y volver a pedirlos ante un
+> error Graph `190`; si no, la integración se rompe en silencio y no se recupera sola.
+>
+> Acordate de actualizar el token **en local y en producción**, y redesplegar para que el
+> entorno tome la variable nueva.
+
 ### Paso 4 — Obtener el Page ID
 
 ```bash
-curl -s "https://graph.facebook.com/v23.0/me/accounts?access_token=$META_SYSTEM_USER_TOKEN" \
+curl -s "https://graph.facebook.com/v26.0/me/accounts?access_token=$META_SYSTEM_USER_TOKEN" \
   | python3 -m json.tool
 ```
 
@@ -133,6 +190,25 @@ openssl rand -hex 32
 
 → `META_WEBHOOK_VERIFY_TOKEN` (en `.env` y en el hosting)
 
+Antes de seguir, estas variables tienen que existir **en producción**, no solo en local, y hay
+que **redesplegar** para que el entorno las tome:
+
+```
+META_APP_ID
+META_APP_SECRET              ← con esto se valida la firma
+META_WEBHOOK_VERIFY_TOKEN    ← con esto se responde el handshake
+META_SYSTEM_USER_TOKEN
+META_PAGE_ID
+META_GRAPH_VERSION
+```
+
+Comprobá el handshake contra el dominio real antes de tocar el panel:
+
+```bash
+curl -s "https://TU-DOMINIO/api/webhooks/meta/leads?hub.mode=subscribe&hub.verify_token=$META_WEBHOOK_VERIFY_TOKEN&hub.challenge=OK123"
+# Esperado: OK123
+```
+
 ### Paso 6 — Conexión A: suscripción a nivel de APP
 
 App Dashboard → **Productos → + → Webhooks**
@@ -146,10 +222,10 @@ App Dashboard → **Productos → + → Webhooks**
 ### Paso 7 — Conexión B: suscripción a nivel de PÁGINA (solo API)
 
 ```bash
-PAGE_TOKEN=$(curl -s "https://graph.facebook.com/v23.0/$META_PAGE_ID?fields=access_token&access_token=$META_SYSTEM_USER_TOKEN" \
+PAGE_TOKEN=$(curl -s "https://graph.facebook.com/v26.0/$META_PAGE_ID?fields=access_token&access_token=$META_SYSTEM_USER_TOKEN" \
   | python3 -c "import sys,json;print(json.load(sys.stdin)['access_token'])")
 
-curl -s -X POST "https://graph.facebook.com/v23.0/$META_PAGE_ID/subscribed_apps?subscribed_fields=leadgen&access_token=$PAGE_TOKEN"
+curl -s -X POST "https://graph.facebook.com/v26.0/$META_PAGE_ID/subscribed_apps?subscribed_fields=leadgen&access_token=$PAGE_TOKEN"
 ```
 
 Esperado: `{"success": true}`
@@ -157,7 +233,7 @@ Esperado: `{"success": true}`
 Verificar (**con token de página**, no con el del usuario del sistema):
 
 ```bash
-curl -s "https://graph.facebook.com/v23.0/$META_PAGE_ID/subscribed_apps?access_token=$PAGE_TOKEN" \
+curl -s "https://graph.facebook.com/v26.0/$META_PAGE_ID/subscribed_apps?access_token=$PAGE_TOKEN" \
   | python3 -m json.tool
 ```
 
@@ -181,65 +257,7 @@ Recién ahora la app aparece en la lista.
    leads automáticamente. Esa pestaña solo sirve para dar acceso a gente que **no** es admin
    (un vendedor, una agencia externa)
 
-### Paso 9 — Probar de punta a punta
-
-**Este es el único paso que prueba que los leads reales van a entrar.** Todo lo anterior se puede
-verificar por partes y dar verde sin que el circuito completo funcione.
-
-#### 9.1 — Probar la entrega (aislado, no necesita formularios)
-
-App Dashboard → **Webhooks** → objeto Página → fila `leadgen` → botón **Probar / Test**.
-
-Manda un payload de ejemplo directo al endpoint. Qué significa cada resultado:
-
-| En tu tabla de eventos | Qué prueba |
-|---|---|
-| Aparece una fila, aunque sea `FAILED` con `Object with ID '444444444444' does not exist` | ✅ Meta entrega, la firma valida, el evento se persiste. El `FAILED` es correcto: ese ID es relleno |
-| No aparece nada | ❌ Meta no está entregando. Revisar conexiones A y B, y que el endpoint responda el handshake |
-| `Invalid signature` en los logs | ❌ Se está firmando algo distinto al cuerpo crudo |
-
-#### 9.2 — Probar un lead real
-
-`developers.facebook.com/tools/lead-ads-testing` → seleccionar Página y formulario →
-**Crear cliente potencial**. Solo se permite un lead de prueba por formulario; para repetir hay que
-eliminar el anterior.
-
-> **La app tiene que estar en Live (paso 10).** En modo Desarrollo, Meta crea el lead pero **no
-> entrega el webhook**, y el síntoma es confuso: la herramienta dice "Se envió tu cliente potencial
-> de prueba" y no llega nada.
-
-Si el lead no aparece pero 9.1 sí funcionó, el problema está entre Meta y la entrega, no en el
-código.
-
-#### 9.3 — Recuperar un lead que ya existe en Meta
-
-Si un lead quedó en Meta sin entregarse (por ejemplo, creado antes de terminar la configuración),
-se puede reinyectar mandando un webhook firmado con su `leadgen_id` real:
-
-```bash
-BODY="{\"object\":\"page\",\"entry\":[{\"id\":\"$PAGE_ID\",\"time\":$(date +%s),\"changes\":[{\"field\":\"leadgen\",\"value\":{\"leadgen_id\":\"$LEAD_ID\",\"page_id\":\"$PAGE_ID\",\"form_id\":\"$FORM_ID\"}}]}]}"
-SIG="sha256=$(printf '%s' "$BODY" | openssl dgst -sha256 -hmac "$APP_SECRET" | sed 's/^.*= //')"
-curl -s -X POST "$CALLBACK_URL" -H "content-type: application/json" \
-  -H "x-hub-signature-256: $SIG" -d "$BODY"
-```
-
-Para conseguir los `leadgen_id` existentes (requiere `pages_manage_ads`):
-
-```bash
-GET /{page-id}/leadgen_forms?fields=id,name,leads_count
-GET /{form_id}/leads
-```
-
-#### ⚠️ No dar por buena la configuración sin 9.2
-
-En la puesta en marcha de VeegSoft, **9.1 pasó y 9.2 nunca se llegó a validar**: el lead de prueba
-se creó con la app en modo Desarrollo, no se entregó, y después se cargó a mano con 9.3. Se
-verificaron la entrega, la lectura y el guardado por separado, pero no el circuito automático.
-
-Moraleja: pasar a Live **antes** del 9.2, y no declarar la integración terminada hasta ver un lead
-entrar solo.
-
-### Paso 10 — Pasar la app a Live
+### Paso 9 — Pasar la app a Live
 
 **En modo Desarrollo, Meta solo entrega webhooks para usuarios con rol en la app.**
 Los leads de prueba que crea el propio administrador llegan; los de un desconocido que ve el
@@ -266,6 +284,64 @@ Es correcto y esperado; solo aparecería agregando el producto Facebook Login fo
 **Cuándo sí hace falta App Review:** si la app necesita acceder a Páginas que **no** pertenecen al
 portafolio que la posee. Con el estándar de la sección 3 (una app por portafolio de cliente) ese
 caso no se da.
+
+### Paso 10 — Probar de punta a punta
+
+**Este es el único paso que prueba que los leads reales van a entrar.** Todo lo anterior se puede
+verificar por partes y dar verde sin que el circuito completo funcione.
+
+#### 10.1 — Probar la entrega (aislado, no necesita formularios)
+
+App Dashboard → **Webhooks** → objeto Página → fila `leadgen` → botón **Probar / Test**.
+
+Manda un payload de ejemplo directo al endpoint. Qué significa cada resultado:
+
+| En tu tabla de eventos | Qué prueba |
+|---|---|
+| Aparece una fila, aunque sea `FAILED` con `Object with ID '444444444444' does not exist` | ✅ Meta entrega, la firma valida, el evento se persiste. El `FAILED` es correcto: ese ID es relleno |
+| No aparece nada | ❌ Meta no está entregando. Revisar conexiones A y B, y que el endpoint responda el handshake |
+| `Invalid signature` en los logs | ❌ Se está firmando algo distinto al cuerpo crudo |
+
+#### 10.2 — Probar un lead real
+
+`developers.facebook.com/tools/lead-ads-testing` → seleccionar Página y formulario →
+**Crear cliente potencial**. Solo se permite un lead de prueba por formulario; para repetir hay que
+eliminar el anterior.
+
+> **La app tiene que estar en Live (paso 9).** En modo Desarrollo, Meta crea el lead pero **no
+> entrega el webhook**, y el síntoma es confuso: la herramienta dice "Se envió tu cliente potencial
+> de prueba" y no llega nada.
+
+Si el lead no aparece pero 10.1 sí funcionó, el problema está entre Meta y la entrega, no en el
+código.
+
+#### 10.3 — Recuperar un lead que ya existe en Meta
+
+Si un lead quedó en Meta sin entregarse (por ejemplo, creado antes de terminar la configuración),
+se puede reinyectar mandando un webhook firmado con su `leadgen_id` real:
+
+```bash
+BODY="{\"object\":\"page\",\"entry\":[{\"id\":\"$PAGE_ID\",\"time\":$(date +%s),\"changes\":[{\"field\":\"leadgen\",\"value\":{\"leadgen_id\":\"$LEAD_ID\",\"page_id\":\"$PAGE_ID\",\"form_id\":\"$FORM_ID\"}}]}]}"
+SIG="sha256=$(printf '%s' "$BODY" | openssl dgst -sha256 -hmac "$APP_SECRET" | sed 's/^.*= //')"
+curl -s -X POST "$CALLBACK_URL" -H "content-type: application/json" \
+  -H "x-hub-signature-256: $SIG" -d "$BODY"
+```
+
+Para conseguir los `leadgen_id` existentes (requiere `pages_manage_ads`):
+
+```bash
+GET /{page-id}/leadgen_forms?fields=id,name,leads_count
+GET /{form_id}/leads
+```
+
+#### ⚠️ No dar por buena la configuración sin 10.2
+
+En la puesta en marcha de VeegSoft, **10.1 pasó y 10.2 nunca se llegó a validar**: el lead de prueba
+se creó con la app en modo Desarrollo, no se entregó, y después se cargó a mano con 10.3. Se
+verificaron la entrega, la lectura y el guardado por separado, pero no el circuito automático.
+
+Moraleja: no declarar la integración terminada hasta ver un lead entrar solo. Por eso en este
+runbook pasar a Live es el paso 9 y probar es el 10, y no al revés.
 
 ## 3. Clientes: una app propia dentro del portafolio del cliente
 
@@ -336,34 +412,52 @@ de ~10 clientes, Facebook Login for Business pasa a ser la opción correcta. Has
 
 ---
 
+## 4.1 Construí una pantalla de diagnóstico
+
+Sin esto, cuando algo falla no se puede distinguir **"Meta nunca entregó"** de **"entregó y
+nuestro código falló"**, que necesitan arreglos opuestos. En esta puesta en marcha fue lo que
+desatascó el problema.
+
+Debe mostrar, consultando en vivo:
+
+- Token: tipo, si expira, y qué permisos le faltan de la lista esperada
+- Acceso a la Página
+- **Conexión A y conexión B por separado**, no como un único "está conectado"
+- **Los últimos eventos recibidos**, con su estado y el texto del error de los fallidos
+
+En Veeghub es `/admin/leads/configuracion`
+(`lib/admin/queries/meta-integration.ts` + `app/admin/leads/configuracion/page.tsx`).
+
+---
+
 ## 5. Comandos de diagnóstico
 
 ```bash
 set -a && source .env && set +a
 
 # ¿El token sirve, qué tipo es, expira, qué scopes tiene?
-curl -s "https://graph.facebook.com/v23.0/debug_token?input_token=$META_SYSTEM_USER_TOKEN&access_token=$META_APP_ID|$META_APP_SECRET" \
+curl -s "https://graph.facebook.com/v26.0/debug_token?input_token=$META_SYSTEM_USER_TOKEN&access_token=$META_APP_ID|$META_APP_SECRET" \
   | python3 -m json.tool
 # Buscar: "type": "SYSTEM_USER", "expires_at": 0, y los 7 scopes
 
 # Token de página (para todo lo que sea a nivel de Página)
-PAGE_TOKEN=$(curl -s "https://graph.facebook.com/v23.0/$META_PAGE_ID?fields=access_token&access_token=$META_SYSTEM_USER_TOKEN" \
+PAGE_TOKEN=$(curl -s "https://graph.facebook.com/v26.0/$META_PAGE_ID?fields=access_token&access_token=$META_SYSTEM_USER_TOKEN" \
   | python3 -c "import sys,json;print(json.load(sys.stdin)['access_token'])")
 
 # ¿La app está instalada en la Página? (conexión B)
-curl -s "https://graph.facebook.com/v23.0/$META_PAGE_ID/subscribed_apps?access_token=$PAGE_TOKEN" \
+curl -s "https://graph.facebook.com/v26.0/$META_PAGE_ID/subscribed_apps?access_token=$PAGE_TOKEN" \
   | python3 -m json.tool
 
 # ¿Qué formularios tiene la Página?
-curl -s "https://graph.facebook.com/v23.0/$META_PAGE_ID/leadgen_forms?fields=id,name,status,leads_count&access_token=$PAGE_TOKEN" \
+curl -s "https://graph.facebook.com/v26.0/$META_PAGE_ID/leadgen_forms?fields=id,name,status,leads_count&access_token=$PAGE_TOKEN" \
   | python3 -m json.tool
 
 # Leer un lead concreto
-curl -s "https://graph.facebook.com/v23.0/{LEADGEN_ID}?fields=id,created_time,field_data,ad_id,form_id,campaign_id,platform,is_organic&access_token=$PAGE_TOKEN" \
+curl -s "https://graph.facebook.com/v26.0/{LEADGEN_ID}?fields=id,created_time,field_data,ad_id,form_id,campaign_id,platform,is_organic&access_token=$PAGE_TOKEN" \
   | python3 -m json.tool
 
 # ¿Qué suscripciones declaró la app? (conexión A)
-curl -s "https://graph.facebook.com/v23.0/$META_APP_ID/subscriptions?access_token=$META_APP_ID|$META_APP_SECRET" \
+curl -s "https://graph.facebook.com/v26.0/$META_APP_ID/subscriptions?access_token=$META_APP_ID|$META_APP_SECRET" \
   | python3 -m json.tool
 ```
 
@@ -404,9 +498,9 @@ Todos observados en la puesta en marcha de VeegSoft el 2026-09-16.
 [ ]  6. [A] App Dashboard → Webhooks → Page → leadgen    (panel)
 [ ]  7. [B] POST /{page-id}/subscribed_apps              (SOLO API)
 [ ]  8. [C] Lead Access Manager → CRMs → asignar la app  (panel)
-[ ] 9.1 Botón Test de Webhooks → debe aparecer un evento
-[ ] 9.2 Lead Ads Testing Tool → el lead debe entrar SOLO (requiere Live primero)
-[ ] 10. Pasar la app a LIVE  (hacerlo ANTES del 9.2)
+[ ]  9. Pasar la app a LIVE   (en Desarrollo NO llegan leads reales)
+[ ] 10.1 Botón Test de Webhooks → debe aparecer un evento
+[ ] 10.2 Lead Ads Testing Tool → el lead debe entrar SOLO  ← la prueba que cuenta
 ```
 
 > App Review normalmente **no** hace falta: ver el paso 10.
@@ -451,7 +545,7 @@ tres conexiones, y el hecho de que la conexión B solo se puede hacer por API.
 | Pasos 1–8 | ✅ hechos |
 | Callback | `https://veeghub.veegsoft.com/api/webhooks/meta/leads` — handshake y firma verificados en producción |
 | Webhook registrado por Meta en | `v26.0` (se alineó `META_GRAPH_VERSION` a la misma) |
-| Paso 9.1 (entrega) | ✅ probado con el botón Test |
-| Paso 9.2 (lead real de punta a punta) | ⚠️ **nunca validado** — se intentó en modo Desarrollo y no se repitió tras pasar a Live |
-| Lead real | leído por API y reinyectado a mano con 9.3 |
-| Paso 10 | ✅ app en Live, sin App Review |
+| Paso 9 (Live) | ✅ app publicada, sin App Review |
+| Paso 10.1 (entrega) | ✅ probado con el botón Test |
+| Paso 10.2 (lead real de punta a punta) | ⚠️ **nunca validado** — se intentó en modo Desarrollo y no se repitió tras publicar |
+| Lead real | leído por API y reinyectado a mano con 10.3 |
