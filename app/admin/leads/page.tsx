@@ -27,7 +27,7 @@ function StatCard({
   tone?: "default" | "alert";
 }) {
   return (
-    <Card className="min-w-[8.5rem] shrink-0 snap-start rounded-lg sm:min-w-0 sm:shrink">
+    <Card className="rounded-lg">
       <CardContent className="flex items-center gap-2.5 p-3 sm:gap-3 sm:p-4">
         <div
           className={`flex size-8 shrink-0 items-center justify-center rounded-lg sm:size-9 ${
@@ -98,7 +98,7 @@ export default async function LeadsPage({
         </div>
       </div>
 
-      <div className="-mx-4 flex snap-x gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:mx-0 sm:grid sm:grid-cols-2 sm:gap-3 sm:overflow-visible sm:px-0 sm:pb-0 xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-2 sm:gap-3 xl:grid-cols-4">
         <StatCard label="Sin contactar" value={stats.newCount} icon={Inbox} />
         <StatCard
           label="Enfriándose (+2 h)"

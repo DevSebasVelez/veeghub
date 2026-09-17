@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { after } from "next/server";
 import {
   BadgeDollarSign,
   Inbox,
@@ -12,6 +13,8 @@ import {
   getCampaignPerformance,
   type CampaignRow,
 } from "@/lib/admin/queries/campaigns";
+import prisma from "@/lib/db/prisma";
+import { syncCampaignInsights } from "@/lib/meta/insights";
 import { formatCurrency, formatDate } from "@/lib/admin/format";
 import { CampaignRangeFilter } from "@/components/admin/campaigns/range-filter";
 import { RefreshInsightsButton } from "@/components/admin/campaigns/refresh-button";
@@ -38,7 +41,7 @@ function StatCard({
   icon: typeof Inbox;
 }) {
   return (
-    <Card className="min-w-[9rem] shrink-0 snap-start rounded-lg sm:min-w-0 sm:shrink">
+    <Card className="rounded-lg">
       <CardContent className="flex items-center gap-2.5 p-3 sm:gap-3 sm:p-4">
         <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground sm:size-9">
           <Icon className="size-4" />
@@ -67,21 +70,25 @@ function money(value: number | null) {
 
 function CampaignCard({ row }: { row: CampaignRow }) {
   return (
-    <div className="rounded-lg border bg-card p-3">
-      <div className="font-medium leading-tight">{row.campaignName}</div>
+    <div className="min-w-0 rounded-lg border bg-card p-3">
+      {/* Los nombres de campaña son largos por convención; sin truncate
+          estiran la tarjeta más allá del ancho de la pantalla. */}
+      <div className="truncate font-medium leading-tight" title={row.campaignName}>
+        {row.campaignName}
+      </div>
       <div className="mt-2 grid grid-cols-3 gap-2 text-center">
-        <div>
-          <div className="text-sm font-semibold tabular-nums">
+        <div className="min-w-0">
+          <div className="truncate text-sm font-semibold tabular-nums">
             {formatCurrency(row.spend)}
           </div>
           <div className="text-[10px] text-muted-foreground">Gasto</div>
         </div>
-        <div>
+        <div className="min-w-0">
           <div className="text-sm font-semibold tabular-nums">{row.leads}</div>
           <div className="text-[10px] text-muted-foreground">Leads</div>
         </div>
-        <div>
-          <div className="text-sm font-semibold tabular-nums">
+        <div className="min-w-0">
+          <div className="truncate text-sm font-semibold tabular-nums">
             {money(row.costPerLead)}
           </div>
           <div className="text-[10px] text-muted-foreground">CPL</div>
@@ -107,12 +114,36 @@ export default async function CampaignsPage({
   const until = new Date();
   const since = new Date(until.getTime() - days * 24 * 60 * 60 * 1000);
 
+  // A page that lands empty until someone finds the refresh button just reads
+  // as broken. The first ever load pulls the data inline — one request, about a
+  // second — and later loads refresh in the background so nothing blocks.
+  const account = await prisma.metaAdAccount.findFirst({
+    select: { lastSyncedAt: true },
+  });
+
+  if (!account?.lastSyncedAt) {
+    try {
+      await syncCampaignInsights({ since, until });
+    } catch (error) {
+      console.error("[campanas] primera sincronización falló", error);
+    }
+  } else {
+    after(async () => {
+      try {
+        // The TTL guard inside makes this a no-op when it ran recently.
+        await syncCampaignInsights({ since, until });
+      } catch (error) {
+        console.error("[campanas] refresco en segundo plano falló", error);
+      }
+    });
+  }
+
   const [performance, series] = await Promise.all([
     getCampaignPerformance({ since, until }),
     getCampaignDailySeries({ since, until }),
   ]);
 
-  const { campaigns, totals, account } = performance;
+  const { campaigns, totals, account: adAccount } = performance;
 
   const chartData = series.map((point) => ({
     ...point,
@@ -139,13 +170,15 @@ export default async function CampaignsPage({
             Cuánto gastás y cuánto te cuesta cada lead y cada cliente.
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <CampaignRangeFilter />
+        <div className="flex items-center gap-2">
+          <div className="min-w-0 flex-1 md:flex-none">
+            <CampaignRangeFilter />
+          </div>
           <RefreshInsightsButton since={isoSince} until={isoUntil} />
         </div>
       </div>
 
-      <div className="-mx-4 flex snap-x gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:mx-0 sm:grid sm:grid-cols-2 sm:gap-3 sm:overflow-visible sm:px-0 sm:pb-0 xl:grid-cols-5">
+      <div className="grid grid-cols-2 gap-2 sm:gap-3 xl:grid-cols-5">
         <StatCard
           label="Gasto"
           value={formatCurrency(totals.spend)}
@@ -162,12 +195,14 @@ export default async function CampaignsPage({
           value={String(totals.won)}
           icon={Trophy}
         />
-        <StatCard
-          label="Costo por cliente"
-          value={money(totals.costPerWon)}
-          helper="Lo que realmente importa"
-          icon={Trophy}
-        />
+        <div className="col-span-2 xl:col-span-1">
+          <StatCard
+            label="Costo por cliente"
+            value={money(totals.costPerWon)}
+            helper="Lo que realmente importa"
+            icon={Trophy}
+          />
+        </div>
       </div>
 
       <div className="rounded-xl border border-border bg-card p-4 md:p-5">
@@ -256,12 +291,12 @@ export default async function CampaignsPage({
       </div>
 
       <p className="text-xs text-muted-foreground">
-        {account?.lastSyncedAt
-          ? `Datos de Meta actualizados el ${formatDate(account.lastSyncedAt)}.`
+        {adAccount?.lastSyncedAt
+          ? `Datos de Meta actualizados el ${formatDate(adAccount.lastSyncedAt)}.`
           : "Todavía no se han traído datos de Meta."}
-        {account?.usageCallCount != null
-          ? ` Uso de la API: ${account.usageCallCount}%${
-              account.accessTier ? ` (${account.accessTier})` : ""
+        {adAccount?.usageCallCount != null
+          ? ` Uso de la API: ${adAccount.usageCallCount}%${
+              adAccount.accessTier ? ` (${adAccount.accessTier})` : ""
             }.`
           : ""}{" "}
         Los leads se cuentan desde{" "}
