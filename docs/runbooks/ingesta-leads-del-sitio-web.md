@@ -98,6 +98,37 @@ El teléfono se normaliza a E.164 con `normalizePhone` de
 `lib/meta/lead-mapper` — el mismo que usa la ingesta de Meta, no un segundo
 normalizador. `phoneRaw` conserva lo que escribió la persona.
 
+### Leads de las landings de EE. UU. (desde 2026-10-02)
+
+Las landings de campaña `/us/*` mandan además tres campos opcionales:
+
+```json
+{
+  "phone": "+12015550123",
+  "businessType": "Roofing o contractor",
+  "landing": "US-SIS",
+  "attribution": {
+    "gclid": "…",
+    "utm_source": "google",
+    "utm_medium": "cpc",
+    "utm_campaign": "123456",
+    "utm_term": "sistema para roofing"
+  }
+}
+```
+
+- **No tienen columna propia.** Quedan completos en `rawPayload` y resumidos en
+  la actividad de alta del lead («… Landing US-SIS · Negocio: Roofing o
+  contractor · google / cpc · campaña 123456 · "sistema para roofing"»). El
+  modelo `Lead` sólo tiene campos de Meta; añadir los de Google Ads es una
+  migración que se hará si el volumen lo justifica.
+- **Ese formulario no pide correo**: el lead llega sólo con teléfono.
+- **El teléfono llega ya en E.164 con `+1`.** `normalizePhone` antepone el
+  código de Ecuador a todo número sin prefijo, así que el sitio normaliza los
+  números de EE. UU. antes de mandarlos (`utils/phone.ts` en veegsoft-web).
+- El sitio repite el tipo de negocio y el origen dentro de `message`, para que
+  se vean aunque esta versión todavía no esté desplegada.
+
 ---
 
 ## Duplicados
