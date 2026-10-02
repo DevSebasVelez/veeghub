@@ -85,9 +85,54 @@ export const websiteLeadSchema = z.object({
   serviceTag: z.string().trim().max(120).optional().nullable(),
   /** Ruta del formulario, para saber qué landing convierte. */
   sourcePath: z.string().trim().max(500).optional().nullable(),
+  /**
+   * Tipo de negocio elegido en el formulario de las landings de EE. UU.
+   * («Roofing o contractor», «Car wash o laundromat»…).
+   */
+  businessType: z.string().trim().max(120).optional().nullable(),
+  /** Código de la landing de campaña: `US-SIS`, `US-WEB-EN`… */
+  landing: z.string().trim().max(40).optional().nullable(),
+  /**
+   * `gclid`, `gbraid`, `wbraid` y UTMs que el sitio capturó al llegar el
+   * visitante. Sólo claves conocidas: el resto se descarta.
+   */
+  attribution: z
+    .object({
+      gclid: z.string().max(300).optional(),
+      gbraid: z.string().max(300).optional(),
+      wbraid: z.string().max(300).optional(),
+      utm_source: z.string().max(300).optional(),
+      utm_medium: z.string().max(300).optional(),
+      utm_campaign: z.string().max(300).optional(),
+      utm_term: z.string().max(300).optional(),
+      utm_content: z.string().max(300).optional(),
+    })
+    .optional()
+    .nullable(),
 });
 
 export type WebsiteLeadInput = z.infer<typeof websiteLeadSchema>;
+
+/**
+ * Una línea legible con el origen de campaña, para la actividad del lead.
+ *
+ * Sin columnas propias a propósito: el modelo `Lead` sólo tiene campos de
+ * Meta, y añadir los de Google Ads es una migración que todavía no se
+ * justifica con el volumen actual. Los datos completos quedan en
+ * `rawPayload`; esta línea es lo que una persona lee en la ficha.
+ */
+function resumenDeCampana(input: WebsiteLeadInput): string | null {
+  const a = input.attribution;
+  const partes = [
+    input.landing ? `Landing ${input.landing}` : "",
+    input.businessType ? `Negocio: ${input.businessType}` : "",
+    a ? [a.utm_source, a.utm_medium].filter(Boolean).join(" / ") : "",
+    a?.utm_campaign ? `campaña ${a.utm_campaign}` : "",
+    a?.utm_term ? `"${a.utm_term}"` : "",
+    a?.gclid || a?.gbraid || a?.wbraid ? "con clic de Google Ads" : "",
+  ].filter(Boolean);
+  return partes.length > 0 ? partes.join(" · ") : null;
+}
 
 function limpio(valor: string | null | undefined) {
   const recortado = valor?.trim();
@@ -133,6 +178,7 @@ export async function ingestWebsiteLead(input: WebsiteLeadInput) {
   const phone = normalizePhone(phoneRaw);
   const email = limpio(input.email)?.toLowerCase() ?? null;
   const origen = limpio(input.sourcePath);
+  const campana = resumenDeCampana(input);
 
   const lead = await prisma.lead.create({
     data: {
@@ -148,9 +194,11 @@ export async function ingestWebsiteLead(input: WebsiteLeadInput) {
       activities: {
         create: {
           type: "SYSTEM",
-          body: origen
-            ? `Lead recibido desde el formulario de ${origen}.`
-            : "Lead recibido desde el formulario del sitio web.",
+          body:
+            (origen
+              ? `Lead recibido desde el formulario de ${origen}.`
+              : "Lead recibido desde el formulario del sitio web.") +
+            (campana ? ` ${campana}.` : ""),
         },
       },
     },
