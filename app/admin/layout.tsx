@@ -23,7 +23,7 @@ export default async function AdminLayout({
           email: session.user?.email ?? null,
         }}
       />
-      <SidebarInset>
+      <SidebarInset className="min-w-0">
         <header className="sticky top-0 z-10 flex h-14 items-center gap-3 border-b bg-background/95 px-4 backdrop-blur">
           <SidebarTrigger className="shrink-0" />
           <Separator orientation="vertical" className="h-5" />
