@@ -24,6 +24,11 @@ import {
   SinglePaymentDialog,
 } from "@/components/admin/dialogs/receivable-dialog";
 import { TaskDialog } from "@/components/admin/dialogs/task-dialog";
+import { ExpenseDialog } from "@/components/admin/dialogs/expense-dialog";
+import { ExpenseList } from "@/components/admin/finance/expense-list";
+import { Figure } from "@/components/admin/finance/figure";
+import { getExpenseFormOptions } from "@/lib/admin/queries/expenses";
+import { getFinancialSummary } from "@/lib/admin/queries/financial-summary";
 import { TaskTitleEditor } from "@/components/admin/task-title-editor";
 import { CommentSection } from "@/components/admin/comment-section";
 import { DriveUploader } from "@/components/admin/drive-uploader";
@@ -149,8 +154,15 @@ export default async function ProjectDetailPage({
 
   if (!project) notFound();
 
-  const [clients, projects, clientCtxCreate, projectPayments] =
-    await Promise.all([
+  const [
+    clients,
+    projects,
+    clientCtxCreate,
+    projectPayments,
+    projectExpenses,
+    expenseOptions,
+    projectFinance,
+  ] = await Promise.all([
       prisma.client.findMany({
         orderBy: { name: "asc" },
         select: { id: true, name: true },
@@ -198,7 +210,26 @@ export default async function ProjectDetailPage({
           },
         },
       }),
+      prisma.expense.findMany({
+        where: { projectId: id },
+        orderBy: [{ expenseDate: "desc" }, { createdAt: "desc" }],
+        include: {
+          category: { select: { id: true, name: true } },
+          payee: { select: { id: true, name: true } },
+          project: { select: { id: true, name: true } },
+          receiptFile: { select: { id: true, name: true } },
+        },
+      }),
+      getExpenseFormOptions(),
+      // Whole life of the project, not a period.
+      getFinancialSummary(
+        { proyecto: id, desde: "2000-01-01", hasta: "2100-12-31" },
+        { withFilterOptions: false },
+      ),
     ]);
+  const projectFigures =
+    projectFinance.summary.rows.find((r) => r.projectId === id)?.figures ??
+    projectFinance.summary.overall;
 
   const invoiceCtxCreate = clientCtxCreate
     ? [
@@ -419,6 +450,7 @@ export default async function ProjectDetailPage({
           { key: "notas", label: "Notas", count: project.comments.length },
           { key: "archivos", label: "Archivos", count: project._count.files },
           { key: "pagos", label: "Pagos", count: project.receivables.length },
+          { key: "egresos", label: "Egresos", count: projectExpenses.length },
           { key: "credenciales", label: "Credenciales", count: project.credentials.length },
         ]}
         panels={{
@@ -851,6 +883,58 @@ export default async function ProjectDetailPage({
                 ))
               )}
             </div>
+          </div>
+          ),
+          egresos: (
+          <div className="space-y-4">
+            <Card className="rounded-lg">
+              <CardHeader className="pb-1">
+                <CardTitle className="text-base">Resultado del proyecto</CardTitle>
+                <p className="text-xs text-muted-foreground">
+                  Toda la vida del proyecto. Estimación administrativa, no
+                  utilidad neta definitiva.
+                </p>
+              </CardHeader>
+              <CardContent className="grid gap-x-8 sm:grid-cols-2">
+                <Figure label="Contratado" value={projectFigures.contracted} kind="reference" />
+                <Figure label="Facturado" value={projectFigures.invoiced} kind="real" hint={`Base sin IVA: ${formatCurrency(projectFigures.invoicedBase)}`} />
+                <Figure label="Cobrado" value={projectFigures.collected} kind="real" />
+                <Figure label="Saldo de cliente" value={projectFigures.receivableBalance} kind="pending" />
+                <Figure label="Egresos registrados" value={projectFigures.expensesRegistered} kind="real" hint={`Pendientes: ${formatCurrency(projectFigures.expensesPending)} · Colaboradores: ${formatCurrency(projectFigures.collaboratorPayments)}`} />
+                <Figure label="Flujo neto de caja" value={projectFigures.netCashFlow} kind="real" />
+                <Figure
+                  label="Margen estimado"
+                  value={projectFigures.marginEstimate}
+                  kind="estimate"
+                  hint={projectFigures.marginIncomplete ? "Hay facturas sin desglose de IVA; se usó su total." : "Base facturada − egresos registrados."}
+                  emphasis
+                />
+              </CardContent>
+            </Card>
+            <Card className="rounded-lg">
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <CardTitle>Egresos</CardTitle>
+                  <ExpenseDialog
+                    mode="create"
+                    fixedProjectId={id}
+                    categories={expenseOptions.categories}
+                    payees={expenseOptions.payees}
+                    projects={expenseOptions.projects}
+                  />
+                </div>
+              </CardHeader>
+              <CardContent className="p-0">
+                <ExpenseList
+                  expenses={projectExpenses}
+                  categories={expenseOptions.categories}
+                  payees={expenseOptions.payees}
+                  projects={expenseOptions.projects}
+                  showProject={false}
+                  fixedProjectId={id}
+                />
+              </CardContent>
+            </Card>
           </div>
           ),
           credenciales: (
