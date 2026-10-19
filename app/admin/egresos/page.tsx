@@ -3,6 +3,8 @@ import {
   setExpenseCategoryArchived,
 } from "@/lib/admin/actions/expense-categories/actions";
 import { deletePayee } from "@/lib/admin/actions/payees/actions";
+import { Suspense } from "react";
+
 import { AreaNav } from "@/components/admin/area-nav";
 import { ConfirmActionButton } from "@/components/admin/finance/confirm-action-button";
 import { ExpenseCategoryDialog } from "@/components/admin/dialogs/expense-category-dialog";
@@ -17,13 +19,18 @@ import {
 } from "@/components/admin/finance/labels";
 import { Pagination } from "@/components/admin/pagination";
 import {
+  ListGroupSkeleton,
+  StatCardsSkeleton,
+  TableSkeleton,
+} from "@/components/admin/skeletons";
+import {
   getCategoriesWithUsage,
   getExpenseFormOptions,
   getExpensesPageData,
   getPayeesWithUsage,
 } from "@/lib/admin/queries/expenses";
 import { forPayeeDialog } from "@/lib/admin/serialize";
-import { cleanParam } from "@/lib/admin/finance/period";
+import { cleanParam, resolvePeriod } from "@/lib/admin/finance/period";
 import { formatCurrency } from "@/lib/admin/format";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -51,6 +58,7 @@ export default async function ExpensesPage({
       : "egresos";
 
   const options = await getExpenseFormOptions();
+  const period = resolvePeriod(params);
 
   return (
     <div className="space-y-6">
@@ -99,12 +107,71 @@ export default async function ExpensesPage({
       />
 
       {section === "egresos" ? (
-        <ExpensesSection params={params} options={options} />
-      ) : section === "beneficiarios" ? (
-        <PayeesSection />
-      ) : (
-        <CategoriesSection />
-      )}
+        <FilterBar
+          // Remount on navigation so "Limpiar" and back/forward reset the
+          // uncontrolled inputs to what the URL says.
+          key={`filters-${JSON.stringify(params)}`}
+          basePath="/admin/egresos"
+          from={period.fromKey}
+          to={period.toKey}
+          selects={[
+            {
+              name: "estado",
+              label: "Estado",
+              value: params.estado ?? "all",
+              options: withAll("Todos", labelOptions(EXPENSE_STATUS_LABELS)),
+            },
+            {
+              name: "categoria",
+              label: "Categoría",
+              value: params.categoria ?? "all",
+              options: withAll("Todas", [
+                { value: "none", label: "Sin categoría" },
+                ...options.categories.map((c) => ({ value: c.id, label: c.name })),
+              ]),
+            },
+            {
+              name: "proyecto",
+              label: "Proyecto",
+              value: params.proyecto ?? "all",
+              options: withAll("Todos", [
+                { value: "none", label: "Sin proyecto" },
+                ...options.projects.map((p) => ({ value: p.id, label: p.name })),
+              ]),
+            },
+            {
+              name: "clasificacion",
+              label: "Clasificación",
+              value: params.clasificacion ?? "all",
+              options: withAll("Todas", labelOptions(PAYEE_KIND_LABELS)),
+            },
+          ]}
+        />
+      ) : null}
+
+      {/* Keyed by the query so every section or filter change shows the
+          skeleton right away instead of freezing on the previous view. */}
+      <Suspense
+        key={`body-${JSON.stringify(params)}`}
+        fallback={
+          section === "egresos" ? (
+            <div className="space-y-4">
+              <StatCardsSkeleton count={3} className="grid gap-4 sm:grid-cols-3" />
+              <TableSkeleton rows={8} cols={8} />
+            </div>
+          ) : (
+            <ListGroupSkeleton groups={1} rowsPerGroup={6} />
+          )
+        }
+      >
+        {section === "egresos" ? (
+          <ExpensesSection params={params} options={options} />
+        ) : section === "beneficiarios" ? (
+          <PayeesSection />
+        ) : (
+          <CategoriesSection />
+        )}
+      </Suspense>
     </div>
   );
 }
@@ -129,43 +196,6 @@ async function ExpensesSection({
 
   return (
     <div className="space-y-4">
-      <FilterBar
-        basePath="/admin/egresos"
-        from={data.period.fromKey}
-        to={data.period.toKey}
-        selects={[
-          {
-            name: "estado",
-            label: "Estado",
-            value: params.estado ?? "all",
-            options: withAll("Todos", labelOptions(EXPENSE_STATUS_LABELS)),
-          },
-          {
-            name: "categoria",
-            label: "Categoría",
-            value: params.categoria ?? "all",
-            options: withAll("Todas", [
-              { value: "none", label: "Sin categoría" },
-              ...options.categories.map((c) => ({ value: c.id, label: c.name })),
-            ]),
-          },
-          {
-            name: "proyecto",
-            label: "Proyecto",
-            value: params.proyecto ?? "all",
-            options: withAll("Todos", [
-              { value: "none", label: "Sin proyecto" },
-              ...options.projects.map((p) => ({ value: p.id, label: p.name })),
-            ]),
-          },
-          {
-            name: "clasificacion",
-            label: "Clasificación",
-            value: params.clasificacion ?? "all",
-            options: withAll("Todas", labelOptions(PAYEE_KIND_LABELS)),
-          },
-        ]}
-      />
 
       <div className="grid gap-4 sm:grid-cols-3">
         <Stat label="Registrados" value={data.totals.registered} hint="Pagados + pendientes del período" />

@@ -1,3 +1,4 @@
+import Form from "next/form";
 import Link from "next/link";
 import { Filter } from "lucide-react";
 
@@ -14,8 +15,9 @@ export type FilterSelect = {
 };
 
 /**
- * Plain GET form: the filters live in the URL, so a filtered view can be
- * refreshed or shared, and it works without any client state.
+ * GET form through next/form: the filters live in the URL, so a filtered view
+ * can be refreshed or shared, and submitting is a client-side navigation
+ * instead of a full page reload.
  */
 export function FilterBar({
   basePath,
@@ -31,9 +33,9 @@ export function FilterBar({
   hidden?: Record<string, string | undefined>;
 }) {
   return (
-    <form
-      method="get"
+    <Form
       action={basePath}
+      scroll={false}
       className="grid grid-cols-2 gap-3 rounded-lg border bg-background p-3 lg:grid-cols-[repeat(auto-fit,minmax(9rem,1fr))] lg:items-end"
     >
       {Object.entries(hidden).map(([name, value]) =>
@@ -69,10 +71,12 @@ export function FilterBar({
           Aplicar
         </Button>
         <Button asChild variant="outline" className="h-10">
-          <Link href={basePath}>Limpiar</Link>
+          <Link href={basePath} scroll={false}>
+            Limpiar
+          </Link>
         </Button>
       </div>
-    </form>
+    </Form>
   );
 }
 

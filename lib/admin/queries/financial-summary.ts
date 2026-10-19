@@ -19,10 +19,7 @@ export type SummaryFilters = {
  * expenseDate and expenses paid by paidAt. The client balance is how things
  * stand today, not a period figure.
  */
-export async function getFinancialSummary(
-  filters: SummaryFilters,
-  { withFilterOptions = true }: { withFilterOptions?: boolean } = {},
-) {
+export async function getFinancialSummary(filters: SummaryFilters) {
   const period = resolvePeriod(filters);
   const clientId = filters.cliente || null;
   const projectId = filters.proyecto || null;
@@ -46,8 +43,6 @@ export async function getFinancialSummary(
   };
 
   const [
-    clients,
-    allProjects,
     projects,
     invoices,
     undatedInvoices,
@@ -58,19 +53,6 @@ export async function getFinancialSummary(
     withholdings,
     openWithholdings,
   ] = await Promise.all([
-    // Filter dropdown options; callers that render no filters skip them.
-    withFilterOptions
-      ? prisma.client.findMany({
-          orderBy: { name: "asc" },
-          select: { id: true, name: true },
-        })
-      : [],
-    withFilterOptions
-      ? prisma.project.findMany({
-          orderBy: { name: "asc" },
-          select: { id: true, name: true },
-        })
-      : [],
     prisma.project.findMany({
       where: projectWhere,
       orderBy: { name: "asc" },
@@ -202,8 +184,6 @@ export async function getFinancialSummary(
 
   return {
     period,
-    clients,
-    projects: allProjects,
     summary,
     undatedInvoices,
     filters: { clientId, projectId },

@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import Link from "next/link";
 import { Info } from "lucide-react";
 
@@ -5,7 +6,9 @@ import { FilterBar, withAll } from "@/components/admin/finance/filter-bar";
 import { FinanceTabs } from "@/components/admin/finance/finance-tabs";
 import { Figure, FigureKindBadge } from "@/components/admin/finance/figure";
 import { getFinancialSummary } from "@/lib/admin/queries/financial-summary";
-import { cleanParam } from "@/lib/admin/finance/period";
+import { cleanParam, resolvePeriod } from "@/lib/admin/finance/period";
+import prisma from "@/lib/db/prisma";
+import { CardGridSkeleton, TableSkeleton } from "@/components/admin/skeletons";
 import type { SummaryFigures } from "@/lib/admin/finance/calc";
 import { formatCurrency, formatDateOnly } from "@/lib/admin/format";
 import { cn } from "@/lib/utils";
@@ -31,27 +34,17 @@ export default async function FinancialSummaryPage({
   }>;
 }) {
   const params = await searchParams;
-  const { period, clients, projects, summary, undatedInvoices, filters } =
-    await getFinancialSummary({
-      desde: params.desde,
-      hasta: params.hasta,
-      cliente: cleanParam(params.cliente),
-      proyecto: cleanParam(params.proyecto),
-    });
-  const o = summary.overall;
-
-  const isEmptyRow = (f: SummaryFigures) =>
-    [
-      f.invoiced,
-      f.collected,
-      f.receivableBalance,
-      f.expensesRegistered,
-      f.expensesPaidInPeriod,
-      f.withheld,
-    ].every((v) => v === "0.00");
-  const rows = summary.rows.filter(
-    (r) => r.hasBudget || !isEmptyRow(r.figures),
-  );
+  const period = resolvePeriod(params);
+  const [clients, projects] = await Promise.all([
+    prisma.client.findMany({
+      orderBy: { name: "asc" },
+      select: { id: true, name: true },
+    }),
+    prisma.project.findMany({
+      orderBy: { name: "asc" },
+      select: { id: true, name: true },
+    }),
+  ]);
 
   return (
     <div className="space-y-6">
@@ -67,6 +60,8 @@ export default async function FinancialSummaryPage({
       <FinanceTabs active="resumen" />
 
       <FilterBar
+        // Remount on navigation so the inputs follow the URL.
+        key={`filters-${JSON.stringify(params)}`}
         basePath="/admin/finanzas/resumen"
         from={period.fromKey}
         to={period.toKey}
@@ -92,6 +87,50 @@ export default async function FinancialSummaryPage({
         ]}
       />
 
+      {/* Keyed by the filters so changing them shows the skeleton at once. */}
+      <Suspense
+        key={`body-${JSON.stringify(params)}`}
+        fallback={
+          <div className="space-y-6">
+            <CardGridSkeleton count={4} />
+            <TableSkeleton rows={6} cols={9} />
+          </div>
+        }
+      >
+        <SummaryBody params={params} />
+      </Suspense>
+    </div>
+  );
+}
+
+async function SummaryBody({
+  params,
+}: {
+  params: { desde?: string; hasta?: string; cliente?: string; proyecto?: string };
+}) {
+  const { summary, undatedInvoices, filters } = await getFinancialSummary({
+    desde: params.desde,
+    hasta: params.hasta,
+    cliente: cleanParam(params.cliente),
+    proyecto: cleanParam(params.proyecto),
+  });
+  const o = summary.overall;
+
+  const isEmptyRow = (f: SummaryFigures) =>
+    [
+      f.invoiced,
+      f.collected,
+      f.receivableBalance,
+      f.expensesRegistered,
+      f.expensesPaidInPeriod,
+      f.withheld,
+    ].every((v) => v === "0.00");
+  const rows = summary.rows.filter(
+    (r) => r.hasBudget || !isEmptyRow(r.figures),
+  );
+
+  return (
+    <div className="space-y-6">
       <Alert>
         <Info className="size-4" />
         <AlertTitle>Control administrativo</AlertTitle>
