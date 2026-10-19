@@ -1,17 +1,16 @@
 import { Suspense } from "react";
-import Link from "next/link";
 import { AlertCircle, CheckCircle2, Clock } from "lucide-react";
 
 import {
   PaymentDialog,
   ReceivableDialog,
 } from "@/components/admin/dialogs/receivable-dialog";
+import { FinanceTabs } from "@/components/admin/finance/finance-tabs";
 import { HitosSection } from "@/components/admin/finance/hitos-section";
 import { PagosSection } from "@/components/admin/finance/pagos-section";
 import { ListGroupSkeleton, TableSkeleton } from "@/components/admin/skeletons";
 import { getFinanceHeaderData } from "@/lib/admin/queries/finance";
 import { formatCurrency } from "@/lib/admin/format";
-import { cn } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default async function FinancePage({
@@ -113,30 +112,7 @@ export default async function FinancePage({
       </div>
 
       {/* Section tabs */}
-      <div className="flex w-fit gap-1 rounded-lg border bg-background p-1">
-        <Link
-          href="/admin/finanzas"
-          className={cn(
-            "rounded-md px-4 py-1.5 text-sm font-medium transition-colors",
-            !isPagosSection
-              ? "bg-primary text-primary-foreground"
-              : "text-muted-foreground hover:text-foreground",
-          )}
-        >
-          Hitos
-        </Link>
-        <Link
-          href="/admin/finanzas?section=pagos"
-          className={cn(
-            "rounded-md px-4 py-1.5 text-sm font-medium transition-colors",
-            isPagosSection
-              ? "bg-primary text-primary-foreground"
-              : "text-muted-foreground hover:text-foreground",
-          )}
-        >
-          Pagos
-        </Link>
-      </div>
+      <FinanceTabs active={isPagosSection ? "pagos" : "hitos"} />
 
       {/* Active section — streamed with a skeleton on every tab/filter change */}
       {isPagosSection ? (
