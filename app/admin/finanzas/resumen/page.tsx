@@ -2,12 +2,14 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { Info } from "lucide-react";
 
-import { FilterBar, withAll } from "@/components/admin/finance/filter-bar";
+import { FilterBar } from "@/components/admin/finance/filter-bar";
+import { withAll } from "@/components/admin/finance/labels";
 import { FinanceTabs } from "@/components/admin/finance/finance-tabs";
 import { Figure, FigureKindBadge } from "@/components/admin/finance/figure";
 import { getFinancialSummary } from "@/lib/admin/queries/financial-summary";
 import {
   cleanParam,
+  defaultPeriodKeys,
   queryString,
   resolvePeriod,
 } from "@/lib/admin/finance/period";
@@ -73,6 +75,7 @@ export default async function FinancialSummaryPage({
           cliente: params.cliente,
           proyecto: params.proyecto,
         })}`}
+        defaults={defaultPeriodKeys()}
         from={period.fromKey}
         to={period.toKey}
         selects={[
@@ -116,7 +119,12 @@ export default async function FinancialSummaryPage({
 async function SummaryBody({
   params,
 }: {
-  params: { desde?: string; hasta?: string; cliente?: string; proyecto?: string };
+  params: {
+    desde?: string;
+    hasta?: string;
+    cliente?: string;
+    proyecto?: string;
+  };
 }) {
   const { summary, undatedInvoices, filters } = await getFinancialSummary({
     desde: params.desde,
@@ -308,9 +316,12 @@ async function SummaryBody({
               kind="real"
             />
             <p className="py-2 text-xs text-muted-foreground">
-              No se calcula una obligación tributaria: faltan datos que solo
-              tu declaración y tu contador confirman.{" "}
-              <Link href="/admin/finanzas/impuestos" className="text-primary hover:underline">
+              No se calcula una obligación tributaria: faltan datos que solo tu
+              declaración y tu contador confirman.{" "}
+              <Link
+                href="/admin/finanzas/impuestos"
+                className="text-primary hover:underline"
+              >
                 Configuración tributaria
               </Link>
               {undatedInvoices > 0
@@ -340,14 +351,36 @@ async function SummaryBody({
                 {rows.map((row) => (
                   <div key={row.key} className="space-y-1 px-4 py-3 text-sm">
                     <ProjectName row={row} />
-                    <MobileLine label="Contratado" value={row.hasBudget ? row.figures.contracted : null} />
-                    <MobileLine label="Facturado" value={row.figures.invoiced} />
+                    <MobileLine
+                      label="Contratado"
+                      value={row.hasBudget ? row.figures.contracted : null}
+                    />
+                    <MobileLine
+                      label="Facturado"
+                      value={row.figures.invoiced}
+                    />
                     <MobileLine label="Cobrado" value={row.figures.collected} />
-                    <MobileLine label="Saldo clientes" value={row.figures.receivableBalance} />
-                    <MobileLine label="Egresos registrados" value={row.figures.expensesRegistered} />
-                    <MobileLine label="Egresos pendientes" value={row.figures.expensesPending} />
-                    <MobileLine label="Margen estimado" value={row.figures.marginEstimate} strong />
-                    <MobileLine label="Flujo neto" value={row.figures.netCashFlow} />
+                    <MobileLine
+                      label="Saldo clientes"
+                      value={row.figures.receivableBalance}
+                    />
+                    <MobileLine
+                      label="Egresos registrados"
+                      value={row.figures.expensesRegistered}
+                    />
+                    <MobileLine
+                      label="Egresos pendientes"
+                      value={row.figures.expensesPending}
+                    />
+                    <MobileLine
+                      label="Margen estimado"
+                      value={row.figures.marginEstimate}
+                      strong
+                    />
+                    <MobileLine
+                      label="Flujo neto"
+                      value={row.figures.netCashFlow}
+                    />
                   </div>
                 ))}
               </div>
@@ -359,7 +392,9 @@ async function SummaryBody({
                       <TableHead className="text-right">Contratado</TableHead>
                       <TableHead className="text-right">Facturado</TableHead>
                       <TableHead className="text-right">Cobrado</TableHead>
-                      <TableHead className="text-right">Saldo clientes</TableHead>
+                      <TableHead className="text-right">
+                        Saldo clientes
+                      </TableHead>
                       <TableHead className="text-right">Egresos reg.</TableHead>
                       <TableHead className="text-right">Pendientes</TableHead>
                       <TableHead className="text-right">
@@ -367,7 +402,9 @@ async function SummaryBody({
                           Margen <FigureKindBadge kind="estimate" />
                         </span>
                       </TableHead>
-                      <TableHead className="pr-6 text-right">Flujo neto</TableHead>
+                      <TableHead className="pr-6 text-right">
+                        Flujo neto
+                      </TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -376,7 +413,9 @@ async function SummaryBody({
                         <TableCell className="pl-6">
                           <ProjectName row={row} />
                         </TableCell>
-                        <Money value={row.hasBudget ? row.figures.contracted : null} />
+                        <Money
+                          value={row.hasBudget ? row.figures.contracted : null}
+                        />
                         <Money value={row.figures.invoiced} />
                         <Money value={row.figures.collected} />
                         <Money value={row.figures.receivableBalance} />
@@ -387,7 +426,10 @@ async function SummaryBody({
                           strong
                           note={row.figures.marginIncomplete ? "*" : undefined}
                         />
-                        <Money value={row.figures.netCashFlow} className="pr-6" />
+                        <Money
+                          value={row.figures.netCashFlow}
+                          className="pr-6"
+                        />
                       </TableRow>
                     ))}
                     <TableRow className="bg-muted/40 font-semibold">
@@ -398,7 +440,11 @@ async function SummaryBody({
                       <Money value={o.receivableBalance} />
                       <Money value={o.expensesRegistered} />
                       <Money value={o.expensesPending} />
-                      <Money value={o.marginEstimate} strong note={o.marginIncomplete ? "*" : undefined} />
+                      <Money
+                        value={o.marginEstimate}
+                        strong
+                        note={o.marginIncomplete ? "*" : undefined}
+                      />
                       <Money value={o.netCashFlow} className="pr-6" />
                     </TableRow>
                   </TableBody>
@@ -406,7 +452,8 @@ async function SummaryBody({
               </div>
               {o.marginIncomplete ? (
                 <p className="px-6 py-3 text-xs text-muted-foreground">
-                  * Incluye facturas sin desglose de IVA; el margen usa su total.
+                  * Incluye facturas sin desglose de IVA; el margen usa su
+                  total.
                 </p>
               ) : null}
             </>
@@ -432,10 +479,14 @@ function ProjectName({
           {row.name}
         </Link>
       ) : (
-        <span className="font-medium italic text-muted-foreground">{row.name}</span>
+        <span className="font-medium italic text-muted-foreground">
+          {row.name}
+        </span>
       )}
       {row.clientName ? (
-        <p className="truncate text-xs text-muted-foreground">{row.clientName}</p>
+        <p className="truncate text-xs text-muted-foreground">
+          {row.clientName}
+        </p>
       ) : null}
     </div>
   );
@@ -461,7 +512,11 @@ function Money({
         className,
       )}
     >
-      {value === null ? <span className="opacity-40">—</span> : formatCurrency(value)}
+      {value === null ? (
+        <span className="opacity-40">—</span>
+      ) : (
+        formatCurrency(value)
+      )}
       {note}
     </TableCell>
   );

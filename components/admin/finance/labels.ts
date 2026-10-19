@@ -33,3 +33,11 @@ export const FREQUENCY_LABELS: Record<string, string> = {
   MONTHLY: "Mensual",
   YEARLY: "Anual",
 };
+
+/** "Todos" option whose "all" value drops the filter from the query. */
+export function withAll(
+  label: string,
+  options: Array<{ value: string; label: string }>,
+) {
+  return [{ value: "all", label }, ...options];
+}

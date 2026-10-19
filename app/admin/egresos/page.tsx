@@ -17,12 +17,13 @@ import { ExpenseCategoryDialog } from "@/components/admin/dialogs/expense-catego
 import { ExpenseDialog } from "@/components/admin/dialogs/expense-dialog";
 import { PayeeDialog } from "@/components/admin/dialogs/payee-dialog";
 import { ExpenseList } from "@/components/admin/finance/expense-list";
-import { FilterBar, withAll } from "@/components/admin/finance/filter-bar";
+import { FilterBar } from "@/components/admin/finance/filter-bar";
 import {
   EXPENSE_STATUS_LABELS,
   FREQUENCY_LABELS,
   PAYEE_KIND_LABELS,
   labelOptions,
+  withAll,
 } from "@/components/admin/finance/labels";
 import { Pagination } from "@/components/admin/pagination";
 import {
@@ -37,9 +38,13 @@ import {
   getPayeesWithUsage,
   getRecurringExpenses,
 } from "@/lib/admin/queries/expenses";
-import { forPayeeDialog, forRecurringExpenseDialog } from "@/lib/admin/serialize";
+import {
+  forPayeeDialog,
+  forRecurringExpenseDialog,
+} from "@/lib/admin/serialize";
 import {
   cleanParam,
+  defaultPeriodKeys,
   queryString,
   resolvePeriod,
 } from "@/lib/admin/finance/period";
@@ -139,6 +144,7 @@ export default async function ExpensesPage({
             proyecto: params.proyecto,
             clasificacion: params.clasificacion,
           })}`}
+          defaults={defaultPeriodKeys()}
           from={period.fromKey}
           to={period.toKey}
           selects={[
@@ -154,7 +160,10 @@ export default async function ExpensesPage({
               value: params.categoria ?? "all",
               options: withAll("Todas", [
                 { value: "none", label: "Sin categoría" },
-                ...options.categories.map((c) => ({ value: c.id, label: c.name })),
+                ...options.categories.map((c) => ({
+                  value: c.id,
+                  label: c.name,
+                })),
               ]),
             },
             {
@@ -163,7 +172,10 @@ export default async function ExpensesPage({
               value: params.proyecto ?? "all",
               options: withAll("Todos", [
                 { value: "none", label: "Sin proyecto" },
-                ...options.projects.map((p) => ({ value: p.id, label: p.name })),
+                ...options.projects.map((p) => ({
+                  value: p.id,
+                  label: p.name,
+                })),
               ]),
             },
             {
@@ -183,7 +195,10 @@ export default async function ExpensesPage({
         fallback={
           section === "egresos" ? (
             <div className="space-y-4">
-              <StatCardsSkeleton count={3} className="grid gap-4 sm:grid-cols-3" />
+              <StatCardsSkeleton
+                count={3}
+                className="grid gap-4 sm:grid-cols-3"
+              />
               <TableSkeleton rows={8} cols={8} />
             </div>
           ) : (
@@ -225,11 +240,24 @@ async function ExpensesSection({
 
   return (
     <div className="space-y-4">
-
       <div className="grid gap-4 sm:grid-cols-3">
-        <Stat label="Registrados" value={data.totals.registered} hint="Pagados + pendientes del período" />
-        <Stat label="Pagados" value={data.totals.paid} hint="Ya salieron de caja" tone="text-emerald-600" />
-        <Stat label="Pendientes" value={data.totals.pending} hint="Por pagar; no afectan la caja aún" tone="text-amber-600" />
+        <Stat
+          label="Registrados"
+          value={data.totals.registered}
+          hint="Pagados + pendientes del período"
+        />
+        <Stat
+          label="Pagados"
+          value={data.totals.paid}
+          hint="Ya salieron de caja"
+          tone="text-emerald-600"
+        />
+        <Stat
+          label="Pendientes"
+          value={data.totals.pending}
+          hint="Por pagar; no afectan la caja aún"
+          tone="text-amber-600"
+        />
       </div>
 
       <Card className="rounded-lg">
@@ -279,7 +307,9 @@ function Stat({
         <CardTitle className="text-sm font-medium">{label}</CardTitle>
       </CardHeader>
       <CardContent>
-        <div className={`text-2xl font-bold ${tone ?? ""}`}>{formatCurrency(value)}</div>
+        <div className={`text-2xl font-bold ${tone ?? ""}`}>
+          {formatCurrency(value)}
+        </div>
         <p className="text-xs text-muted-foreground">{hint}</p>
       </CardContent>
     </Card>
@@ -301,8 +331,8 @@ async function RecurringSection({
           <CardTitle className="text-base">Egresos recurrentes</CardTitle>
           <p className="text-xs text-muted-foreground">
             Nada se registra solo: &quot;Generar pendientes&quot; crea los
-            egresos vencidos hasta este mes de las plantillas activas, una
-            sola vez por período.
+            egresos vencidos hasta este mes de las plantillas activas, una sola
+            vez por período.
           </p>
         </div>
         <div className="flex shrink-0 flex-wrap gap-2">
@@ -342,7 +372,9 @@ async function RecurringSection({
                     <Badge variant="outline">
                       {FREQUENCY_LABELS[t.frequency]} · día {t.dayOfMonth}
                     </Badge>
-                    {!t.active ? <Badge variant="outline">Pausada</Badge> : null}
+                    {!t.active ? (
+                      <Badge variant="outline">Pausada</Badge>
+                    ) : null}
                     {t.missing > 0 ? (
                       <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100 dark:bg-amber-950 dark:text-amber-300">
                         {t.missing} por generar
@@ -420,11 +452,14 @@ async function PayeesSection() {
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
                     <p className="truncate font-medium">{payee.name}</p>
-                    <Badge variant="outline">{PAYEE_KIND_LABELS[payee.kind]}</Badge>
+                    <Badge variant="outline">
+                      {PAYEE_KIND_LABELS[payee.kind]}
+                    </Badge>
                   </div>
                   <p className="truncate text-xs text-muted-foreground">
-                    {[payee.taxId, payee.email, payee.phone].filter(Boolean).join(" · ") ||
-                      "Sin datos de contacto"}
+                    {[payee.taxId, payee.email, payee.phone]
+                      .filter(Boolean)
+                      .join(" · ") || "Sin datos de contacto"}
                     {" · "}
                     {payee._count.expenses} egreso(s)
                   </p>
@@ -461,8 +496,8 @@ async function CategoriesSection() {
         <div>
           <CardTitle className="text-base">Categorías</CardTitle>
           <p className="text-xs text-muted-foreground">
-            Ejemplos editables. Archiva las que no uses; los egresos
-            históricos conservan su categoría.
+            Ejemplos editables. Archiva las que no uses; los egresos históricos
+            conservan su categoría.
           </p>
         </div>
         <ExpenseCategoryDialog mode="create" />
@@ -476,10 +511,18 @@ async function CategoriesSection() {
             >
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
-                  <p className={category.archived ? "truncate font-medium text-muted-foreground line-through" : "truncate font-medium"}>
+                  <p
+                    className={
+                      category.archived
+                        ? "truncate font-medium text-muted-foreground line-through"
+                        : "truncate font-medium"
+                    }
+                  >
                     {category.name}
                   </p>
-                  {category.archived ? <Badge variant="outline">Archivada</Badge> : null}
+                  {category.archived ? (
+                    <Badge variant="outline">Archivada</Badge>
+                  ) : null}
                 </div>
                 <p className="truncate text-xs text-muted-foreground">
                   {category.description ? `${category.description} · ` : ""}
@@ -496,15 +539,27 @@ async function CategoriesSection() {
                 />
                 <ConfirmActionButton
                   icon={category.archived ? "restore" : "archive"}
-                  title={category.archived ? "Restaurar categoría" : "Archivar categoría"}
+                  title={
+                    category.archived
+                      ? "Restaurar categoría"
+                      : "Archivar categoría"
+                  }
                   description={
                     category.archived
                       ? `"${category.name}" volverá a estar disponible para nuevos egresos.`
                       : `"${category.name}" dejará de ofrecerse para nuevos egresos. Los existentes no cambian.`
                   }
                   confirmLabel={category.archived ? "Restaurar" : "Archivar"}
-                  successMessage={category.archived ? "Categoría restaurada." : "Categoría archivada."}
-                  action={setExpenseCategoryArchived.bind(null, category.id, !category.archived)}
+                  successMessage={
+                    category.archived
+                      ? "Categoría restaurada."
+                      : "Categoría archivada."
+                  }
+                  action={setExpenseCategoryArchived.bind(
+                    null,
+                    category.id,
+                    !category.archived,
+                  )}
                 />
                 {category._count.expenses === 0 ? (
                   <ConfirmActionButton
