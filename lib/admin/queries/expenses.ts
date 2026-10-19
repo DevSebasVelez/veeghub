@@ -63,11 +63,43 @@ export function expenseWhere(filters: ExpenseFilters) {
   return { period, where };
 }
 
+/**
+ * Paid / pending totals and counts for the filters, ignoring the status tab
+ * so the summary cards stay put while the user switches between tabs.
+ */
+export async function getExpenseTotals(filters: ExpenseFilters) {
+  const { where } = expenseWhere({ ...filters, estado: undefined });
+  const byStatus = await prisma.expense.groupBy({
+    by: ["status"],
+    where,
+    _sum: { amount: true },
+    _count: true,
+  });
+
+  const row = (status: string) => byStatus.find((s) => s.status === status);
+  const paid = toCents(row("PAID")?._sum.amount);
+  const pending = toCents(row("PENDING")?._sum.amount);
+  const paidCount = row("PAID")?._count ?? 0;
+  const pendingCount = row("PENDING")?._count ?? 0;
+
+  return {
+    registeredCents: paid + pending,
+    paidCents: paid,
+    pendingCents: pending,
+    registered: fromCents(paid + pending),
+    paid: fromCents(paid),
+    pending: fromCents(pending),
+    paidCount,
+    pendingCount,
+    count: paidCount + pendingCount,
+  };
+}
+
 export async function getExpensesPageData(filters: ExpenseFilters) {
   const page = getPage(filters.page);
   const { period, where } = expenseWhere(filters);
 
-  const [expenses, total, byStatus] = await Promise.all([
+  const [expenses, total, totals] = await Promise.all([
     prisma.expense.findMany({
       where,
       orderBy: [{ expenseDate: "desc" }, { createdAt: "desc" }],
@@ -81,17 +113,8 @@ export async function getExpensesPageData(filters: ExpenseFilters) {
       },
     }),
     prisma.expense.count({ where }),
-    prisma.expense.groupBy({
-      by: ["status"],
-      where,
-      _sum: { amount: true },
-    }),
+    getExpenseTotals(filters),
   ]);
-
-  const paid = toCents(byStatus.find((s) => s.status === "PAID")?._sum.amount);
-  const pending = toCents(
-    byStatus.find((s) => s.status === "PENDING")?._sum.amount,
-  );
 
   return {
     page,
@@ -99,11 +122,37 @@ export async function getExpensesPageData(filters: ExpenseFilters) {
     period,
     expenses,
     total,
-    totals: {
-      registered: fromCents(paid + pending),
-      paid: fromCents(paid),
-      pending: fromCents(pending),
-    },
+    totals,
+  };
+}
+
+/**
+ * Pending expenses dated before `before`, grouped by month, so a month view
+ * can point at bills still owed from earlier months.
+ */
+export async function getOlderPendingByMonth(before: Date) {
+  const rows = await prisma.expense.findMany({
+    where: { status: "PENDING", expenseDate: { lt: before } },
+    select: { expenseDate: true, amount: true },
+  });
+
+  const months = new Map<string, { count: number; cents: number }>();
+  for (const r of rows) {
+    const key = r.expenseDate.toISOString().slice(0, 7);
+    const m = months.get(key) ?? { count: 0, cents: 0 };
+    m.count += 1;
+    m.cents += toCents(r.amount);
+    months.set(key, m);
+  }
+
+  const list = [...months.entries()]
+    .sort((a, b) => b[0].localeCompare(a[0]))
+    .map(([key, m]) => ({ key, count: m.count, amount: fromCents(m.cents) }));
+
+  return {
+    months: list,
+    count: rows.length,
+    amount: fromCents(list.reduce((s, m) => s + toCents(m.amount), 0)),
   };
 }
 
