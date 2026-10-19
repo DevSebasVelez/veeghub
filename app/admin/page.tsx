@@ -11,6 +11,8 @@ import {
   Plus,
   Users,
   Video,
+  Wallet,
+  Waves,
 } from "lucide-react";
 
 import { formatCurrency, formatDate, formatDateOnly } from "@/lib/admin/format";
@@ -48,6 +50,7 @@ export default async function AdminPage() {
     upcomingMeetings,
     newLeads,
     uncontactedLeads,
+    cash,
   } = await getAdminDashboardData();
 
   return (
@@ -75,7 +78,7 @@ export default async function AdminPage() {
         </div>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
           href="/admin/clientes"
           icon={Users}
@@ -112,6 +115,27 @@ export default async function AdminPage() {
               : "saldo total pendiente"
           }
           alert={overdueCount > 0}
+        />
+        <StatCard
+          href={`/admin/finanzas/resumen?desde=${cash.fromKey}&hasta=${cash.toKey}`}
+          icon={Waves}
+          accent={cash.netCashFlow.startsWith("-") ? "text-red-500" : "text-emerald-500"}
+          label={`Flujo neto · ${cash.monthLabel}`}
+          value={formatCurrency(cash.netCashFlow)}
+          helper={`Cobrado ${formatCurrency(cash.collected)} − pagado ${formatCurrency(cash.paidOut)}`}
+        />
+        <StatCard
+          href="/admin/egresos?estado=PENDING&desde=2000-01-01&hasta=2100-12-31"
+          icon={Wallet}
+          accent="text-orange-500"
+          label="Egresos por pagar"
+          value={formatCurrency(cash.pendingExpenses)}
+          helper={
+            cash.overduePendingExpenses > 0
+              ? `${cash.overduePendingExpenses} con fecha ya pasada`
+              : `${cash.pendingExpensesCount} pendiente${cash.pendingExpensesCount !== 1 ? "s" : ""}`
+          }
+          alert={cash.overduePendingExpenses > 0}
         />
         <StatCard
           href="/admin/facturas"
