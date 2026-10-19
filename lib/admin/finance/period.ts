@@ -34,12 +34,6 @@ export function resolvePeriod(params: { desde?: string; hasta?: string }) {
   };
 }
 
-/** The default period's bounds, which filter links can leave out. */
-export function defaultPeriodKeys() {
-  const { fromKey, toKey } = resolvePeriod({});
-  return { desde: fromKey, hasta: toKey };
-}
-
 /** Query string with the set params only (for links that keep the filters). */
 export function queryString(params: Record<string, string | undefined>) {
   const search = new URLSearchParams();

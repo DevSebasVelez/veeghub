@@ -2,6 +2,8 @@ import type { Prisma } from "@/app/generated/prisma/client";
 import prisma from "@/lib/db/prisma";
 import { summarize } from "@/lib/admin/finance/calc";
 import { resolvePeriod } from "@/lib/admin/finance/period";
+import { monthBounds, monthsEndingAt } from "@/lib/admin/finance/month";
+import { toCents } from "@/lib/admin/finance/money";
 
 export type SummaryFilters = {
   desde?: string;
@@ -291,4 +293,58 @@ export async function getMovementsForExport(filters: SummaryFilters) {
   ]);
 
   return { period, invoices, payments, withholdings, expenses };
+}
+
+/**
+ * Cash in (collections) and cash out (paid expenses) per month, by payment
+ * date, for the trailing `months` ending at `endKey`. Feeds the month-by-month
+ * chart and the "vs previous month" deltas.
+ */
+export async function getMonthlyCashSeries({
+  endKey,
+  months = 6,
+  cliente,
+  proyecto,
+}: {
+  endKey: string;
+  months?: number;
+  cliente?: string;
+  proyecto?: string;
+}) {
+  const keys = monthsEndingAt(endKey, months);
+  const from = monthBounds(keys[0]).from;
+  const to = monthBounds(endKey).to;
+  const { paymentsInPeriod, byProject } = summaryScope({
+    desde: from.toISOString().slice(0, 10),
+    hasta: to.toISOString().slice(0, 10),
+    cliente,
+    proyecto,
+  });
+
+  const [payments, expenses] = await Promise.all([
+    prisma.payment.findMany({
+      where: paymentsInPeriod,
+      select: { paidAt: true, amount: true },
+    }),
+    prisma.expense.findMany({
+      where: byProject({ status: "PAID" as const, paidAt: { gte: from, lte: to } }),
+      select: { paidAt: true, amount: true },
+    }),
+  ]);
+
+  const bucket = new Map(keys.map((k) => [k, { cobrado: 0, pagado: 0 }]));
+  for (const p of payments) {
+    const b = bucket.get(p.paidAt.toISOString().slice(0, 7));
+    if (b) b.cobrado += toCents(p.amount);
+  }
+  for (const e of expenses) {
+    if (!e.paidAt) continue;
+    const b = bucket.get(e.paidAt.toISOString().slice(0, 7));
+    if (b) b.pagado += toCents(e.amount);
+  }
+
+  return keys.map((key) => {
+    const b = bucket.get(key)!;
+    return { key, cobradoCents: b.cobrado, pagadoCents: b.pagado };
+  });
 }

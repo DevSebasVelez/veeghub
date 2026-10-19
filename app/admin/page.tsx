@@ -117,7 +117,7 @@ export default async function AdminPage() {
           alert={overdueCount > 0}
         />
         <StatCard
-          href={`/admin/finanzas/resumen?desde=${cash.fromKey}&hasta=${cash.toKey}`}
+          href="/admin/finanzas/resumen"
           icon={Waves}
           accent={cash.netCashFlow.startsWith("-") ? "text-red-500" : "text-emerald-500"}
           label={`Flujo neto · ${cash.monthLabel}`}
@@ -125,7 +125,7 @@ export default async function AdminPage() {
           helper={`Cobrado ${formatCurrency(cash.collected)} − pagado ${formatCurrency(cash.paidOut)}`}
         />
         <StatCard
-          href="/admin/egresos?estado=PENDING&desde=2000-01-01&hasta=2100-12-31"
+          href="/admin/egresos?estado=PENDING"
           icon={Wallet}
           accent="text-orange-500"
           label="Egresos por pagar"

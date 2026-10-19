@@ -1,17 +1,17 @@
 import { Suspense } from "react";
-import { AlertCircle, CheckCircle2, Clock } from "lucide-react";
+import { AlertCircle, ArrowDownToLine, Hourglass } from "lucide-react";
 
 import {
   PaymentDialog,
   ReceivableDialog,
 } from "@/components/admin/dialogs/receivable-dialog";
 import { FinanceTabs } from "@/components/admin/finance/finance-tabs";
+import { KpiCard } from "@/components/admin/finance/kpi-card";
 import { HitosSection } from "@/components/admin/finance/hitos-section";
 import { PagosSection } from "@/components/admin/finance/pagos-section";
 import { ListGroupSkeleton, TableSkeleton } from "@/components/admin/skeletons";
 import { getFinanceHeaderData } from "@/lib/admin/queries/finance";
 import { formatCurrency } from "@/lib/admin/format";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default async function FinancePage({
   searchParams,
@@ -66,49 +66,42 @@ export default async function FinancePage({
       </div>
 
       {/* Summary cards */}
-      <div className="grid gap-4 sm:grid-cols-3">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Por cobrar</CardTitle>
-            <Clock className="size-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {formatCurrency(totalPending.toFixed(2))}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Saldo pendiente en hitos activos
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total cobrado</CardTitle>
-            <CheckCircle2 className="size-4 text-emerald-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-emerald-600">
-              {formatCurrency(totalCollected.toFixed(2))}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Suma de todos los pagos registrados
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Vencidos</CardTitle>
-            <AlertCircle className="size-4 text-destructive" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-destructive">
-              {overdueCount}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Hitos con fecha de vencimiento pasada
-            </p>
-          </CardContent>
-        </Card>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 [&>*:first-child]:col-span-2 sm:[&>*:first-child]:col-span-1">
+        <KpiCard
+          icon={Hourglass}
+          tone="amber"
+          label="Por cobrar"
+          value={formatCurrency(totalPending.toFixed(2))}
+          info="Saldo pendiente de los hitos activos, ya descontadas las retenciones aplicadas."
+          footer={
+            <span className="text-xs text-muted-foreground">
+              Saldo en hitos activos
+            </span>
+          }
+        />
+        <KpiCard
+          icon={ArrowDownToLine}
+          tone="blue"
+          label="Total cobrado"
+          value={formatCurrency(totalCollected.toFixed(2))}
+          info="Suma de todos los pagos de clientes registrados."
+          footer={
+            <span className="text-xs text-muted-foreground">
+              Histórico de pagos
+            </span>
+          }
+        />
+        <KpiCard
+          icon={AlertCircle}
+          tone={overdueCount > 0 ? "rose" : "slate"}
+          label="Vencidos"
+          value={String(overdueCount)}
+          footer={
+            <span className="text-xs text-muted-foreground">
+              Hitos con fecha pasada
+            </span>
+          }
+        />
       </div>
 
       {/* Section tabs */}
