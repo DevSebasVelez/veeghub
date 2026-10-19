@@ -1,6 +1,6 @@
 import Form from "next/form";
 import Link from "next/link";
-import { Filter } from "lucide-react";
+import { Download, Filter } from "lucide-react";
 
 import { FormSelect } from "@/components/admin/form-select";
 import { Button } from "@/components/ui/button";
@@ -25,12 +25,15 @@ export function FilterBar({
   to,
   selects = [],
   hidden = {},
+  exportHref,
 }: {
   basePath: string;
   from: string;
   to: string;
   selects?: FilterSelect[];
   hidden?: Record<string, string | undefined>;
+  /** CSV download for the current filters. */
+  exportHref?: string;
 }) {
   return (
     <Form
@@ -75,6 +78,15 @@ export function FilterBar({
             Limpiar
           </Link>
         </Button>
+        {exportHref ? (
+          // Plain anchor: a file download, nothing for the router to prefetch.
+          <Button asChild variant="outline" className="h-10" title="Exportar CSV">
+            <a href={exportHref} download>
+              <Download className="size-4" />
+              <span className="sr-only lg:not-sr-only">CSV</span>
+            </a>
+          </Button>
+        ) : null}
       </div>
     </Form>
   );

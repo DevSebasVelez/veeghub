@@ -6,7 +6,11 @@ import { FilterBar, withAll } from "@/components/admin/finance/filter-bar";
 import { FinanceTabs } from "@/components/admin/finance/finance-tabs";
 import { Figure, FigureKindBadge } from "@/components/admin/finance/figure";
 import { getFinancialSummary } from "@/lib/admin/queries/financial-summary";
-import { cleanParam, resolvePeriod } from "@/lib/admin/finance/period";
+import {
+  cleanParam,
+  queryString,
+  resolvePeriod,
+} from "@/lib/admin/finance/period";
 import prisma from "@/lib/db/prisma";
 import { CardGridSkeleton, TableSkeleton } from "@/components/admin/skeletons";
 import type { SummaryFigures } from "@/lib/admin/finance/calc";
@@ -63,6 +67,12 @@ export default async function FinancialSummaryPage({
         // Remount on navigation so the inputs follow the URL.
         key={`filters-${JSON.stringify(params)}`}
         basePath="/admin/finanzas/resumen"
+        exportHref={`/admin/finanzas/resumen/exportar${queryString({
+          desde: period.fromKey,
+          hasta: period.toKey,
+          cliente: params.cliente,
+          proyecto: params.proyecto,
+        })}`}
         from={period.fromKey}
         to={period.toKey}
         selects={[

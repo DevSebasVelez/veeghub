@@ -28,6 +28,16 @@ export function resolvePeriod(params: { desde?: string; hasta?: string }) {
   };
 }
 
+/** Query string with the set params only (for links that keep the filters). */
+export function queryString(params: Record<string, string | undefined>) {
+  const search = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value && value !== "all") search.set(key, value);
+  }
+  const text = search.toString();
+  return text ? `?${text}` : "";
+}
+
 /** Filter params from FilterBar; "all" and empty mean no filter. */
 export function cleanParam(value: string | undefined) {
   return value && value !== "all" ? value : undefined;

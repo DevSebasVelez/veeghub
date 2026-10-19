@@ -38,7 +38,11 @@ import {
   getRecurringExpenses,
 } from "@/lib/admin/queries/expenses";
 import { forPayeeDialog, forRecurringExpenseDialog } from "@/lib/admin/serialize";
-import { cleanParam, resolvePeriod } from "@/lib/admin/finance/period";
+import {
+  cleanParam,
+  queryString,
+  resolvePeriod,
+} from "@/lib/admin/finance/period";
 import { formatCurrency, formatDateOnly } from "@/lib/admin/format";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -127,6 +131,14 @@ export default async function ExpensesPage({
           // uncontrolled inputs to what the URL says.
           key={`filters-${JSON.stringify(params)}`}
           basePath="/admin/egresos"
+          exportHref={`/admin/egresos/exportar${queryString({
+            desde: period.fromKey,
+            hasta: period.toKey,
+            estado: params.estado,
+            categoria: params.categoria,
+            proyecto: params.proyecto,
+            clasificacion: params.clasificacion,
+          })}`}
           from={period.fromKey}
           to={period.toKey}
           selects={[

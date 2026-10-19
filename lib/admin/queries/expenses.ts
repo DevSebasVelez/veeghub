@@ -40,10 +40,9 @@ export async function getExpenseFormOptions() {
   return { categories, payees, projects };
 }
 
-export async function getExpensesPageData(filters: ExpenseFilters) {
-  const page = getPage(filters.page);
+/** The filters of the expenses page as a Prisma where, shared with export. */
+export function expenseWhere(filters: ExpenseFilters) {
   const period = resolvePeriod(filters);
-
   const where: Prisma.ExpenseWhereInput = {
     expenseDate: period.range,
     ...(filters.estado === "PENDING" || filters.estado === "PAID"
@@ -60,6 +59,13 @@ export async function getExpensesPageData(filters: ExpenseFilters) {
       ? { payeeKind: filters.clasificacion as PayeeKind }
       : {}),
   };
+
+  return { period, where };
+}
+
+export async function getExpensesPageData(filters: ExpenseFilters) {
+  const page = getPage(filters.page);
+  const { period, where } = expenseWhere(filters);
 
   const [expenses, total, byStatus] = await Promise.all([
     prisma.expense.findMany({
@@ -139,4 +145,19 @@ export async function getRecurringExpenses() {
       nextDue: t.active ? nextDueDate(t, today) : null,
     };
   });
+}
+
+/** Every expense matching the page filters, for the CSV export. */
+export async function getExpensesForExport(filters: ExpenseFilters) {
+  const { period, where } = expenseWhere(filters);
+  const expenses = await prisma.expense.findMany({
+    where,
+    orderBy: [{ expenseDate: "asc" }, { createdAt: "asc" }],
+    include: {
+      category: { select: { name: true } },
+      payee: { select: { name: true, taxId: true } },
+      project: { select: { name: true, client: { select: { name: true } } } },
+    },
+  });
+  return { period, expenses };
 }

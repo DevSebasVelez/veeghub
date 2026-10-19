@@ -19,7 +19,11 @@ export type SummaryFilters = {
  * expenseDate and expenses paid by paidAt. The client balance is how things
  * stand today, not a period figure.
  */
-export async function getFinancialSummary(filters: SummaryFilters) {
+/**
+ * Where clauses for the period, client and project filters. Shared by the
+ * summary and its CSV export so both always select the same movements.
+ */
+function summaryScope(filters: SummaryFilters) {
   const period = resolvePeriod(filters);
   const clientId = filters.cliente || null;
   const projectId = filters.proyecto || null;
@@ -41,6 +45,46 @@ export async function getFinancialSummary(filters: SummaryFilters) {
     ...(clientId ? { clientId } : {}),
     ...(projectId ? { projectId } : {}),
   };
+
+  const paymentsInPeriod: Prisma.PaymentWhereInput = {
+    paidAt: period.range,
+    receivable: {
+      ...(clientId ? { clientId } : {}),
+      ...(projectId ? { projectId } : {}),
+    },
+  };
+
+  const withholdingsInPeriod: Prisma.WithholdingWhereInput = {
+    invoice: invoiceScope,
+    OR: [
+      { issueDate: period.range },
+      { issueDate: null, invoice: { issueDate: period.range } },
+    ],
+  };
+
+  return {
+    period,
+    clientId,
+    projectId,
+    projectWhere,
+    byProject,
+    invoiceScope,
+    paymentsInPeriod,
+    withholdingsInPeriod,
+  };
+}
+
+export async function getFinancialSummary(filters: SummaryFilters) {
+  const {
+    period,
+    clientId,
+    projectId,
+    projectWhere,
+    byProject,
+    invoiceScope,
+    paymentsInPeriod,
+    withholdingsInPeriod,
+  } = summaryScope(filters);
 
   const [
     projects,
@@ -76,13 +120,7 @@ export async function getFinancialSummary(filters: SummaryFilters) {
     }),
     prisma.invoice.count({ where: { ...invoiceScope, issueDate: null } }),
     prisma.payment.findMany({
-      where: {
-        paidAt: period.range,
-        receivable: {
-          ...(clientId ? { clientId } : {}),
-          ...(projectId ? { projectId } : {}),
-        },
-      },
+      where: paymentsInPeriod,
       select: { amount: true, receivable: { select: { projectId: true } } },
     }),
     prisma.receivable.findMany({
@@ -121,13 +159,7 @@ export async function getFinancialSummary(filters: SummaryFilters) {
       },
     }),
     prisma.withholding.findMany({
-      where: {
-        invoice: invoiceScope,
-        OR: [
-          { issueDate: period.range },
-          { issueDate: null, invoice: { issueDate: period.range } },
-        ],
-      },
+      where: withholdingsInPeriod,
       select: { kind: true, amount: true, invoice: { select: { projectId: true } } },
     }),
     prisma.withholding.findMany({
@@ -199,4 +231,64 @@ export async function getFinancialSummary(filters: SummaryFilters) {
     undatedInvoices,
     filters: { clientId, projectId },
   };
+}
+
+/**
+ * Every movement of the summary's selection as rows for the accountant:
+ * invoices issued, collections, withholdings and expenses, each read once
+ * with the same filters as the summary.
+ */
+export async function getMovementsForExport(filters: SummaryFilters) {
+  const { period, byProject, invoiceScope, paymentsInPeriod, withholdingsInPeriod } =
+    summaryScope(filters);
+
+  const [invoices, payments, withholdings, expenses] = await Promise.all([
+    prisma.invoice.findMany({
+      where: { ...invoiceScope, issueDate: period.range },
+      orderBy: { issueDate: "asc" },
+      include: {
+        client: { select: { name: true, taxId: true } },
+        project: { select: { name: true } },
+      },
+    }),
+    prisma.payment.findMany({
+      where: paymentsInPeriod,
+      orderBy: { paidAt: "asc" },
+      include: {
+        receivable: {
+          select: {
+            title: true,
+            client: { select: { name: true, taxId: true } },
+            project: { select: { name: true } },
+            invoice: { select: { invoiceNumber: true } },
+          },
+        },
+      },
+    }),
+    prisma.withholding.findMany({
+      where: withholdingsInPeriod,
+      orderBy: { issueDate: "asc" },
+      include: {
+        invoice: {
+          select: {
+            invoiceNumber: true,
+            issueDate: true,
+            client: { select: { name: true, taxId: true } },
+            project: { select: { name: true } },
+          },
+        },
+      },
+    }),
+    prisma.expense.findMany({
+      where: byProject({ expenseDate: period.range }),
+      orderBy: { expenseDate: "asc" },
+      include: {
+        category: { select: { name: true } },
+        payee: { select: { name: true, taxId: true } },
+        project: { select: { name: true } },
+      },
+    }),
+  ]);
+
+  return { period, invoices, payments, withholdings, expenses };
 }
