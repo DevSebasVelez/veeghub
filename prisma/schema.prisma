@@ -124,6 +124,11 @@ enum TaxTreatment {
   UNDETERMINED
 }
 
+enum RecurrenceFrequency {
+  MONTHLY
+  YEARLY
+}
+
 enum WithholdingKind {
   VAT
   INCOME
@@ -179,33 +184,34 @@ model Client {
 }
 
 model Project {
-  id            String        @id @default(cuid())
-  name          String
-  slug          String        @unique
-  clientId      String?
-  client        Client?       @relation(fields: [clientId], references: [id], onDelete: SetNull)
-  status        ProjectStatus @default(ACTIVE)
-  description   String?
-  stack         String?
-  repositoryUrl String?
-  productionUrl String?
-  stagingUrl    String?
-  budget        Decimal?      @db.Decimal(12, 2)
-  currency      String        @default("USD")
-  startDate     DateTime?     @db.Date
-  dueDate       DateTime?     @db.Date
-  completedAt   DateTime?     @db.Date
-  tasks         Task[]
-  receivables   Receivable[]
-  invoices      Invoice[]
-  credentials   Credential[]
-  folders       DriveFolder[]
-  files         DriveFile[]
-  comments      Comment[]
-  expenses      Expense[]
-  leadOrigin    Lead?         @relation("LeadProjectConversion")
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
+  id                String             @id @default(cuid())
+  name              String
+  slug              String             @unique
+  clientId          String?
+  client            Client?            @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  status            ProjectStatus      @default(ACTIVE)
+  description       String?
+  stack             String?
+  repositoryUrl     String?
+  productionUrl     String?
+  stagingUrl        String?
+  budget            Decimal?           @db.Decimal(12, 2)
+  currency          String             @default("USD")
+  startDate         DateTime?          @db.Date
+  dueDate           DateTime?          @db.Date
+  completedAt       DateTime?          @db.Date
+  tasks             Task[]
+  receivables       Receivable[]
+  invoices          Invoice[]
+  credentials       Credential[]
+  folders           DriveFolder[]
+  files             DriveFile[]
+  comments          Comment[]
+  expenses          Expense[]
+  recurringExpenses RecurringExpense[]
+  leadOrigin        Lead?              @relation("LeadProjectConversion")
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
 
   @@index([clientId])
   @@index([status])
@@ -597,28 +603,30 @@ model MetaCampaignInsight {
 }
 
 model ExpenseCategory {
-  id          String    @id @default(cuid())
-  name        String    @unique
-  description String?
+  id                String             @id @default(cuid())
+  name              String             @unique
+  description       String?
   // Archivar en vez de borrar: los egresos históricos conservan su categoría.
-  archived    Boolean   @default(false)
-  expenses    Expense[]
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  archived          Boolean            @default(false)
+  expenses          Expense[]
+  recurringExpenses RecurringExpense[]
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
 }
 
 model Payee {
-  id        String    @id @default(cuid())
-  name      String
+  id                String             @id @default(cuid())
+  name              String
   // Clasificación sugerida al registrar un pago; cada egreso guarda la suya.
-  kind      PayeeKind @default(OTHER)
-  taxId     String?
-  email     String?
-  phone     String?
-  notes     String?
-  expenses  Expense[]
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  kind              PayeeKind          @default(OTHER)
+  taxId             String?
+  email             String?
+  phone             String?
+  notes             String?
+  expenses          Expense[]
+  recurringExpenses RecurringExpense[]
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
 
   @@index([name])
 }
@@ -626,32 +634,38 @@ model Payee {
 // Registro único de egresos: gastos generales y pagos a personas. Tenerlos en
 // una sola tabla evita contar dos veces el mismo pago en los resúmenes.
 model Expense {
-  id            String           @id @default(cuid())
-  description   String
-  categoryId    String?
-  category      ExpenseCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-  payeeId       String?
-  payee         Payee?           @relation(fields: [payeeId], references: [id], onDelete: SetNull)
-  payeeKind     PayeeKind?
-  projectId     String?
-  project       Project?         @relation(fields: [projectId], references: [id], onDelete: SetNull)
-  expenseDate   DateTime         @db.Date
-  paidAt        DateTime?        @db.Date
-  amount        Decimal          @db.Decimal(12, 2)
+  id                 String            @id @default(cuid())
+  description        String
+  categoryId         String?
+  category           ExpenseCategory?  @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  payeeId            String?
+  payee              Payee?            @relation(fields: [payeeId], references: [id], onDelete: SetNull)
+  payeeKind          PayeeKind?
+  projectId          String?
+  project            Project?          @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  expenseDate        DateTime          @db.Date
+  paidAt             DateTime?         @db.Date
+  amount             Decimal           @db.Decimal(12, 2)
   // IVA indicado en el comprobante del proveedor, si existe. Informativo.
-  taxAmount     Decimal?         @db.Decimal(12, 2)
-  currency      String           @default("USD")
-  status        ExpenseStatus    @default(PENDING)
-  method        String?
-  reference     String?
-  receiptNumber String?
-  receiptFileId String?
-  receiptFile   DriveFile?       @relation("ExpenseReceiptFile", fields: [receiptFileId], references: [id], onDelete: SetNull)
-  taxTreatment  TaxTreatment     @default(UNCLASSIFIED)
-  notes         String?
-  createdAt     DateTime         @default(now())
-  updatedAt     DateTime         @updatedAt
+  taxAmount          Decimal?          @db.Decimal(12, 2)
+  currency           String            @default("USD")
+  status             ExpenseStatus     @default(PENDING)
+  method             String?
+  reference          String?
+  receiptNumber      String?
+  receiptFileId      String?
+  receiptFile        DriveFile?        @relation("ExpenseReceiptFile", fields: [receiptFileId], references: [id], onDelete: SetNull)
+  // Set when generated from a recurring template: "2026-10" (monthly) or
+  // "2026" (yearly). The unique pair below makes generation idempotent.
+  recurringExpenseId String?
+  recurringExpense   RecurringExpense? @relation(fields: [recurringExpenseId], references: [id], onDelete: SetNull)
+  recurrencePeriod   String?
+  taxTreatment       TaxTreatment      @default(UNCLASSIFIED)
+  notes              String?
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
 
+  @@unique([recurringExpenseId, recurrencePeriod])
   @@index([expenseDate])
   @@index([paidAt])
   @@index([projectId, expenseDate], map: "expense_project_date_idx")
@@ -696,4 +710,36 @@ model TaxProfile {
   updatedAt      DateTime  @updatedAt
 
   @@index([validFrom])
+}
+
+// Plantilla de un egreso que se repite (suscripciones, hosting...). No crea
+// nada por sí sola: los egresos pendientes se generan cuando el usuario lo
+// pide, y solo para plantillas activas.
+model RecurringExpense {
+  id           String              @id @default(cuid())
+  description  String
+  categoryId   String?
+  category     ExpenseCategory?    @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  payeeId      String?
+  payee        Payee?              @relation(fields: [payeeId], references: [id], onDelete: SetNull)
+  payeeKind    PayeeKind?
+  projectId    String?
+  project      Project?            @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  amount       Decimal             @db.Decimal(12, 2)
+  taxAmount    Decimal?            @db.Decimal(12, 2)
+  currency     String              @default("USD")
+  method       String?
+  taxTreatment TaxTreatment        @default(UNCLASSIFIED)
+  notes        String?
+  frequency    RecurrenceFrequency @default(MONTHLY)
+  // 1–28 so every month has that day.
+  dayOfMonth   Int
+  startDate    DateTime            @db.Date
+  endDate      DateTime?           @db.Date
+  active       Boolean             @default(true)
+  expenses     Expense[]
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+
+  @@index([active])
 }

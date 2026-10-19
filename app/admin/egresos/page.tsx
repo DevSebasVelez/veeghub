@@ -3,6 +3,12 @@ import {
   setExpenseCategoryArchived,
 } from "@/lib/admin/actions/expense-categories/actions";
 import { deletePayee } from "@/lib/admin/actions/payees/actions";
+import { deleteRecurringExpense } from "@/lib/admin/actions/recurring-expenses/actions";
+import { RecurringExpenseDialog } from "@/components/admin/dialogs/recurring-expense-dialog";
+import {
+  GenerateRecurringButton,
+  RecurringActiveSwitch,
+} from "@/components/admin/finance/recurring-controls";
 import { Suspense } from "react";
 
 import { AreaNav } from "@/components/admin/area-nav";
@@ -14,6 +20,7 @@ import { ExpenseList } from "@/components/admin/finance/expense-list";
 import { FilterBar, withAll } from "@/components/admin/finance/filter-bar";
 import {
   EXPENSE_STATUS_LABELS,
+  FREQUENCY_LABELS,
   PAYEE_KIND_LABELS,
   labelOptions,
 } from "@/components/admin/finance/labels";
@@ -28,10 +35,11 @@ import {
   getExpenseFormOptions,
   getExpensesPageData,
   getPayeesWithUsage,
+  getRecurringExpenses,
 } from "@/lib/admin/queries/expenses";
-import { forPayeeDialog } from "@/lib/admin/serialize";
+import { forPayeeDialog, forRecurringExpenseDialog } from "@/lib/admin/serialize";
 import { cleanParam, resolvePeriod } from "@/lib/admin/finance/period";
-import { formatCurrency } from "@/lib/admin/format";
+import { formatCurrency, formatDateOnly } from "@/lib/admin/format";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -53,7 +61,9 @@ export default async function ExpensesPage({
 }) {
   const params = await searchParams;
   const section =
-    params.section === "beneficiarios" || params.section === "categorias"
+    params.section === "recurrentes" ||
+    params.section === "beneficiarios" ||
+    params.section === "categorias"
       ? params.section
       : "egresos";
 
@@ -91,6 +101,11 @@ export default async function ExpensesPage({
         active={section}
         items={[
           { key: "egresos", label: "Egresos", href: "/admin/egresos" },
+          {
+            key: "recurrentes",
+            label: "Recurrentes",
+            href: "/admin/egresos?section=recurrentes",
+          },
           {
             key: "beneficiarios",
             label: "Beneficiarios",
@@ -166,6 +181,8 @@ export default async function ExpensesPage({
       >
         {section === "egresos" ? (
           <ExpensesSection params={params} options={options} />
+        ) : section === "recurrentes" ? (
+          <RecurringSection options={options} />
         ) : section === "beneficiarios" ? (
           <PayeesSection />
         ) : (
@@ -252,6 +269,116 @@ function Stat({
       <CardContent>
         <div className={`text-2xl font-bold ${tone ?? ""}`}>{formatCurrency(value)}</div>
         <p className="text-xs text-muted-foreground">{hint}</p>
+      </CardContent>
+    </Card>
+  );
+}
+
+async function RecurringSection({
+  options,
+}: {
+  options: Awaited<ReturnType<typeof getExpenseFormOptions>>;
+}) {
+  const templates = await getRecurringExpenses();
+  const missing = templates.reduce((sum, t) => sum + t.missing, 0);
+
+  return (
+    <Card className="rounded-lg">
+      <CardHeader className="flex flex-col gap-3 space-y-0 pb-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <CardTitle className="text-base">Egresos recurrentes</CardTitle>
+          <p className="text-xs text-muted-foreground">
+            Nada se registra solo: &quot;Generar pendientes&quot; crea los
+            egresos vencidos hasta este mes de las plantillas activas, una
+            sola vez por período.
+          </p>
+        </div>
+        <div className="flex shrink-0 flex-wrap gap-2">
+          <GenerateRecurringButton missing={missing} />
+          <RecurringExpenseDialog
+            mode="create"
+            categories={options.categories}
+            payees={options.payees}
+            projects={options.projects}
+          />
+        </div>
+      </CardHeader>
+      <CardContent className="p-0">
+        {templates.length === 0 ? (
+          <div className="py-16 text-center text-sm text-muted-foreground">
+            Aún no hay plantillas. Úsalas para suscripciones, hosting u otros
+            pagos que se repiten.
+          </div>
+        ) : (
+          <div className="divide-y">
+            {templates.map((t) => (
+              <div
+                key={t.id}
+                className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6"
+              >
+                <div className="min-w-0 space-y-0.5">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p
+                      className={
+                        t.active
+                          ? "truncate font-medium"
+                          : "truncate font-medium text-muted-foreground"
+                      }
+                    >
+                      {t.description}
+                    </p>
+                    <Badge variant="outline">
+                      {FREQUENCY_LABELS[t.frequency]} · día {t.dayOfMonth}
+                    </Badge>
+                    {!t.active ? <Badge variant="outline">Pausada</Badge> : null}
+                    {t.missing > 0 ? (
+                      <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100 dark:bg-amber-950 dark:text-amber-300">
+                        {t.missing} por generar
+                      </Badge>
+                    ) : null}
+                  </div>
+                  <p className="truncate text-xs text-muted-foreground">
+                    {[t.payee?.name, t.category?.name, t.project?.name]
+                      .filter(Boolean)
+                      .join(" · ") || "Sin beneficiario ni categoría"}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {t.generatedCount} generado(s)
+                    {t.nextDue ? ` · próximo ${formatDateOnly(t.nextDue)}` : ""}
+                    {t.endDate ? ` · hasta ${formatDateOnly(t.endDate)}` : ""}
+                  </p>
+                </div>
+                <div className="flex shrink-0 items-center justify-between gap-3 sm:justify-end">
+                  <span className="font-semibold">
+                    {formatCurrency(t.amount.toString())}
+                  </span>
+                  <div className="flex items-center gap-1">
+                    <RecurringActiveSwitch
+                      id={t.id}
+                      active={t.active}
+                      label={`Activar ${t.description}`}
+                    />
+                    <RecurringExpenseDialog
+                      template={forRecurringExpenseDialog(t)}
+                      categories={options.categories}
+                      payees={options.payees}
+                      projects={options.projects}
+                    />
+                    <ConfirmActionButton
+                      icon="trash"
+                      title="Eliminar plantilla"
+                      description={`¿Eliminar "${t.description}"? Los ${t.generatedCount} egreso(s) ya generados se conservan.`}
+                      confirmLabel="Eliminar"
+                      destructive
+                      successMessage="Plantilla eliminada."
+                      action={deleteRecurringExpense.bind(null, t.id)}
+                    />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </CardContent>
     </Card>
   );

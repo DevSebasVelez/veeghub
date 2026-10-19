@@ -364,3 +364,41 @@ export function forTaxProfileDialog(t: {
     notes: t.notes,
   };
 }
+
+export function forRecurringExpenseDialog(r: {
+  id: string;
+  description: string;
+  categoryId: string | null;
+  payeeId: string | null;
+  payeeKind: string | null;
+  projectId: string | null;
+  amount: { toString(): string };
+  taxAmount: { toString(): string } | null;
+  method: string | null;
+  taxTreatment: string;
+  notes: string | null;
+  frequency: string;
+  dayOfMonth: number;
+  startDate: Date;
+  endDate: Date | null;
+}) {
+  return {
+    id: r.id,
+    description: r.description,
+    categoryId: r.categoryId,
+    payeeId: r.payeeId,
+    payeeKind: r.payeeKind,
+    projectId: r.projectId,
+    amount: r.amount.toString(),
+    taxAmount: r.taxAmount?.toString() ?? null,
+    method: r.method,
+    taxTreatment: r.taxTreatment,
+    notes: r.notes,
+    frequency: r.frequency,
+    dayOfMonth: r.dayOfMonth,
+    startDate: r.startDate.toISOString(),
+    endDate: r.endDate?.toISOString() ?? null,
+  };
+}
+
+export type RecurringExpenseDTO = ReturnType<typeof forRecurringExpenseDialog>;

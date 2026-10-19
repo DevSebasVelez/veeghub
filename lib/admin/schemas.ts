@@ -380,6 +380,46 @@ export const expenseSchema = z
     d.status === "PENDING" ? { ...d, paidAt: null } : d,
   );
 
+export const recurringExpenseSchema = z
+  .object({
+    description: requiredText,
+    categoryId: optionalId,
+    payeeId: optionalId,
+    payeeKind: z.preprocess(
+      (v) => (v === "none" || v === "" || v == null ? null : v),
+      z.enum(PAYEE_KINDS).nullable(),
+    ),
+    projectId: optionalId,
+    amount: money.refine((v) => v > 0, "El importe debe ser mayor que cero."),
+    taxAmount: optionalMoney,
+    method: optionalText,
+    taxTreatment: z.enum(TAX_TREATMENTS).default("UNCLASSIFIED"),
+    notes: optionalText,
+    frequency: z.enum(["MONTHLY", "YEARLY"]).default("MONTHLY"),
+    dayOfMonth: z.coerce
+      .number()
+      .int("Día inválido.")
+      .min(1, "El día debe estar entre 1 y 28.")
+      .max(28, "El día debe estar entre 1 y 28."),
+    startDate: z.preprocess(
+      coerceStr,
+      z
+        .string()
+        .trim()
+        .min(1, "Indica desde cuándo se repite.")
+        .transform((v) => new Date(v)),
+    ),
+    endDate: optionalDate,
+  })
+  .refine((d) => d.taxAmount === null || d.taxAmount <= d.amount, {
+    message: "El IVA no puede superar el importe total.",
+    path: ["taxAmount"],
+  })
+  .refine((d) => !d.endDate || d.endDate >= d.startDate, {
+    message: "La fecha de fin debe ser posterior al inicio.",
+    path: ["endDate"],
+  });
+
 export const markExpensePaidSchema = z.object({
   paidAt: z.preprocess(
     coerceStr,

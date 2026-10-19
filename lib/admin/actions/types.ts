@@ -1,6 +1,8 @@
 export type AdminFormState = {
   ok?: boolean;
   error?: string;
+  /** Optional success detail to show the user. */
+  message?: string;
 };
 
 /**

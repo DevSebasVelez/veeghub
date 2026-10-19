@@ -31,6 +31,7 @@ type ExpenseRow = Parameters<typeof forExpenseDialog>[0] & {
   payee: { id: string; name: string } | null;
   project: { id: string; name: string } | null;
   receiptFile: { id: string; name: string } | null;
+  recurrencePeriod?: string | null;
 };
 
 export function ExpenseList({
@@ -92,6 +93,7 @@ export function ExpenseList({
       expense.payee?.name,
       expense.payeeKind ? PAYEE_KIND_LABELS[expense.payeeKind] : null,
       expense.category?.name,
+      expense.recurrencePeriod ? `Recurrente ${expense.recurrencePeriod}` : null,
     ]
       .filter(Boolean)
       .join(" · ");

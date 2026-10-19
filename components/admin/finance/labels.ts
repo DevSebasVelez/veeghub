@@ -28,3 +28,8 @@ export const WITHHOLDING_KIND_LABELS: Record<string, string> = {
 export function labelOptions(labels: Record<string, string>) {
   return Object.entries(labels).map(([value, label]) => ({ value, label }));
 }
+
+export const FREQUENCY_LABELS: Record<string, string> = {
+  MONTHLY: "Mensual",
+  YEARLY: "Anual",
+};

@@ -5,6 +5,8 @@ import { getPage } from "@/components/admin/pagination";
 import { PAYEE_KINDS } from "@/lib/admin/schemas";
 import { resolvePeriod } from "@/lib/admin/finance/period";
 import { fromCents, toCents } from "@/lib/admin/finance/money";
+import { duePeriods, nextDueDate } from "@/lib/admin/finance/recurrence";
+import { dayStartUtc } from "@/lib/admin/format";
 
 const EXPENSES_PAGE_SIZE = 20;
 
@@ -110,5 +112,31 @@ export async function getCategoriesWithUsage() {
   return prisma.expenseCategory.findMany({
     orderBy: [{ archived: "asc" }, { name: "asc" }],
     include: { _count: { select: { expenses: true } } },
+  });
+}
+
+/** Templates with how many due periods have not been generated yet. */
+export async function getRecurringExpenses() {
+  const today = dayStartUtc(new Date());
+  const templates = await prisma.recurringExpense.findMany({
+    orderBy: [{ active: "desc" }, { description: "asc" }],
+    include: {
+      category: { select: { name: true } },
+      payee: { select: { name: true } },
+      project: { select: { name: true } },
+      expenses: { select: { recurrencePeriod: true } },
+    },
+  });
+
+  return templates.map(({ expenses, ...t }) => {
+    const done = new Set(expenses.map((e) => e.recurrencePeriod));
+    return {
+      ...t,
+      generatedCount: expenses.length,
+      missing: t.active
+        ? duePeriods(t, today).filter((p) => !done.has(p.period)).length
+        : 0,
+      nextDue: t.active ? nextDueDate(t, today) : null,
+    };
   });
 }
