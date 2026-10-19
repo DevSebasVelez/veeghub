@@ -4,9 +4,9 @@ import { revalidatePath } from "next/cache";
 
 import prisma from "@/lib/db/prisma";
 import { requireAdmin } from "@/lib/auth/require-admin";
-import { actionState } from "@/lib/admin/actions/shared";
+import { actionErrorMessage, actionState } from "@/lib/admin/actions/shared";
 import type { AdminFormState } from "@/lib/admin/actions/types";
-import { formErrorMessage, parseForm, recurringExpenseSchema } from "@/lib/admin/schemas";
+import { parseForm, recurringExpenseSchema } from "@/lib/admin/schemas";
 import { dayStartUtc } from "@/lib/admin/format";
 import { duePeriods } from "@/lib/admin/finance/recurrence";
 
@@ -111,6 +111,6 @@ export async function generateRecurringExpenses(): Promise<AdminFormState> {
           : `Se generaron ${count} egreso(s) pendiente(s).`,
     };
   } catch (error) {
-    return { ok: false, error: formErrorMessage(error) };
+    return { ok: false, error: actionErrorMessage(error) };
   }
 }

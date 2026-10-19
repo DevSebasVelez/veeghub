@@ -72,10 +72,13 @@ export function CredentialViewDialog({
   async function handleReveal() {
     setRevealing(true);
     try {
-      const secret = await revealCredential(credential.id);
-      setRevealed(secret);
-    } catch {
-      toast.error("Error al revelar secreto.");
+      const result = await revealCredential(credential.id);
+      if (!result.ok) throw new Error(result.error);
+      setRevealed(result.data);
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Error al revelar secreto.",
+      );
     } finally {
       setRevealing(false);
     }

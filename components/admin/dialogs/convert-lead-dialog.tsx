@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { UserPlus } from "lucide-react";
 
 import { convertLeadToClient } from "@/lib/admin/actions/leads/actions";
+import { unwrap } from "@/lib/admin/actions/types";
 import { DialogSubmitFooter } from "@/components/admin/dialogs/_base";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -45,7 +46,7 @@ export function ConvertLeadDialog({
 
     setSaving(true);
     try {
-      await convertLeadToClient(lead.id, new FormData(event.currentTarget));
+      unwrap(await convertLeadToClient(lead.id, new FormData(event.currentTarget)));
       setOpen(false);
       router.refresh();
       toast.success("Lead convertido en cliente.");

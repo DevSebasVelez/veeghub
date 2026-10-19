@@ -6,6 +6,7 @@ import { Loader2, Send } from "lucide-react";
 import { toast } from "sonner";
 
 import { sendInvoiceEmail } from "@/lib/admin/actions/invoices/actions";
+import { unwrap } from "@/lib/admin/actions/types";
 import { Button } from "@/components/ui/button";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -30,7 +31,7 @@ export function SendInvoiceForm({
 
     startTransition(async () => {
       try {
-        await sendInvoiceEmail(formData);
+        unwrap(await sendInvoiceEmail(formData));
         toast.success("Factura enviada correctamente.", {
           description: `Enviada a ${formData.get("to")}`,
           duration: 5000,
@@ -106,6 +107,67 @@ export function SendInvoiceForm({
             Enviar factura
           </>
         )}
+      </Button>
+    </form>
+  );
+}
+
+/** Compact one-line send used in the invoices list. */
+export function QuickSendInvoiceForm({
+  invoiceId,
+  defaultTo,
+}: {
+  invoiceId: string;
+  defaultTo: string;
+}) {
+  const [pending, startTransition] = useTransition();
+  const router = useRouter();
+
+  function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+
+    startTransition(async () => {
+      try {
+        unwrap(await sendInvoiceEmail(formData));
+        toast.success("Factura enviada correctamente.", {
+          description: `Enviada a ${formData.get("to")}`,
+        });
+        router.refresh();
+      } catch (err) {
+        toast.error("Error al enviar la factura.", {
+          description: err instanceof Error ? err.message : "Intenta de nuevo.",
+          duration: 6000,
+        });
+      }
+    });
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="grid w-full gap-2 sm:flex sm:w-auto">
+      <input type="hidden" name="invoiceId" value={invoiceId} />
+      <Input
+        name="to"
+        type="email"
+        defaultValue={defaultTo}
+        placeholder="cliente@email.com"
+        className="h-9 w-full min-w-0 text-sm sm:h-8 sm:w-44"
+        required
+        disabled={pending}
+      />
+      <Button
+        type="submit"
+        size="sm"
+        variant="outline"
+        className="w-full sm:w-auto"
+        disabled={pending}
+      >
+        {pending ? (
+          <Loader2 className="size-3.5 animate-spin" />
+        ) : (
+          <Send className="size-3.5" />
+        )}
+        Enviar
       </Button>
     </form>
   );

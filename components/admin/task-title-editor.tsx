@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 import { renameTask } from "@/lib/admin/actions/tasks/actions";
+import { unwrap } from "@/lib/admin/actions/types";
 import { cn } from "@/lib/utils";
 
 export function TaskTitleEditor({
@@ -36,10 +37,10 @@ export function TaskTitleEditor({
     }
 
     try {
-      await renameTask(id, trimmed);
+      unwrap(await renameTask(id, trimmed));
       router.refresh();
-    } catch {
-      toast.error("Error al actualizar la tarea");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Error al actualizar la tarea");
       setValue(title);
     }
     saving.current = false;

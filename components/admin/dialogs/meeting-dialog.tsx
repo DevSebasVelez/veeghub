@@ -9,6 +9,7 @@ import {
   createMeeting,
   updateMeeting,
 } from "@/lib/admin/actions/meetings/actions";
+import { unwrap } from "@/lib/admin/actions/types";
 import {
   CreateTrigger,
   DialogSubmitFooter,
@@ -100,9 +101,9 @@ export function MeetingDialog({
     setSaving(true);
     try {
       if (meeting) {
-        await updateMeeting(meeting.id, formData);
+        unwrap(await updateMeeting(meeting.id, formData));
       } else {
-        await createMeeting(formData);
+        unwrap(await createMeeting(formData));
       }
       setOpen(false);
       router.refresh();

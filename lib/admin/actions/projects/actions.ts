@@ -9,42 +9,48 @@ import { projectSchema, parseForm } from "@/lib/admin/schemas";
 import { actionState } from "@/lib/admin/actions/shared";
 import type { AdminFormState } from "@/lib/admin/actions/types";
 
-export async function createProject(formData: FormData) {
+export async function createProject(formData: FormData): Promise<AdminFormState> {
   await requireAdmin();
-  const data = parseForm(projectSchema, formData);
-  const baseSlug = slugify(data.name) || compactId();
 
-  await prisma.project.create({
-    data: {
-      ...data,
-      slug: `${baseSlug}-${compactId()}`,
-    },
+  return actionState(async () => {
+    const data = parseForm(projectSchema, formData);
+    const baseSlug = slugify(data.name) || compactId();
+
+    await prisma.project.create({
+      data: {
+        ...data,
+        slug: `${baseSlug}-${compactId()}`,
+      },
+    });
+
+    revalidatePath("/admin");
+    revalidatePath("/admin/proyectos");
   });
-
-  revalidatePath("/admin");
-  revalidatePath("/admin/proyectos");
 }
 
-export async function updateProject(id: string, formData: FormData) {
+export async function updateProject(id: string, formData: FormData): Promise<AdminFormState> {
   await requireAdmin();
-  const data = parseForm(projectSchema, formData);
 
-  await prisma.project.update({
-    where: { id },
-    data,
+  return actionState(async () => {
+    const data = parseForm(projectSchema, formData);
+
+    await prisma.project.update({
+      where: { id },
+      data,
+    });
+
+    revalidatePath("/admin");
+    revalidatePath("/admin/proyectos");
+    revalidatePath(`/admin/proyectos/${id}`);
+    if (data.clientId) revalidatePath(`/admin/clientes/${data.clientId}`);
   });
-
-  revalidatePath("/admin");
-  revalidatePath("/admin/proyectos");
-  revalidatePath(`/admin/proyectos/${id}`);
-  if (data.clientId) revalidatePath(`/admin/clientes/${data.clientId}`);
 }
 
 export async function createProjectState(
   _state: AdminFormState,
   formData: FormData,
 ) {
-  return actionState(() => createProject(formData));
+  return createProject(formData);
 }
 
 export async function updateProjectState(
@@ -52,5 +58,5 @@ export async function updateProjectState(
   _state: AdminFormState,
   formData: FormData,
 ) {
-  return actionState(() => updateProject(id, formData));
+  return updateProject(id, formData);
 }

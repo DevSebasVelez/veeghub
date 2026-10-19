@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import { requireAdmin } from "@/lib/auth/require-admin";
+import { actionResult } from "@/lib/admin/actions/shared";
 import { syncCampaignInsights } from "@/lib/meta/insights";
 
 export async function refreshCampaignInsights({
@@ -16,13 +17,15 @@ export async function refreshCampaignInsights({
 }) {
   await requireAdmin();
 
-  const result = await syncCampaignInsights({
-    since: new Date(`${since}T00:00:00.000Z`),
-    until: new Date(`${until}T00:00:00.000Z`),
-    force,
+  return actionResult(async () => {
+    const result = await syncCampaignInsights({
+      since: new Date(`${since}T00:00:00.000Z`),
+      until: new Date(`${until}T00:00:00.000Z`),
+      force,
+    });
+
+    revalidatePath("/admin/campanas");
+
+    return result;
   });
-
-  revalidatePath("/admin/campanas");
-
-  return result;
 }

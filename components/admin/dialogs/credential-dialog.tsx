@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 import { createCredential, updateCredential } from "@/lib/admin/actions/credentials/actions";
+import { unwrap } from "@/lib/admin/actions/types";
 import {
   CreateTrigger,
   DialogSubmitFooter,
@@ -75,9 +76,9 @@ export function CredentialDialog({
     try {
       const formData = new FormData(event.currentTarget);
       if (credential) {
-        await updateCredential(credential.id, formData);
+        unwrap(await updateCredential(credential.id, formData));
       } else {
-        await createCredential(formData);
+        unwrap(await createCredential(formData));
       }
       setOpen(false);
       router.refresh();

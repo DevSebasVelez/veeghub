@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 import { updateDriveFile } from "@/lib/admin/actions/drive/actions";
+import { unwrap } from "@/lib/admin/actions/types";
 import {
   DialogSubmitFooter,
   EditTrigger,
@@ -51,7 +52,7 @@ export function DriveFileEditDialog({
     setSaving(true);
     try {
       const formData = new FormData(event.currentTarget);
-      await updateDriveFile(file.id, formData);
+      unwrap(await updateDriveFile(file.id, formData));
       setOpen(false);
       router.refresh();
       toast.success("Archivo actualizado.");

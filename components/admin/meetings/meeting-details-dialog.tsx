@@ -19,6 +19,7 @@ import {
   updateMeetingStatus,
   type MeetingStatusValue,
 } from "@/lib/admin/actions/meetings/actions";
+import { unwrap } from "@/lib/admin/actions/types";
 import { ConfirmationDialog } from "@/components/admin/confirmation-dialog";
 import { MeetingDialog } from "@/components/admin/dialogs/meeting-dialog";
 import type { EntityOption } from "@/components/admin/dialogs/_base";
@@ -57,7 +58,7 @@ export function MeetingDetailsDialog({
     if (!meeting || updating) return;
     setUpdating(true);
     try {
-      await updateMeetingStatus(meeting.id, status);
+      unwrap(await updateMeetingStatus(meeting.id, status));
       router.refresh();
       toast.success(message);
       onClose();
@@ -71,7 +72,7 @@ export function MeetingDetailsDialog({
   async function handleDelete() {
     if (!meeting) return;
     try {
-      await deleteMeeting(meeting.id);
+      unwrap(await deleteMeeting(meeting.id));
       router.refresh();
       toast.success("Reunión eliminada.");
       onClose();

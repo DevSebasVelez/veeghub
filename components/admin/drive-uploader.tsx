@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { Upload } from "lucide-react";
 
 import { registerDriveFile } from "@/lib/admin/actions/drive/actions";
+import { unwrap } from "@/lib/admin/actions/types";
 import { Button } from "@/components/ui/button";
 
 export function DriveUploader({
@@ -69,11 +70,11 @@ export function DriveUploader({
       if (clientId) formData.set("clientId", clientId);
       if (projectId) formData.set("projectId", projectId);
 
-      startTransition(async () => {
-        await registerDriveFile(formData);
-        router.refresh();
-        toast.success(`"${file.name}" subido correctamente.`);
-      });
+      // Awaited here, not inside startTransition, so a failure reaches the
+      // catch below instead of escaping as an unhandled rejection.
+      unwrap(await registerDriveFile(formData));
+      toast.success(`"${file.name}" subido correctamente.`);
+      startTransition(() => router.refresh());
     } catch (err) {
       toast.error(
         err instanceof Error ? err.message : "Error al subir el archivo",

@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { MessageSquare, Send, Trash2 } from "lucide-react";
 
 import { createComment, deleteComment } from "@/lib/admin/actions/comments/actions";
+import { unwrap } from "@/lib/admin/actions/types";
 import { ConfirmationDialog } from "@/components/admin/confirmation-dialog";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -41,23 +42,23 @@ export function CommentSection({
 
     startTransition(async () => {
       try {
-        await createComment(fd);
+        unwrap(await createComment(fd));
         setBody("");
         router.refresh();
         toast.success("Comentario agregado.");
-      } catch {
-        toast.error("Error al agregar comentario.");
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Error al agregar comentario.");
       }
     });
   }
 
   async function handleDelete(id: string) {
     try {
-      await deleteComment(id);
+      unwrap(await deleteComment(id));
       router.refresh();
       toast.success("Comentario eliminado.");
-    } catch {
-      toast.error("Error al eliminar comentario.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Error al eliminar comentario.");
     }
   }
 

@@ -12,6 +12,7 @@ import {
   recordPayment,
   updatePayment,
 } from "@/lib/admin/actions/payments/actions";
+import { unwrap } from "@/lib/admin/actions/types";
 import {
   CreateTrigger,
   DialogSubmitFooter,
@@ -82,9 +83,9 @@ export function ReceivableDialog({
     try {
       const formData = new FormData(event.currentTarget);
       if (receivable) {
-        await updateReceivable(receivable.id, formData);
+        unwrap(await updateReceivable(receivable.id, formData));
       } else {
-        await createReceivable(formData);
+        unwrap(await createReceivable(formData));
       }
       setOpen(false);
       router.refresh();
@@ -207,7 +208,7 @@ export function SinglePaymentDialog({
     setSaving(true);
     try {
       const formData = new FormData(event.currentTarget);
-      await recordPayment(formData);
+      unwrap(await recordPayment(formData));
       setOpen(false);
       router.refresh();
       toast.success("Pago registrado.");
@@ -289,7 +290,7 @@ export function EditPaymentDialog({
     setSaving(true);
     try {
       const formData = new FormData(event.currentTarget);
-      await updatePayment(payment.id, formData);
+      unwrap(await updatePayment(payment.id, formData));
       setOpen(false);
       router.refresh();
       toast.success("Pago actualizado.");
@@ -371,7 +372,7 @@ export function PaymentDialog({
     setSaving(true);
     try {
       const formData = new FormData(event.currentTarget);
-      await recordPayment(formData);
+      unwrap(await recordPayment(formData));
       setOpen(false);
       router.refresh();
       toast.success("Pago registrado.");

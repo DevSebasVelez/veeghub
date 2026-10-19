@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 import { updateReceivableStatus } from "@/lib/admin/actions/receivables/actions";
+import { unwrap } from "@/lib/admin/actions/types";
 import {
   Select,
   SelectContent,
@@ -41,7 +42,7 @@ export function InlineStatusSelect({
 
   async function handleChange(value: string) {
     try {
-      await updateReceivableStatus(id, value);
+      unwrap(await updateReceivableStatus(id, value));
       router.refresh();
       toast.success("Estado actualizado.");
     } catch (err) {
