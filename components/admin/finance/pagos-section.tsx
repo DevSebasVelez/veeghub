@@ -1,8 +1,7 @@
 import Link from "next/link";
-import { Trash2 } from "lucide-react";
 
 import { deletePayment } from "@/lib/admin/actions/payments/actions";
-import { ConfirmationDialog } from "@/components/admin/confirmation-dialog";
+import { ConfirmActionButton } from "@/components/admin/finance/confirm-action-button";
 import { EditPaymentDialog } from "@/components/admin/dialogs/receivable-dialog";
 import { getPaymentsSectionData } from "@/lib/admin/queries/payments";
 import {
@@ -11,7 +10,6 @@ import {
   formatDateOnly,
 } from "@/lib/admin/format";
 import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
@@ -236,21 +234,14 @@ export async function PagosSection({ yearParam }: { yearParam?: string }) {
 
 function DeletePaymentButton({ id, amount }: { id: string; amount: string }) {
   return (
-    <ConfirmationDialog
-      trigger={
-        <Button
-          variant="ghost"
-          size="sm"
-          className="text-destructive hover:text-destructive"
-        >
-          <Trash2 className="size-4" />
-        </Button>
-      }
+    <ConfirmActionButton
+      icon="trash"
       title="Eliminar pago"
       description={`¿Eliminar el pago de ${amount}? El saldo del hito se recalculará automáticamente.`}
       confirmLabel="Eliminar"
       destructive
-      onConfirm={deletePayment.bind(null, id)}
+      successMessage="Pago eliminado."
+      action={deletePayment.bind(null, id)}
     />
   );
 }

@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/dialog";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { invoiceBreakdown } from "@/lib/admin/finance/calc";
 import {
   Select,
   SelectContent,
@@ -61,6 +62,7 @@ type InvoiceData = {
   accessKey: string | null;
   subtotal: string | null;
   taxAmount: string | null;
+  vatRate: string | null;
   total: string;
   issueDate: string | null;
   status: string;
@@ -109,6 +111,8 @@ function InvoiceFormBody({
     useState<string[]>(initialReceivableIds);
   const totalRef = useRef<HTMLInputElement>(null);
   const subtotalRef = useRef<HTMLInputElement>(null);
+  const taxRef = useRef<HTMLInputElement>(null);
+  const vatRateRef = useRef<HTMLInputElement>(null);
 
   function handleProjectChange(val: string) {
     setProjectId(val);
@@ -158,6 +162,20 @@ function InvoiceFormBody({
     const value = selectedSum.toFixed(2);
     if (totalRef.current) totalRef.current.value = value;
     if (subtotalRef.current) subtotalRef.current.value = value;
+  }
+
+  // Fills IVA and total from base × the rate typed for THIS invoice. Only a
+  // helper: the stored figures are whatever the fields hold on submit.
+  function applyVatRate() {
+    const rate = vatRateRef.current?.value.trim();
+    const base = subtotalRef.current?.value.trim();
+    if (!rate || !base) {
+      toast.error("Ingresa el subtotal y la tarifa de IVA.");
+      return;
+    }
+    const { iva, total } = invoiceBreakdown({ subtotal: base, vatRate: rate });
+    if (taxRef.current && iva) taxRef.current.value = iva;
+    if (totalRef.current && total) totalRef.current.value = total;
   }
 
   return (
@@ -303,6 +321,29 @@ function InvoiceFormBody({
         />
       </Field>
 
+      <Field>
+        <div className="flex items-center justify-between">
+          <FieldLabel>Tarifa IVA aplicada (%)</FieldLabel>
+          <button
+            type="button"
+            onClick={applyVatRate}
+            className="text-xs font-medium text-primary hover:underline"
+          >
+            Calcular IVA y total
+          </button>
+        </div>
+        <Input
+          ref={vatRateRef}
+          name="vatRate"
+          type="number"
+          step="0.01"
+          min="0"
+          max="100"
+          defaultValue={invoice?.vatRate ?? ""}
+          placeholder="La que corresponda a esta factura"
+        />
+      </Field>
+
       <div className="grid gap-3 sm:grid-cols-3">
         <Field>
           <FieldLabel>Subtotal</FieldLabel>
@@ -318,6 +359,7 @@ function InvoiceFormBody({
         <Field>
           <FieldLabel>IVA</FieldLabel>
           <Input
+            ref={taxRef}
             name="taxAmount"
             type="number"
             step="0.01"

@@ -9,10 +9,17 @@ import {
   XCircle,
 } from "lucide-react";
 
+import { deleteWithholding } from "@/lib/admin/actions/withholdings/actions";
+import { ConfirmActionButton } from "@/components/admin/finance/confirm-action-button";
+import { WithholdingDialog } from "@/components/admin/dialogs/withholding-dialog";
+import { WITHHOLDING_KIND_LABELS } from "@/components/admin/finance/labels";
+import { checkInvoiceTotals } from "@/lib/admin/finance/calc";
+import { fromCents, sumCents } from "@/lib/admin/finance/money";
+
 import { InvoiceEditDialog } from "@/components/admin/dialogs/invoice-dialog";
 import { SendInvoiceForm } from "@/components/admin/send-invoice-form";
 import { StatusBadge } from "@/components/admin/status-badge";
-import { forInvoiceDialog } from "@/lib/admin/serialize";
+import { forInvoiceDialog, forWithholdingDialog } from "@/lib/admin/serialize";
 import prisma from "@/lib/db/prisma";
 import { formatCurrency, formatDate, formatDateOnly } from "@/lib/admin/format";
 import { Button } from "@/components/ui/button";
@@ -38,10 +45,16 @@ export default async function InvoiceDetailPage({
       xmlFile: true,
       rideFile: true,
       emailLogs: { orderBy: { createdAt: "desc" } },
+      withholdings: { orderBy: { createdAt: "asc" } },
     },
   });
 
   if (!invoice) notFound();
+
+  const totalsCheck = checkInvoiceTotals(invoice);
+  const withheldTotal = fromCents(
+    sumCents(invoice.withholdings, (w) => w.amount),
+  );
 
   // Data for edit dialog
   const clientCtxEdit = await prisma.client.findUnique({
@@ -169,6 +182,23 @@ export default async function InvoiceDetailPage({
                 </div>
               </div>
 
+              <div className="mt-4 flex flex-wrap gap-x-4 gap-y-1 border-t pt-4 text-xs text-muted-foreground">
+                <span>
+                  Tarifa IVA aplicada:{" "}
+                  <span className="font-medium text-foreground">
+                    {invoice.vatRate != null
+                      ? `${Number(invoice.vatRate.toString())}%`
+                      : "no registrada"}
+                  </span>
+                </span>
+                {totalsCheck.complete && totalsCheck.difference !== "0.00" ? (
+                  <span className="text-amber-600">
+                    Subtotal + IVA difiere del total en{" "}
+                    {formatCurrency(totalsCheck.difference)}
+                  </span>
+                ) : null}
+              </div>
+
               {invoice.accessKey ? (
                 <div className="mt-4 border-t pt-4">
                   <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
@@ -204,6 +234,84 @@ export default async function InvoiceDetailPage({
                   </ul>
                 </div>
               ) : null}
+            </CardContent>
+          </Card>
+
+          {/* Withholdings: informative, never counted as cash received */}
+          <Card className="rounded-lg">
+            <CardHeader className="flex flex-row items-start justify-between gap-2 space-y-0 pb-3">
+              <div>
+                <CardTitle className="text-base">Retenciones recibidas</CardTitle>
+                <p className="text-xs text-muted-foreground">
+                  No cuentan como dinero cobrado. Las marcadas como
+                  descontadas cierran el saldo de los hitos.
+                </p>
+              </div>
+              <WithholdingDialog invoiceId={invoice.id} mode="create" />
+            </CardHeader>
+            <CardContent>
+              {invoice.withholdings.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  Sin retenciones registradas.
+                </p>
+              ) : (
+                <ul className="divide-y">
+                  {invoice.withholdings.map((w) => (
+                    <li
+                      key={w.id}
+                      className="flex flex-col gap-2 py-2 sm:flex-row sm:items-center sm:justify-between"
+                    >
+                      <div className="min-w-0 text-sm">
+                        <p className="font-medium">
+                          {WITHHOLDING_KIND_LABELS[w.kind]}
+                          {w.percentage != null
+                            ? ` · ${Number(w.percentage.toString())}%`
+                            : ""}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {w.appliesToBalance
+                            ? "Descontada del saldo del cliente"
+                            : "Solo informativa"}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {[
+                            w.receiptNumber,
+                            w.issueDate ? formatDateOnly(w.issueDate) : null,
+                          ]
+                            .filter(Boolean)
+                            .join(" · ") || "Sin comprobante"}
+                        </p>
+                      </div>
+                      <div className="flex items-center justify-between gap-2 sm:justify-end">
+                        <span className="font-semibold">
+                          {formatCurrency(w.amount.toString())}
+                        </span>
+                        <div className="flex items-center gap-1">
+                          <WithholdingDialog
+                            invoiceId={invoice.id}
+                            withholding={forWithholdingDialog(w)}
+                          />
+                          <ConfirmActionButton
+                            icon="trash"
+                            title="Eliminar retención"
+                            description={`¿Eliminar la retención de ${formatCurrency(w.amount.toString())}?`}
+                            confirmLabel="Eliminar"
+                            destructive
+                            successMessage="Retención eliminada."
+                            action={deleteWithholding.bind(null, w.id)}
+                          />
+                        </div>
+                      </div>
+                    </li>
+                  ))}
+                  <li className="flex justify-between pt-2 text-sm">
+                    <span className="text-muted-foreground">Total retenido</span>
+                    <span className="font-semibold">
+                      {formatCurrency(withheldTotal)}
+                    </span>
+                  </li>
+                </ul>
+              )}
             </CardContent>
           </Card>
 

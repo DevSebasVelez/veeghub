@@ -1,4 +1,4 @@
-import { Fragment } from "react";
+import { Fragment, Suspense } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
@@ -7,12 +7,10 @@ import {
   ExternalLink,
   HardDrive,
   KeyRound,
-  Trash2,
 } from "lucide-react";
 import { FaGithub } from "react-icons/fa6";
 
 import { deletePayment } from "@/lib/admin/actions/payments/actions";
-import { ConfirmationDialog } from "@/components/admin/confirmation-dialog";
 import { CredentialDialog } from "@/components/admin/dialogs/credential-dialog";
 import { CredentialViewDialog } from "@/components/admin/dialogs/credential-view-dialog";
 import { CreateFolderDialog } from "@/components/admin/dialogs/folder-dialog";
@@ -24,6 +22,9 @@ import {
   SinglePaymentDialog,
 } from "@/components/admin/dialogs/receivable-dialog";
 import { TaskDialog } from "@/components/admin/dialogs/task-dialog";
+import { ConfirmActionButton } from "@/components/admin/finance/confirm-action-button";
+import { ProjectExpensesPanel } from "@/components/admin/finance/project-expenses-panel";
+import { TableSkeleton } from "@/components/admin/skeletons";
 import { TaskTitleEditor } from "@/components/admin/task-title-editor";
 import { CommentSection } from "@/components/admin/comment-section";
 import { DriveUploader } from "@/components/admin/drive-uploader";
@@ -143,7 +144,7 @@ export default async function ProjectDetailPage({
       comments: {
         orderBy: { createdAt: "desc" },
       },
-      _count: { select: { files: true } },
+      _count: { select: { files: true, expenses: true } },
     },
   });
 
@@ -199,7 +200,6 @@ export default async function ProjectDetailPage({
         },
       }),
     ]);
-
   const invoiceCtxCreate = clientCtxCreate
     ? [
         {
@@ -255,7 +255,7 @@ export default async function ProjectDetailPage({
     : 0;
 
   const pendingBalance = project.receivables.reduce(
-    (sum, r) => sum + Math.max(0, Number(r.amount) - Number(r.paidAmount)),
+    (sum, r) => sum + Math.max(0, Number(r.amount) - Number(r.paidAmount) - Number(r.withheldAmount)),
     0,
   );
 
@@ -419,6 +419,7 @@ export default async function ProjectDetailPage({
           { key: "notas", label: "Notas", count: project.comments.length },
           { key: "archivos", label: "Archivos", count: project._count.files },
           { key: "pagos", label: "Pagos", count: project.receivables.length },
+          { key: "egresos", label: "Egresos", count: project._count.expenses },
           { key: "credenciales", label: "Credenciales", count: project.credentials.length },
         ]}
         panels={{
@@ -635,7 +636,7 @@ export default async function ProjectDetailPage({
                 ) : (
                   <div className="divide-y">
                     {project.receivables.map((r) => {
-                      const remaining = Number(r.amount) - Number(r.paidAmount);
+                      const remaining = Number(r.amount) - Number(r.paidAmount) - Number(r.withheldAmount);
                       const isPaid = remaining <= 0;
                       return (
                         <div
@@ -820,21 +821,15 @@ export default async function ProjectDetailPage({
                                           payment.receivable.title,
                                       }}
                                     />
-                                    <ConfirmationDialog
-                                      trigger={
-                                        <Button
-                                          variant="ghost"
-                                          size="sm"
-                                          className="size-7 p-0 text-destructive hover:text-destructive"
-                                        >
-                                          <Trash2 className="size-3.5" />
-                                        </Button>
-                                      }
+                                    <ConfirmActionButton
+                                      icon="trash"
+                                      compact
                                       title="Eliminar pago"
                                       description={`¿Eliminar el pago de ${formatCurrency(payment.amount.toString())}? El saldo del hito se recalculará.`}
                                       confirmLabel="Eliminar"
                                       destructive
-                                      onConfirm={deletePayment.bind(
+                                      successMessage="Pago eliminado."
+                                      action={deletePayment.bind(
                                         null,
                                         payment.id,
                                       )}
@@ -852,6 +847,11 @@ export default async function ProjectDetailPage({
               )}
             </div>
           </div>
+          ),
+          egresos: (
+          <Suspense fallback={<TableSkeleton rows={4} cols={6} />}>
+            <ProjectExpensesPanel projectId={id} />
+          </Suspense>
           ),
           credenciales: (
           <Card className="rounded-lg">

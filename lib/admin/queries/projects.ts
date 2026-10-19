@@ -53,7 +53,12 @@ export async function getProjectsPageData({
         client: { select: { name: true } },
         tasks: { select: { id: true, status: true } },
         receivables: {
-          select: { amount: true, paidAmount: true, status: true },
+          select: {
+            amount: true,
+            paidAmount: true,
+            withheldAmount: true,
+            status: true,
+          },
           where: { status: { notIn: ["PAID", "CANCELLED"] } },
         },
         _count: { select: { tasks: true, files: true } },

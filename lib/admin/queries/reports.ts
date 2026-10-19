@@ -38,7 +38,12 @@ export async function getReportsData({
     }),
     prisma.receivable.findMany({
       where: { createdAt: { gte: firstChartMonth } },
-      select: { createdAt: true, amount: true, paidAmount: true },
+      select: {
+        createdAt: true,
+        amount: true,
+        paidAmount: true,
+        withheldAmount: true,
+      },
     }),
     prisma.invoice.findMany({
       where: { issueDate: { gte: selectedStart, lte: selectedEnd } },
@@ -52,7 +57,7 @@ export async function getReportsData({
     }),
     prisma.receivable.aggregate({
       where: { status: { not: "PAID" } },
-      _sum: { amount: true, paidAmount: true },
+      _sum: { amount: true, paidAmount: true, withheldAmount: true },
     }),
     prisma.receivable.count({
       where: { status: { not: "PAID" } },
@@ -80,7 +85,8 @@ export async function getReportsData({
     selectedPayments,
     totalPending:
       Number(pendingReceivableTotals._sum.amount ?? 0) -
-      Number(pendingReceivableTotals._sum.paidAmount ?? 0),
+      Number(pendingReceivableTotals._sum.paidAmount ?? 0) -
+      Number(pendingReceivableTotals._sum.withheldAmount ?? 0),
     openReceivablesCount,
     overdueReceivablesCount,
     criticalReceivables,
