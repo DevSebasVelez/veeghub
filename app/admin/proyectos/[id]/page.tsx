@@ -7,12 +7,10 @@ import {
   ExternalLink,
   HardDrive,
   KeyRound,
-  Trash2,
 } from "lucide-react";
 import { FaGithub } from "react-icons/fa6";
 
 import { deletePayment } from "@/lib/admin/actions/payments/actions";
-import { ConfirmationDialog } from "@/components/admin/confirmation-dialog";
 import { CredentialDialog } from "@/components/admin/dialogs/credential-dialog";
 import { CredentialViewDialog } from "@/components/admin/dialogs/credential-view-dialog";
 import { CreateFolderDialog } from "@/components/admin/dialogs/folder-dialog";
@@ -27,6 +25,7 @@ import { TaskDialog } from "@/components/admin/dialogs/task-dialog";
 import { ExpenseDialog } from "@/components/admin/dialogs/expense-dialog";
 import { ExpenseList } from "@/components/admin/finance/expense-list";
 import { Figure } from "@/components/admin/finance/figure";
+import { ConfirmActionButton } from "@/components/admin/finance/confirm-action-button";
 import { getExpenseFormOptions } from "@/lib/admin/queries/expenses";
 import { getFinancialSummary } from "@/lib/admin/queries/financial-summary";
 import { TaskTitleEditor } from "@/components/admin/task-title-editor";
@@ -852,21 +851,15 @@ export default async function ProjectDetailPage({
                                           payment.receivable.title,
                                       }}
                                     />
-                                    <ConfirmationDialog
-                                      trigger={
-                                        <Button
-                                          variant="ghost"
-                                          size="sm"
-                                          className="size-7 p-0 text-destructive hover:text-destructive"
-                                        >
-                                          <Trash2 className="size-3.5" />
-                                        </Button>
-                                      }
+                                    <ConfirmActionButton
+                                      icon="trash"
+                                      compact
                                       title="Eliminar pago"
                                       description={`¿Eliminar el pago de ${formatCurrency(payment.amount.toString())}? El saldo del hito se recalculará.`}
                                       confirmLabel="Eliminar"
                                       destructive
-                                      onConfirm={deletePayment.bind(
+                                      successMessage="Pago eliminado."
+                                      action={deletePayment.bind(
                                         null,
                                         payment.id,
                                       )}
