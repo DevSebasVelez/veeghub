@@ -14,6 +14,7 @@ import {
   Magnet,
   Megaphone,
   Users,
+  Wallet,
 } from "lucide-react";
 import { FaChartLine } from "react-icons/fa6";
 
@@ -41,6 +42,7 @@ const navItems = [
   { href: "/admin/tareas", label: "Tareas", icon: CheckSquare },
   { href: "/admin/reuniones", label: "Reuniones", icon: CalendarDays },
   { href: "/admin/finanzas", label: "Finanzas", icon: BadgeDollarSign },
+  { href: "/admin/egresos", label: "Egresos", icon: Wallet },
   { href: "/admin/facturas", label: "Facturas", icon: FileText },
   { href: "/admin/reportes", label: "Reportes", icon: FaChartLine },
   { href: "/admin/drive", label: "Drive", icon: Folder },
