@@ -8,6 +8,7 @@ import {
   createTaxProfile,
   updateTaxProfile,
 } from "@/lib/admin/actions/tax-profiles/actions";
+import { unwrap } from "@/lib/admin/actions/types";
 import {
   CreateTrigger,
   DialogSubmitFooter,
@@ -55,9 +56,9 @@ export function TaxProfileDialog({
     try {
       const formData = new FormData(event.currentTarget);
       if (profile) {
-        await updateTaxProfile(profile.id, formData);
+        unwrap(await updateTaxProfile(profile.id, formData));
       } else {
-        await createTaxProfile(formData);
+        unwrap(await createTaxProfile(formData));
       }
       setOpen(false);
       router.refresh();

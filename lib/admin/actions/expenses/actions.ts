@@ -5,6 +5,8 @@ import { revalidatePath } from "next/cache";
 import type { Prisma } from "@/app/generated/prisma/client";
 import prisma from "@/lib/db/prisma";
 import { requireAdmin } from "@/lib/auth/require-admin";
+import { actionState } from "@/lib/admin/actions/shared";
+import type { AdminFormState } from "@/lib/admin/actions/types";
 import {
   expenseSchema,
   markExpensePaidSchema,
@@ -45,66 +47,85 @@ async function receiptFileId(
   return file.id;
 }
 
-export async function createExpense(formData: FormData) {
+export async function createExpense(
+  formData: FormData,
+): Promise<AdminFormState> {
   await requireAdmin();
-  const data = parseForm(expenseSchema, formData);
 
-  await prisma.$transaction(async (tx) => {
-    const fileId = await receiptFileId(tx, formData, data.projectId);
-    await tx.expense.create({
-      data: { ...data, receiptFileId: fileId ?? null },
+  return actionState(async () => {
+    const data = parseForm(expenseSchema, formData);
+
+    await prisma.$transaction(async (tx) => {
+      const fileId = await receiptFileId(tx, formData, data.projectId);
+      await tx.expense.create({
+        data: { ...data, receiptFileId: fileId ?? null },
+      });
     });
-  });
 
-  revalidateExpenses([data.projectId]);
+    revalidateExpenses([data.projectId]);
+  });
 }
 
-export async function updateExpense(id: string, formData: FormData) {
+export async function updateExpense(
+  id: string,
+  formData: FormData,
+): Promise<AdminFormState> {
   await requireAdmin();
-  const data = parseForm(expenseSchema, formData);
 
-  const previous = await prisma.$transaction(async (tx) => {
-    const before = await tx.expense.findUniqueOrThrow({
+  return actionState(async () => {
+    const data = parseForm(expenseSchema, formData);
+
+    const previous = await prisma.$transaction(async (tx) => {
+      const before = await tx.expense.findUniqueOrThrow({
+        where: { id },
+        select: { projectId: true },
+      });
+      const fileId = await receiptFileId(tx, formData, data.projectId);
+      await tx.expense.update({
+        where: { id },
+        data: { ...data, ...(fileId ? { receiptFileId: fileId } : {}) },
+      });
+      return before;
+    });
+
+    revalidateExpenses([previous.projectId, data.projectId]);
+  });
+}
+
+export async function markExpensePaid(
+  id: string,
+  formData: FormData,
+): Promise<AdminFormState> {
+  await requireAdmin();
+
+  return actionState(async () => {
+    const data = parseForm(markExpensePaidSchema, formData);
+
+    const expense = await prisma.expense.update({
+      where: { id },
+      data: {
+        status: "PAID",
+        paidAt: data.paidAt,
+        ...(data.method ? { method: data.method } : {}),
+        ...(data.reference ? { reference: data.reference } : {}),
+      },
+      select: { projectId: true },
+    });
+
+    revalidateExpenses([expense.projectId]);
+  });
+}
+
+export async function deleteExpense(id: string): Promise<AdminFormState> {
+  await requireAdmin();
+
+  return actionState(async () => {
+    // The receipt stays in Drive: it is a supporting document in its own right.
+    const expense = await prisma.expense.delete({
       where: { id },
       select: { projectId: true },
     });
-    const fileId = await receiptFileId(tx, formData, data.projectId);
-    await tx.expense.update({
-      where: { id },
-      data: { ...data, ...(fileId ? { receiptFileId: fileId } : {}) },
-    });
-    return before;
+
+    revalidateExpenses([expense.projectId]);
   });
-
-  revalidateExpenses([previous.projectId, data.projectId]);
-}
-
-export async function markExpensePaid(id: string, formData: FormData) {
-  await requireAdmin();
-  const data = parseForm(markExpensePaidSchema, formData);
-
-  const expense = await prisma.expense.update({
-    where: { id },
-    data: {
-      status: "PAID",
-      paidAt: data.paidAt,
-      ...(data.method ? { method: data.method } : {}),
-      ...(data.reference ? { reference: data.reference } : {}),
-    },
-    select: { projectId: true },
-  });
-
-  revalidateExpenses([expense.projectId]);
-}
-
-export async function deleteExpense(id: string) {
-  await requireAdmin();
-
-  // The receipt stays in Drive: it is a supporting document in its own right.
-  const expense = await prisma.expense.delete({
-    where: { id },
-    select: { projectId: true },
-  });
-
-  revalidateExpenses([expense.projectId]);
 }

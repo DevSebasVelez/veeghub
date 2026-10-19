@@ -8,6 +8,7 @@ import {
   createWithholding,
   updateWithholding,
 } from "@/lib/admin/actions/withholdings/actions";
+import { unwrap } from "@/lib/admin/actions/types";
 import {
   CreateTrigger,
   DialogSubmitFooter,
@@ -64,9 +65,9 @@ export function WithholdingDialog({
     try {
       const formData = new FormData(event.currentTarget);
       if (withholding) {
-        await updateWithholding(withholding.id, formData);
+        unwrap(await updateWithholding(withholding.id, formData));
       } else {
-        await createWithholding(invoiceId, formData);
+        unwrap(await createWithholding(invoiceId, formData));
       }
       setOpen(false);
       router.refresh();

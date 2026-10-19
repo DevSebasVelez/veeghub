@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 import { createPayee, updatePayee } from "@/lib/admin/actions/payees/actions";
+import { unwrap } from "@/lib/admin/actions/types";
 import {
   CreateTrigger,
   DialogSubmitFooter,
@@ -53,9 +54,9 @@ export function PayeeDialog({
     try {
       const formData = new FormData(event.currentTarget);
       if (payee) {
-        await updatePayee(payee.id, formData);
+        unwrap(await updatePayee(payee.id, formData));
       } else {
-        await createPayee(formData);
+        unwrap(await createPayee(formData));
       }
       setOpen(false);
       router.refresh();

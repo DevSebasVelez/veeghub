@@ -10,6 +10,7 @@ import {
   markExpensePaid,
   updateExpense,
 } from "@/lib/admin/actions/expenses/actions";
+import { unwrap } from "@/lib/admin/actions/types";
 import {
   CreateTrigger,
   DialogSubmitFooter,
@@ -39,7 +40,12 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field";
+import {
+  Field,
+  FieldDescription,
+  FieldGroup,
+  FieldLabel,
+} from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -57,7 +63,11 @@ function todayIso() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}T00:00:00.000Z`;
 }
 
-export type ExpenseCategoryOption = { id: string; name: string; archived: boolean };
+export type ExpenseCategoryOption = {
+  id: string;
+  name: string;
+  archived: boolean;
+};
 export type PayeeOption = { id: string; name: string; kind: string };
 
 export function ExpenseDialog({
@@ -129,9 +139,9 @@ export function ExpenseDialog({
         formData.set("receiptSize", String(receipt.size));
       }
       if (expense) {
-        await updateExpense(expense.id, formData);
+        unwrap(await updateExpense(expense.id, formData));
       } else {
-        await createExpense(formData);
+        unwrap(await createExpense(formData));
       }
       setOpen(false);
       setReceipt(null);
@@ -308,7 +318,10 @@ export function ExpenseDialog({
               </Field>
               <Field>
                 <FieldLabel>Referencia de pago</FieldLabel>
-                <Input name="reference" defaultValue={expense?.reference ?? ""} />
+                <Input
+                  name="reference"
+                  defaultValue={expense?.reference ?? ""}
+                />
               </Field>
             </div>
 
@@ -345,7 +358,11 @@ export function ExpenseDialog({
 
             <Field>
               <FieldLabel>Observaciones</FieldLabel>
-              <Textarea name="notes" rows={2} defaultValue={expense?.notes ?? ""} />
+              <Textarea
+                name="notes"
+                rows={2}
+                defaultValue={expense?.notes ?? ""}
+              />
             </Field>
           </FieldGroup>
           <DialogSubmitFooter
@@ -362,7 +379,12 @@ export function ExpenseDialog({
 export function MarkExpensePaidDialog({
   expense,
 }: {
-  expense: { id: string; description: string; amount: string; method: string | null };
+  expense: {
+    id: string;
+    description: string;
+    amount: string;
+    method: string | null;
+  };
 }) {
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -374,7 +396,9 @@ export function MarkExpensePaidDialog({
 
     setSaving(true);
     try {
-      await markExpensePaid(expense.id, new FormData(event.currentTarget));
+      unwrap(
+        await markExpensePaid(expense.id, new FormData(event.currentTarget)),
+      );
       setOpen(false);
       router.refresh();
       toast.success("Egreso marcado como pagado.");

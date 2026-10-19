@@ -8,6 +8,7 @@ import {
   createExpenseCategory,
   updateExpenseCategory,
 } from "@/lib/admin/actions/expense-categories/actions";
+import { unwrap } from "@/lib/admin/actions/types";
 import {
   CreateTrigger,
   DialogSubmitFooter,
@@ -44,9 +45,9 @@ export function ExpenseCategoryDialog({
     try {
       const formData = new FormData(event.currentTarget);
       if (category) {
-        await updateExpenseCategory(category.id, formData);
+        unwrap(await updateExpenseCategory(category.id, formData));
       } else {
-        await createExpenseCategory(formData);
+        unwrap(await createExpenseCategory(formData));
       }
       setOpen(false);
       router.refresh();

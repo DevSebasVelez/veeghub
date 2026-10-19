@@ -3,6 +3,7 @@
 import { Archive, ArchiveRestore, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
+import type { AdminFormState } from "@/lib/admin/actions/types";
 import { cn } from "@/lib/utils";
 import { ConfirmationDialog } from "@/components/admin/confirmation-dialog";
 import { Button } from "@/components/ui/button";
@@ -36,7 +37,8 @@ export function ConfirmActionButton({
   successMessage?: string;
   /** Smaller icon button for dense tables. */
   compact?: boolean;
-  action: () => Promise<void>;
+  /** Server action; may return a result whose error is shown as a toast. */
+  action: () => Promise<AdminFormState | void>;
 }) {
   const Icon = ICONS[icon];
 
@@ -61,7 +63,11 @@ export function ConfirmActionButton({
       destructive={destructive}
       onConfirm={async () => {
         try {
-          await action();
+          const result = await action();
+          if (result && !result.ok) {
+            toast.error(result.error ?? "No se pudo completar.");
+            return;
+          }
           if (successMessage) toast.success(successMessage);
         } catch (err) {
           toast.error(err instanceof Error ? err.message : "No se pudo completar.");

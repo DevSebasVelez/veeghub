@@ -5,6 +5,8 @@ import { revalidatePath } from "next/cache";
 import type { Prisma } from "@/app/generated/prisma/client";
 import prisma from "@/lib/db/prisma";
 import { requireAdmin } from "@/lib/auth/require-admin";
+import { actionState } from "@/lib/admin/actions/shared";
+import type { AdminFormState } from "@/lib/admin/actions/types";
 import { parseForm, withholdingSchema } from "@/lib/admin/schemas";
 import { fromCents, sumCents, toCents } from "@/lib/admin/finance/money";
 import { syncInvoicePaidStatus } from "@/lib/admin/services/invoice-sync";
@@ -54,48 +56,62 @@ async function assertWithinInvoice(
   }
 }
 
-export async function createWithholding(invoiceId: string, formData: FormData) {
+export async function createWithholding(
+  invoiceId: string,
+  formData: FormData,
+): Promise<AdminFormState> {
   await requireAdmin();
-  const data = parseForm(withholdingSchema, formData);
 
-  await prisma.$transaction(async (tx) => {
-    await assertWithinInvoice(tx, invoiceId, data.amount);
-    await tx.withholding.create({ data: { ...data, invoiceId } });
-    await settle(tx, invoiceId);
+  return actionState(async () => {
+    const data = parseForm(withholdingSchema, formData);
+
+    await prisma.$transaction(async (tx) => {
+      await assertWithinInvoice(tx, invoiceId, data.amount);
+      await tx.withholding.create({ data: { ...data, invoiceId } });
+      await settle(tx, invoiceId);
+    });
+
+    revalidateInvoice(invoiceId);
   });
-
-  revalidateInvoice(invoiceId);
 }
 
-export async function updateWithholding(id: string, formData: FormData) {
+export async function updateWithholding(
+  id: string,
+  formData: FormData,
+): Promise<AdminFormState> {
   await requireAdmin();
-  const data = parseForm(withholdingSchema, formData);
 
-  const invoiceId = await prisma.$transaction(async (tx) => {
-    const current = await tx.withholding.findUniqueOrThrow({
-      where: { id },
-      select: { invoiceId: true },
+  return actionState(async () => {
+    const data = parseForm(withholdingSchema, formData);
+
+    const invoiceId = await prisma.$transaction(async (tx) => {
+      const current = await tx.withholding.findUniqueOrThrow({
+        where: { id },
+        select: { invoiceId: true },
+      });
+      await assertWithinInvoice(tx, current.invoiceId, data.amount, id);
+      await tx.withholding.update({ where: { id }, data });
+      await settle(tx, current.invoiceId);
+      return current.invoiceId;
     });
-    await assertWithinInvoice(tx, current.invoiceId, data.amount, id);
-    await tx.withholding.update({ where: { id }, data });
-    await settle(tx, current.invoiceId);
-    return current.invoiceId;
-  });
 
-  revalidateInvoice(invoiceId);
+    revalidateInvoice(invoiceId);
+  });
 }
 
-export async function deleteWithholding(id: string) {
+export async function deleteWithholding(id: string): Promise<AdminFormState> {
   await requireAdmin();
 
-  const invoiceId = await prisma.$transaction(async (tx) => {
-    const withholding = await tx.withholding.delete({
-      where: { id },
-      select: { invoiceId: true },
+  return actionState(async () => {
+    const invoiceId = await prisma.$transaction(async (tx) => {
+      const withholding = await tx.withholding.delete({
+        where: { id },
+        select: { invoiceId: true },
+      });
+      await settle(tx, withholding.invoiceId);
+      return withholding.invoiceId;
     });
-    await settle(tx, withholding.invoiceId);
-    return withholding.invoiceId;
-  });
 
-  revalidateInvoice(invoiceId);
+    revalidateInvoice(invoiceId);
+  });
 }
