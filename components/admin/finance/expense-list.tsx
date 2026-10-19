@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Paperclip } from "lucide-react";
+import { FileText, Inbox, Paperclip } from "lucide-react";
 
 import { deleteExpense } from "@/lib/admin/actions/expenses/actions";
 import { ConfirmActionButton } from "@/components/admin/finance/confirm-action-button";
@@ -14,17 +14,10 @@ import {
   PAYEE_KIND_LABELS,
   TAX_TREATMENT_LABELS,
 } from "@/components/admin/finance/labels";
-import { StatusBadge } from "@/components/admin/status-badge";
+import { CategoryIcon } from "@/components/admin/finance/category-icon";
 import { forExpenseDialog } from "@/lib/admin/serialize";
 import { formatCurrency, formatDateOnly } from "@/lib/admin/format";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { cn } from "@/lib/utils";
 
 type ExpenseRow = Parameters<typeof forExpenseDialog>[0] & {
   category: { id: string; name: string } | null;
@@ -34,6 +27,50 @@ type ExpenseRow = Parameters<typeof forExpenseDialog>[0] & {
   recurrencePeriod?: string | null;
 };
 
+const dayMonth = new Intl.DateTimeFormat("es-EC", {
+  day: "numeric",
+  month: "short",
+  timeZone: "UTC",
+});
+
+/** "pagado 4 oct · Transferencia", or just the method when paid that day. */
+function paidDetail(expense: ExpenseRow) {
+  const sameDay =
+    expense.paidAt &&
+    expense.paidAt.getTime() === expense.expenseDate.getTime();
+  return [
+    expense.paidAt && !sameDay
+      ? `pagado ${dayMonth.format(expense.paidAt)}`
+      : "pagado",
+    expense.method,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}
+
+/** Status as a soft pill with a dot, so it reads without relying on color. */
+function StatusPill({ status }: { status: string }) {
+  const paid = status === "PAID";
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium",
+        paid
+          ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300"
+          : "bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300",
+      )}
+    >
+      <span
+        className={cn(
+          "size-1.5 rounded-full",
+          paid ? "bg-emerald-500" : "bg-amber-500",
+        )}
+      />
+      {paid ? "Pagado" : "Pendiente"}
+    </span>
+  );
+}
+
 export function ExpenseList({
   expenses,
   categories,
@@ -41,6 +78,7 @@ export function ExpenseList({
   projects,
   showProject = true,
   fixedProjectId,
+  emptyText = "No hay egresos registrados con estos filtros.",
 }: {
   expenses: ExpenseRow[];
   categories: ExpenseCategoryOption[];
@@ -48,11 +86,13 @@ export function ExpenseList({
   projects: EntityOption[];
   showProject?: boolean;
   fixedProjectId?: string;
+  emptyText?: string;
 }) {
   if (expenses.length === 0) {
     return (
-      <div className="py-16 text-center text-sm text-muted-foreground">
-        No hay egresos registrados con estos filtros.
+      <div className="flex flex-col items-center gap-2 py-16 text-center text-sm text-muted-foreground">
+        <Inbox className="size-8 text-muted-foreground/50" />
+        {emptyText}
       </div>
     );
   }
@@ -92,137 +132,90 @@ export function ExpenseList({
     [
       expense.payee?.name,
       expense.payeeKind ? PAYEE_KIND_LABELS[expense.payeeKind] : null,
-      expense.category?.name,
+      expense.category?.name ?? "Sin categoría",
+      showProject ? expense.project?.name : null,
       expense.recurrencePeriod ? `Recurrente ${expense.recurrencePeriod}` : null,
+      expense.taxTreatment !== "UNCLASSIFIED"
+        ? TAX_TREATMENT_LABELS[expense.taxTreatment]
+        : null,
     ]
       .filter(Boolean)
       .join(" · ");
 
-  const receipt = (expense: ExpenseRow) =>
-    expense.receiptFile || expense.receiptNumber ? (
-      <span className="inline-flex items-center gap-1">
-        {expense.receiptFile ? (
-          <Link
-            href={`/admin/drive/download/${expense.receiptFile.id}`}
-            target="_blank"
-            className="inline-flex items-center gap-1 text-primary hover:underline"
-          >
-            <Paperclip className="size-3" />
-            {expense.receiptNumber ?? "Comprobante"}
-          </Link>
-        ) : (
-          expense.receiptNumber
-        )}
-      </span>
-    ) : (
-      <span className="opacity-40">—</span>
-    );
-
   return (
-    <>
-      {/* Mobile: cards */}
-      <div className="divide-y md:hidden">
-        {expenses.map((expense) => (
-          <div key={expense.id} className="space-y-2 px-4 py-3">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0 flex-1">
-                <p className="truncate font-medium">{expense.description}</p>
-                <p className="truncate text-xs text-muted-foreground">
-                  {meta(expense) || "Sin beneficiario ni categoría"}
-                </p>
-                {showProject && expense.project ? (
-                  <p className="truncate text-xs text-muted-foreground">
-                    {expense.project.name}
-                  </p>
-                ) : null}
-              </div>
-              <div className="shrink-0 text-right">
-                <p className="font-semibold">
-                  {formatCurrency(expense.amount.toString())}
-                </p>
-                <StatusBadge value={expense.status} />
-              </div>
-            </div>
-            <div className="flex items-center justify-between gap-2">
-              <p className="text-xs text-muted-foreground">
-                {formatDateOnly(expense.expenseDate)}
-                {expense.paidAt ? ` · pagado ${formatDateOnly(expense.paidAt)}` : ""}
-              </p>
-              {actions(expense)}
-            </div>
-          </div>
-        ))}
-      </div>
+    <ul className="divide-y">
+      {expenses.map((expense) => (
+        <li
+          key={expense.id}
+          className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2 px-4 py-3 sm:px-5 md:grid-cols-[auto_minmax(0,1fr)_8.5rem_6.5rem_7rem_12rem]"
+        >
+          <CategoryIcon name={expense.category?.name} />
 
-      {/* Desktop: table */}
-      <div className="hidden overflow-x-auto md:block">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="pl-6">Concepto</TableHead>
-              <TableHead>Beneficiario / categoría</TableHead>
-              {showProject ? <TableHead>Proyecto</TableHead> : null}
-              <TableHead>Fecha</TableHead>
-              <TableHead>Pago</TableHead>
-              <TableHead>Comprobante</TableHead>
-              <TableHead>Tributario</TableHead>
-              <TableHead className="text-right">Importe</TableHead>
-              <TableHead className="pr-6 text-right" />
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {expenses.map((expense) => (
-              <TableRow key={expense.id}>
-                <TableCell className="max-w-56 pl-6">
-                  <p className="truncate font-medium">{expense.description}</p>
-                  <StatusBadge value={expense.status} />
-                </TableCell>
-                <TableCell className="max-w-56 truncate text-sm text-muted-foreground">
-                  {meta(expense) || <span className="opacity-40">—</span>}
-                </TableCell>
-                {showProject ? (
-                  <TableCell className="text-sm text-muted-foreground">
-                    {expense.project ? (
-                      <Link
-                        href={`/admin/proyectos/${expense.project.id}`}
-                        className="hover:underline"
-                      >
-                        {expense.project.name}
-                      </Link>
-                    ) : (
-                      <span className="opacity-40">—</span>
-                    )}
-                  </TableCell>
-                ) : null}
-                <TableCell className="text-sm text-muted-foreground">
-                  {formatDateOnly(expense.expenseDate)}
-                </TableCell>
-                <TableCell className="text-sm text-muted-foreground">
-                  {expense.paidAt ? formatDateOnly(expense.paidAt) : "—"}
-                  {expense.method ? (
-                    <span className="block text-xs">{expense.method}</span>
-                  ) : null}
-                </TableCell>
-                <TableCell className="text-sm text-muted-foreground">
-                  {receipt(expense)}
-                </TableCell>
-                <TableCell className="text-xs text-muted-foreground">
-                  {TAX_TREATMENT_LABELS[expense.taxTreatment]}
-                </TableCell>
-                <TableCell className="text-right font-medium">
-                  {formatCurrency(expense.amount.toString())}
-                  {expense.taxAmount ? (
-                    <span className="block text-xs font-normal text-muted-foreground">
-                      IVA {formatCurrency(expense.taxAmount.toString())}
-                    </span>
-                  ) : null}
-                </TableCell>
-                <TableCell className="pr-6">{actions(expense)}</TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </div>
-    </>
+          <div className="min-w-0">
+            <p className="truncate font-medium">{expense.description}</p>
+            <p className="truncate text-xs text-muted-foreground">
+              {meta(expense)}
+            </p>
+            {expense.receiptFile || expense.receiptNumber ? (
+              <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                {expense.receiptFile ? (
+                  <Link
+                    href={`/admin/drive/download/${expense.receiptFile.id}`}
+                    target="_blank"
+                    className="inline-flex items-center gap-1 text-primary hover:underline"
+                  >
+                    <Paperclip className="size-3" />
+                    {expense.receiptNumber ?? "Comprobante"}
+                  </Link>
+                ) : (
+                  <span className="inline-flex items-center gap-1">
+                    <FileText className="size-3" />
+                    {expense.receiptNumber}
+                  </span>
+                )}
+              </p>
+            ) : null}
+          </div>
+
+          {/* Mobile: amount + status on the right of the first line */}
+          <div className="text-right md:hidden">
+            <p className="font-semibold">
+              {formatCurrency(expense.amount.toString())}
+            </p>
+            <StatusPill status={expense.status} />
+          </div>
+
+          <div className="hidden min-w-0 text-sm text-muted-foreground md:block">
+            <p>{formatDateOnly(expense.expenseDate)}</p>
+            {expense.status === "PAID" ? (
+              <p className="truncate text-xs">{paidDetail(expense)}</p>
+            ) : null}
+          </div>
+
+          <div className="hidden md:block">
+            <StatusPill status={expense.status} />
+          </div>
+
+          <div className="hidden text-right md:block">
+            <p className="font-semibold tabular-nums">
+              {formatCurrency(expense.amount.toString())}
+            </p>
+            {expense.taxAmount ? (
+              <p className="text-xs text-muted-foreground tabular-nums">
+                IVA {formatCurrency(expense.taxAmount.toString())}
+              </p>
+            ) : null}
+          </div>
+
+          <div className="col-span-3 flex items-center justify-between gap-2 md:col-span-1 md:justify-end">
+            <p className="min-w-0 truncate text-xs text-muted-foreground md:hidden">
+              {formatDateOnly(expense.expenseDate)}
+              {expense.status === "PAID" ? ` · ${paidDetail(expense)}` : ""}
+            </p>
+            {actions(expense)}
+          </div>
+        </li>
+      ))}
+    </ul>
   );
 }

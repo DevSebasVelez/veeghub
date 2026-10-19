@@ -1,4 +1,10 @@
 import { dayKeyInAppZone } from "@/lib/admin/format";
+import {
+  isMonthKey,
+  monthBounds,
+  monthLabel,
+  shiftMonth,
+} from "@/lib/admin/finance/month";
 
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -28,12 +34,6 @@ export function resolvePeriod(params: { desde?: string; hasta?: string }) {
   };
 }
 
-/** The default period's bounds, which filter links can leave out. */
-export function defaultPeriodKeys() {
-  const { fromKey, toKey } = resolvePeriod({});
-  return { desde: fromKey, hasta: toKey };
-}
-
 /** Query string with the set params only (for links that keep the filters). */
 export function queryString(params: Record<string, string | undefined>) {
   const search = new URLSearchParams();
@@ -44,7 +44,30 @@ export function queryString(params: Record<string, string | undefined>) {
   return text ? `?${text}` : "";
 }
 
-/** Filter params from FilterBar; "all" and empty mean no filter. */
+/** Filter params from the URL; "all" and empty mean no filter. */
 export function cleanParam(value: string | undefined) {
   return value && value !== "all" ? value : undefined;
+}
+
+/** The current month in the business timezone, as "yyyy-MM". */
+export function currentMonthKey() {
+  return dayKeyInAppZone(new Date()).slice(0, 7);
+}
+
+/**
+ * The month a finance view shows: `?mes=yyyy-MM`, or the current month. The
+ * views work month by month so each figure answers "how did this month go".
+ */
+export function resolveMonth(params: { mes?: string }) {
+  const current = currentMonthKey();
+  const key = isMonthKey(params.mes) ? params.mes : current;
+
+  return {
+    key,
+    label: monthLabel(key),
+    isCurrent: key === current,
+    current,
+    previous: shiftMonth(key, -1),
+    ...monthBounds(key),
+  };
 }

@@ -1,30 +1,37 @@
+import { Suspense } from "react";
+import Link from "next/link";
+import { AlertTriangle, CheckCircle2, Clock, Receipt } from "lucide-react";
+
 import {
   deleteExpenseCategory,
   setExpenseCategoryArchived,
 } from "@/lib/admin/actions/expense-categories/actions";
 import { deletePayee } from "@/lib/admin/actions/payees/actions";
 import { deleteRecurringExpense } from "@/lib/admin/actions/recurring-expenses/actions";
-import { RecurringExpenseDialog } from "@/components/admin/dialogs/recurring-expense-dialog";
-import {
-  GenerateRecurringButton,
-  RecurringActiveSwitch,
-} from "@/components/admin/finance/recurring-controls";
-import { Suspense } from "react";
-
 import { AreaNav } from "@/components/admin/area-nav";
-import { ConfirmActionButton } from "@/components/admin/finance/confirm-action-button";
 import { ExpenseCategoryDialog } from "@/components/admin/dialogs/expense-category-dialog";
 import { ExpenseDialog } from "@/components/admin/dialogs/expense-dialog";
 import { PayeeDialog } from "@/components/admin/dialogs/payee-dialog";
+import { RecurringExpenseDialog } from "@/components/admin/dialogs/recurring-expense-dialog";
+import { ConfirmActionButton } from "@/components/admin/finance/confirm-action-button";
 import { ExpenseList } from "@/components/admin/finance/expense-list";
-import { FilterBar } from "@/components/admin/finance/filter-bar";
 import {
-  EXPENSE_STATUS_LABELS,
+  ExportButton,
+  FilterPopover,
+} from "@/components/admin/finance/filter-popover";
+import { DeltaPill, KpiCard } from "@/components/admin/finance/kpi-card";
+import {
   FREQUENCY_LABELS,
   PAYEE_KIND_LABELS,
   labelOptions,
   withAll,
 } from "@/components/admin/finance/labels";
+import { MonthPicker } from "@/components/admin/finance/month-picker";
+import {
+  GenerateRecurringButton,
+  RecurringActiveSwitch,
+} from "@/components/admin/finance/recurring-controls";
+import { SegmentedLinks } from "@/components/admin/finance/segmented-links";
 import { Pagination } from "@/components/admin/pagination";
 import {
   ListGroupSkeleton,
@@ -34,7 +41,9 @@ import {
 import {
   getCategoriesWithUsage,
   getExpenseFormOptions,
+  getExpenseTotals,
   getExpensesPageData,
+  getOlderPendingByMonth,
   getPayeesWithUsage,
   getRecurringExpenses,
 } from "@/lib/admin/queries/expenses";
@@ -42,11 +51,11 @@ import {
   forPayeeDialog,
   forRecurringExpenseDialog,
 } from "@/lib/admin/serialize";
+import { monthBounds, monthLabel } from "@/lib/admin/finance/month";
 import {
   cleanParam,
-  defaultPeriodKeys,
   queryString,
-  resolvePeriod,
+  resolveMonth,
 } from "@/lib/admin/finance/period";
 import { formatCurrency, formatDateOnly } from "@/lib/admin/format";
 import { Badge } from "@/components/ui/badge";
@@ -55,13 +64,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 type Params = {
   section?: string;
   page?: string;
-  desde?: string;
-  hasta?: string;
+  mes?: string;
   estado?: string;
   categoria?: string;
   proyecto?: string;
   clasificacion?: string;
 };
+
+type Options = Awaited<ReturnType<typeof getExpenseFormOptions>>;
 
 export default async function ExpensesPage({
   searchParams,
@@ -77,7 +87,7 @@ export default async function ExpensesPage({
       : "egresos";
 
   const options = await getExpenseFormOptions();
-  const period = resolvePeriod(params);
+  const month = resolveMonth(params);
 
   return (
     <div className="space-y-6">
@@ -85,7 +95,7 @@ export default async function ExpensesPage({
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Egresos</h1>
           <p className="text-sm text-muted-foreground">
-            Gastos del negocio y pagos a personas, pendientes o pagados.
+            Gastos del negocio y pagos a personas, mes a mes.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -131,64 +141,10 @@ export default async function ExpensesPage({
       />
 
       {section === "egresos" ? (
-        <FilterBar
-          // Remount on navigation so "Limpiar" and back/forward reset the
-          // uncontrolled inputs to what the URL says.
-          key={`filters-${JSON.stringify(params)}`}
-          basePath="/admin/egresos"
-          exportHref={`/admin/egresos/exportar${queryString({
-            desde: period.fromKey,
-            hasta: period.toKey,
-            estado: params.estado,
-            categoria: params.categoria,
-            proyecto: params.proyecto,
-            clasificacion: params.clasificacion,
-          })}`}
-          defaults={defaultPeriodKeys()}
-          from={period.fromKey}
-          to={period.toKey}
-          selects={[
-            {
-              name: "estado",
-              label: "Estado",
-              value: params.estado ?? "all",
-              options: withAll("Todos", labelOptions(EXPENSE_STATUS_LABELS)),
-            },
-            {
-              name: "categoria",
-              label: "Categoría",
-              value: params.categoria ?? "all",
-              options: withAll("Todas", [
-                { value: "none", label: "Sin categoría" },
-                ...options.categories.map((c) => ({
-                  value: c.id,
-                  label: c.name,
-                })),
-              ]),
-            },
-            {
-              name: "proyecto",
-              label: "Proyecto",
-              value: params.proyecto ?? "all",
-              options: withAll("Todos", [
-                { value: "none", label: "Sin proyecto" },
-                ...options.projects.map((p) => ({
-                  value: p.id,
-                  label: p.name,
-                })),
-              ]),
-            },
-            {
-              name: "clasificacion",
-              label: "Clasificación",
-              value: params.clasificacion ?? "all",
-              options: withAll("Todas", labelOptions(PAYEE_KIND_LABELS)),
-            },
-          ]}
-        />
+        <ExpensesToolbar params={params} month={month} options={options} />
       ) : null}
 
-      {/* Keyed by the query so every section or filter change shows the
+      {/* Keyed by the query so every month, tab or filter change shows the
           skeleton right away instead of freezing on the previous view. */}
       <Suspense
         key={`body-${JSON.stringify(params)}`}
@@ -199,7 +155,7 @@ export default async function ExpensesPage({
                 count={3}
                 className="grid gap-4 sm:grid-cols-3"
               />
-              <TableSkeleton rows={8} cols={8} />
+              <TableSkeleton rows={8} cols={6} />
             </div>
           ) : (
             <ListGroupSkeleton groups={1} rowsPerGroup={6} />
@@ -207,7 +163,7 @@ export default async function ExpensesPage({
         }
       >
         {section === "egresos" ? (
-          <ExpensesSection params={params} options={options} />
+          <ExpensesSection params={params} month={month} options={options} />
         ) : section === "recurrentes" ? (
           <RecurringSection options={options} />
         ) : section === "beneficiarios" ? (
@@ -220,99 +176,243 @@ export default async function ExpensesPage({
   );
 }
 
-async function ExpensesSection({
+/** Href for this page keeping the month and filters, overriding `changes`. */
+function egresosHref(params: Params, changes: Partial<Params>) {
+  const next = { ...params, ...changes, section: undefined, page: undefined };
+  return `/admin/egresos${queryString(next)}`;
+}
+
+function ExpensesToolbar({
   params,
+  month,
   options,
 }: {
   params: Params;
-  options: Awaited<ReturnType<typeof getExpenseFormOptions>>;
+  month: ReturnType<typeof resolveMonth>;
+  options: Options;
+}) {
+  const estado = cleanParam(params.estado);
+
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <MonthPicker value={month.key} current={month.current} />
+        <SegmentedLinks
+          label="Estado"
+          items={[
+            {
+              key: "all",
+              label: "Todos",
+              active: !estado,
+              href: egresosHref(params, { estado: undefined }),
+            },
+            {
+              key: "PENDING",
+              label: "Pendientes",
+              active: estado === "PENDING",
+              href: egresosHref(params, { estado: "PENDING" }),
+            },
+            {
+              key: "PAID",
+              label: "Pagados",
+              active: estado === "PAID",
+              href: egresosHref(params, { estado: "PAID" }),
+            },
+          ]}
+        />
+      </div>
+      <div className="flex items-center gap-2">
+        <FilterPopover
+          fields={[
+            {
+              name: "categoria",
+              label: "Categoría",
+              value: params.categoria,
+              options: withAll("Todas", [
+                { value: "none", label: "Sin categoría" },
+                ...options.categories.map((c) => ({
+                  value: c.id,
+                  label: c.name,
+                })),
+              ]),
+            },
+            {
+              name: "proyecto",
+              label: "Proyecto",
+              value: params.proyecto,
+              options: withAll("Todos", [
+                { value: "none", label: "Sin proyecto" },
+                ...options.projects.map((p) => ({
+                  value: p.id,
+                  label: p.name,
+                })),
+              ]),
+            },
+            {
+              name: "clasificacion",
+              label: "Clasificación del pago",
+              value: params.clasificacion,
+              options: withAll("Todas", labelOptions(PAYEE_KIND_LABELS)),
+            },
+          ]}
+        />
+        <ExportButton
+          href={`/admin/egresos/exportar${queryString({
+            desde: month.fromKey,
+            hasta: month.toKey,
+            estado: params.estado,
+            categoria: params.categoria,
+            proyecto: params.proyecto,
+            clasificacion: params.clasificacion,
+          })}`}
+        />
+      </div>
+    </div>
+  );
+}
+
+async function ExpensesSection({
+  params,
+  month,
+  options,
+}: {
+  params: Params;
+  month: ReturnType<typeof resolveMonth>;
+  options: Options;
 }) {
   const filters = {
     page: params.page,
-    desde: params.desde,
-    hasta: params.hasta,
+    desde: month.fromKey,
+    hasta: month.toKey,
     estado: cleanParam(params.estado),
     categoria: cleanParam(params.categoria),
     proyecto: cleanParam(params.proyecto),
     clasificacion: cleanParam(params.clasificacion),
   };
-  const data = await getExpensesPageData(filters);
+  const previous = monthBounds(month.previous);
+
+  const [data, before, older] = await Promise.all([
+    getExpensesPageData(filters),
+    getExpenseTotals({
+      ...filters,
+      desde: previous.fromKey,
+      hasta: previous.toKey,
+    }),
+    getOlderPendingByMonth(month.from),
+  ]);
+  const t = data.totals;
+  const vs = `vs ${monthLabel(month.previous, true)}`;
 
   return (
     <div className="space-y-4">
-      <div className="grid gap-4 sm:grid-cols-3">
-        <Stat
-          label="Registrados"
-          value={data.totals.registered}
-          hint="Pagados + pendientes del período"
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 [&>*:first-child]:col-span-2 sm:[&>*:first-child]:col-span-1">
+        <KpiCard
+          icon={Receipt}
+          tone="blue"
+          label="Total del mes"
+          value={formatCurrency(t.registered)}
+          info="Todo lo registrado con fecha de este mes, ya pagado o por pagar."
+          footer={
+            <DeltaPill
+              label={vs}
+              delta={{
+                current: t.registeredCents,
+                previous: before.registeredCents,
+                upIsGood: false,
+              }}
+            />
+          }
         />
-        <Stat
-          label="Pagados"
-          value={data.totals.paid}
-          hint="Ya salieron de caja"
-          tone="text-emerald-600"
+        <KpiCard
+          icon={CheckCircle2}
+          tone="emerald"
+          label="Pagado"
+          value={formatCurrency(t.paid)}
+          info="Lo que ya salió de tu cuenta."
+          footer={
+            <span className="text-xs text-muted-foreground">
+              {t.paidCount} egreso{t.paidCount !== 1 ? "s" : ""}
+            </span>
+          }
         />
-        <Stat
-          label="Pendientes"
-          value={data.totals.pending}
-          hint="Por pagar; no afectan la caja aún"
-          tone="text-amber-600"
+        <KpiCard
+          icon={Clock}
+          tone="amber"
+          label="Por pagar"
+          value={formatCurrency(t.pending)}
+          info="Registrado pero todavía no pagado. No afecta tu caja hasta que lo pagues."
+          footer={
+            <span className="text-xs text-muted-foreground">
+              {t.pendingCount} pendiente{t.pendingCount !== 1 ? "s" : ""}
+            </span>
+          }
         />
       </div>
 
-      <Card className="rounded-lg">
+      {older.count > 0 ? (
+        <div className="flex flex-col gap-3 rounded-2xl border border-amber-200 bg-amber-50/60 p-4 sm:flex-row sm:items-center sm:justify-between dark:border-amber-900/60 dark:bg-amber-950/20">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="mt-0.5 size-5 shrink-0 text-amber-600 dark:text-amber-400" />
+            <div>
+              <p className="text-sm font-medium">
+                {older.count} egreso{older.count !== 1 ? "s" : ""} pendiente
+                {older.count !== 1 ? "s" : ""} de meses anteriores
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {formatCurrency(older.amount)} todavía por pagar.
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {older.months.slice(0, 4).map((m) => (
+              <Link
+                key={m.key}
+                href={egresosHref(params, { mes: m.key, estado: "PENDING" })}
+                scroll={false}
+                className="rounded-full border bg-card px-3 py-1 text-xs font-medium hover:bg-muted"
+              >
+                {monthLabel(m.key, true)} · {m.count}
+              </Link>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      <Card className="rounded-2xl">
         <CardContent className="p-0">
           <ExpenseList
             expenses={data.expenses}
             categories={options.categories}
             payees={options.payees}
             projects={options.projects}
+            emptyText={`No hay egresos ${
+              params.estado === "PENDING"
+                ? "pendientes "
+                : params.estado === "PAID"
+                  ? "pagados "
+                  : ""
+            }en ${month.label.toLowerCase()}.`}
           />
-          <div className="px-4 pb-4">
-            <Pagination
-              page={data.page}
-              pageSize={data.pageSize}
-              total={data.total}
-              basePath="/admin/egresos"
-              searchParams={{
-                desde: params.desde,
-                hasta: params.hasta,
-                estado: params.estado,
-                categoria: params.categoria,
-                proyecto: params.proyecto,
-                clasificacion: params.clasificacion,
-              }}
-            />
-          </div>
+          {data.total > data.pageSize ? (
+            <div className="px-4 pb-4">
+              <Pagination
+                page={data.page}
+                pageSize={data.pageSize}
+                total={data.total}
+                basePath="/admin/egresos"
+                searchParams={{
+                  mes: params.mes,
+                  estado: params.estado,
+                  categoria: params.categoria,
+                  proyecto: params.proyecto,
+                  clasificacion: params.clasificacion,
+                }}
+              />
+            </div>
+          ) : null}
         </CardContent>
       </Card>
     </div>
-  );
-}
-
-function Stat({
-  label,
-  value,
-  hint,
-  tone,
-}: {
-  label: string;
-  value: string;
-  hint: string;
-  tone?: string;
-}) {
-  return (
-    <Card>
-      <CardHeader className="pb-2">
-        <CardTitle className="text-sm font-medium">{label}</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className={`text-2xl font-bold ${tone ?? ""}`}>
-          {formatCurrency(value)}
-        </div>
-        <p className="text-xs text-muted-foreground">{hint}</p>
-      </CardContent>
-    </Card>
   );
 }
 
