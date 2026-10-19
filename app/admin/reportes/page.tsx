@@ -94,7 +94,7 @@ export default async function ReportsPage({
       0,
     );
     const pending = monthReceivables.reduce(
-      (sum, r) => sum + Number(r.amount) - Number(r.paidAmount),
+      (sum, r) => sum + Number(r.amount) - Number(r.paidAmount) - Number(r.withheldAmount),
       0,
     );
     return {
@@ -230,7 +230,7 @@ export default async function ReportsPage({
                   </TableCell>
                   <TableCell className="font-mono text-sm">
                     {formatCurrency(
-                      Number(item.amount) - Number(item.paidAmount),
+                      Number(item.amount) - Number(item.paidAmount) - Number(item.withheldAmount),
                     )}
                   </TableCell>
                   <TableCell className="pr-5">

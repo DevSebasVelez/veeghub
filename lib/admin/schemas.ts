@@ -413,6 +413,7 @@ export const withholdingSchema = z.object({
   percentage: optionalRate,
   receiptNumber: optionalText,
   issueDate: optionalDate,
+  appliesToBalance: z.preprocess((v) => v === "on" || v === "true", z.boolean()),
   notes: optionalText,
 });
 

@@ -255,7 +255,7 @@ export default async function ProjectDetailPage({
     : 0;
 
   const pendingBalance = project.receivables.reduce(
-    (sum, r) => sum + Math.max(0, Number(r.amount) - Number(r.paidAmount)),
+    (sum, r) => sum + Math.max(0, Number(r.amount) - Number(r.paidAmount) - Number(r.withheldAmount)),
     0,
   );
 
@@ -636,7 +636,7 @@ export default async function ProjectDetailPage({
                 ) : (
                   <div className="divide-y">
                     {project.receivables.map((r) => {
-                      const remaining = Number(r.amount) - Number(r.paidAmount);
+                      const remaining = Number(r.amount) - Number(r.paidAmount) - Number(r.withheldAmount);
                       const isPaid = remaining <= 0;
                       return (
                         <div

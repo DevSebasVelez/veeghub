@@ -243,8 +243,8 @@ export default async function InvoiceDetailPage({
               <div>
                 <CardTitle className="text-base">Retenciones recibidas</CardTitle>
                 <p className="text-xs text-muted-foreground">
-                  Informativas: no cuentan como cobro ni cambian el saldo de
-                  los hitos.
+                  No cuentan como dinero cobrado. Las marcadas como
+                  descontadas cierran el saldo de los hitos.
                 </p>
               </div>
               <WithholdingDialog invoiceId={invoice.id} mode="create" />
@@ -267,6 +267,11 @@ export default async function InvoiceDetailPage({
                           {w.percentage != null
                             ? ` · ${Number(w.percentage.toString())}%`
                             : ""}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {w.appliesToBalance
+                            ? "Descontada del saldo del cliente"
+                            : "Solo informativa"}
                         </p>
                         <p className="text-xs text-muted-foreground">
                           {[

@@ -27,7 +27,8 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 
@@ -38,6 +39,7 @@ type WithholdingProps = {
   percentage: string | null;
   receiptNumber: string | null;
   issueDate: string | null;
+  appliesToBalance: boolean;
   notes: string | null;
 };
 
@@ -91,8 +93,7 @@ export function WithholdingDialog({
             {mode === "create" ? "Registrar retención" : "Editar retención"}
           </DialogTitle>
           <DialogDescription>
-            Retención recibida del cliente. No cuenta como dinero cobrado ni
-            cambia el saldo de los hitos.
+            Retención recibida del cliente. Nunca cuenta como dinero cobrado.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -146,6 +147,23 @@ export function WithholdingDialog({
                 />
               </Field>
             </div>
+            <Field orientation="horizontal">
+              <Checkbox
+                id="appliesToBalance"
+                name="appliesToBalance"
+                defaultChecked={withholding?.appliesToBalance ?? true}
+              />
+              <div className="space-y-1">
+                <FieldLabel htmlFor="appliesToBalance">
+                  Descontar del saldo del cliente
+                </FieldLabel>
+                <FieldDescription>
+                  Márcalo si el cliente te pagó el total menos esta retención:
+                  el hito podrá quedar pagado sin contar la retención como
+                  cobro.
+                </FieldDescription>
+              </div>
+            </Field>
             <Field>
               <FieldLabel>Notas</FieldLabel>
               <Textarea name="notes" rows={2} defaultValue={withholding?.notes ?? ""} />

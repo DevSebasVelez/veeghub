@@ -7,14 +7,26 @@ import prisma from "@/lib/db/prisma";
 import { requireAdmin } from "@/lib/auth/require-admin";
 import { parseForm, withholdingSchema } from "@/lib/admin/schemas";
 import { fromCents, sumCents, toCents } from "@/lib/admin/finance/money";
+import { syncInvoicePaidStatus } from "@/lib/admin/services/invoice-sync";
+import { syncInvoiceWithholdings } from "@/lib/admin/services/withholding-sync";
 
-// Withholdings are recorded for information only: they never touch the
-// milestones' paidAmount or status, and never count as cash received.
+// Withholdings never count as cash received and never touch paidAmount.
+// Those marked appliesToBalance settle the invoice's milestones: their share
+// is kept in Receivable.withheldAmount and the statuses follow.
+
+async function settle(tx: Prisma.TransactionClient, invoiceId: string) {
+  await syncInvoiceWithholdings(tx, invoiceId);
+  await syncInvoicePaidStatus(tx, invoiceId);
+}
 
 function revalidateInvoice(invoiceId: string) {
+  revalidatePath("/admin");
+  revalidatePath("/admin/finanzas");
   revalidatePath("/admin/facturas");
   revalidatePath(`/admin/facturas/${invoiceId}`);
   revalidatePath("/admin/finanzas/resumen");
+  revalidatePath("/admin/proyectos", "layout");
+  revalidatePath("/admin/clientes", "layout");
 }
 
 async function assertWithinInvoice(
@@ -49,6 +61,7 @@ export async function createWithholding(invoiceId: string, formData: FormData) {
   await prisma.$transaction(async (tx) => {
     await assertWithinInvoice(tx, invoiceId, data.amount);
     await tx.withholding.create({ data: { ...data, invoiceId } });
+    await settle(tx, invoiceId);
   });
 
   revalidateInvoice(invoiceId);
@@ -65,6 +78,7 @@ export async function updateWithholding(id: string, formData: FormData) {
     });
     await assertWithinInvoice(tx, current.invoiceId, data.amount, id);
     await tx.withholding.update({ where: { id }, data });
+    await settle(tx, current.invoiceId);
     return current.invoiceId;
   });
 
@@ -74,10 +88,14 @@ export async function updateWithholding(id: string, formData: FormData) {
 export async function deleteWithholding(id: string) {
   await requireAdmin();
 
-  const withholding = await prisma.withholding.delete({
-    where: { id },
-    select: { invoiceId: true },
+  const invoiceId = await prisma.$transaction(async (tx) => {
+    const withholding = await tx.withholding.delete({
+      where: { id },
+      select: { invoiceId: true },
+    });
+    await settle(tx, withholding.invoiceId);
+    return withholding.invoiceId;
   });
 
-  revalidateInvoice(withholding.invoiceId);
+  revalidateInvoice(invoiceId);
 }

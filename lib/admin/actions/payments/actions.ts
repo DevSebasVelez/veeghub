@@ -13,6 +13,8 @@ import {
 import { actionState } from "@/lib/admin/actions/shared";
 import type { AdminFormState } from "@/lib/admin/actions/types";
 import { syncInvoicePaidStatus } from "@/lib/admin/services/invoice-sync";
+import { syncInvoiceWithholdings } from "@/lib/admin/services/withholding-sync";
+import { coveredStatus } from "@/lib/admin/finance/calc";
 
 export async function recordPayment(formData: FormData) {
   await requireAdmin();
@@ -21,11 +23,18 @@ export async function recordPayment(formData: FormData) {
   await prisma.$transaction(async (tx) => {
     const receivable = await tx.receivable.findUniqueOrThrow({
       where: { id: data.receivableId },
-      select: { amount: true, paidAmount: true, invoiceId: true },
+      select: {
+        amount: true,
+        paidAmount: true,
+        withheldAmount: true,
+        invoiceId: true,
+      },
     });
     const paidAmount = Number(receivable.paidAmount) + data.amount;
+    // Withholdings applied to this milestone also cover its balance.
+    const covered = paidAmount + Number(receivable.withheldAmount);
     const status = (
-      paidAmount >= Number(receivable.amount) ? "PAID" : "PARTIALLY_PAID"
+      covered >= Number(receivable.amount) ? "PAID" : "PARTIALLY_PAID"
     ) as ReceivableStatus;
 
     await tx.payment.create({
@@ -37,6 +46,7 @@ export async function recordPayment(formData: FormData) {
       data: { paidAmount, status },
     });
 
+    await syncInvoiceWithholdings(tx, receivable.invoiceId);
     await syncInvoicePaidStatus(tx, receivable.invoiceId);
   });
 
@@ -58,23 +68,18 @@ export async function deletePayment(id: string) {
     const newPaidAmount = Number(remaining._sum.amount ?? 0);
     const receivable = await tx.receivable.findUniqueOrThrow({
       where: { id: payment.receivableId },
-      select: { amount: true, status: true, invoiceId: true },
+      select: {
+        amount: true,
+        status: true,
+        invoiceId: true,
+        withheldAmount: true,
+      },
     });
-    const receivableAmount = Number(receivable.amount);
 
-    let newStatus: ReceivableStatus;
-    if (newPaidAmount >= receivableAmount) {
-      newStatus = "PAID";
-    } else if (newPaidAmount > 0) {
-      newStatus = "PARTIALLY_PAID";
-    } else if (
-      receivable.status === "PAID" ||
-      receivable.status === "PARTIALLY_PAID"
-    ) {
-      newStatus = receivable.invoiceId ? "INVOICED" : "PLANNED";
-    } else {
-      newStatus = receivable.status;
-    }
+    const newStatus = coveredStatus({
+      ...receivable,
+      paidAmount: newPaidAmount,
+    }) as ReceivableStatus;
 
     await tx.payment.delete({ where: { id } });
     await tx.receivable.update({
@@ -82,6 +87,7 @@ export async function deletePayment(id: string) {
       data: { paidAmount: newPaidAmount, status: newStatus },
     });
 
+    await syncInvoiceWithholdings(tx, receivable.invoiceId);
     await syncInvoicePaidStatus(tx, receivable.invoiceId);
   });
 
@@ -115,23 +121,25 @@ export async function updatePayment(id: string, formData: FormData) {
     const newPaidAmount = Number(aggregate._sum.amount ?? 0);
     const receivable = await tx.receivable.findUniqueOrThrow({
       where: { id: payment.receivableId },
-      select: { amount: true, invoiceId: true },
+      select: {
+        amount: true,
+        status: true,
+        invoiceId: true,
+        withheldAmount: true,
+      },
     });
 
-    let newStatus: ReceivableStatus;
-    if (newPaidAmount >= Number(receivable.amount)) {
-      newStatus = "PAID";
-    } else if (newPaidAmount > 0) {
-      newStatus = "PARTIALLY_PAID";
-    } else {
-      newStatus = receivable.invoiceId ? "INVOICED" : "PLANNED";
-    }
+    const newStatus = coveredStatus({
+      ...receivable,
+      paidAmount: newPaidAmount,
+    }) as ReceivableStatus;
 
     await tx.receivable.update({
       where: { id: payment.receivableId },
       data: { paidAmount: newPaidAmount, status: newStatus },
     });
 
+    await syncInvoiceWithholdings(tx, receivable.invoiceId);
     await syncInvoicePaidStatus(tx, receivable.invoiceId);
   });
 

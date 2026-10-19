@@ -212,7 +212,7 @@ export default async function AdminPage() {
           <div className="divide-y divide-border">
             {upcomingReceivables.length ? (
               upcomingReceivables.map((item) => {
-                const balance = Number(item.amount) - Number(item.paidAmount);
+                const balance = Number(item.amount) - Number(item.paidAmount) - Number(item.withheldAmount);
                 const isOverdue = item.dueDate && item.dueDate < now;
                 return (
                   <div

@@ -234,23 +234,26 @@ model Task {
 }
 
 model Receivable {
-  id          String           @id @default(cuid())
-  clientId    String
-  client      Client           @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  projectId   String?
-  project     Project?         @relation(fields: [projectId], references: [id], onDelete: SetNull)
-  title       String
-  description String?
-  amount      Decimal          @db.Decimal(12, 2)
-  paidAmount  Decimal          @default(0) @db.Decimal(12, 2)
-  currency    String           @default("USD")
-  dueDate     DateTime?        @db.Date
-  status      ReceivableStatus @default(PLANNED)
-  invoiceId   String?
-  invoice     Invoice?         @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
-  payments    Payment[]
-  createdAt   DateTime         @default(now())
-  updatedAt   DateTime         @updatedAt
+  id             String           @id @default(cuid())
+  clientId       String
+  client         Client           @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  projectId      String?
+  project        Project?         @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  title          String
+  description    String?
+  amount         Decimal          @db.Decimal(12, 2)
+  paidAmount     Decimal          @default(0) @db.Decimal(12, 2)
+  // Part of the client's withholdings applied to this milestone's balance.
+  // Not cash: paidAmount stays the money actually received.
+  withheldAmount Decimal          @default(0) @db.Decimal(12, 2)
+  currency       String           @default("USD")
+  dueDate        DateTime?        @db.Date
+  status         ReceivableStatus @default(PLANNED)
+  invoiceId      String?
+  invoice        Invoice?         @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+  payments       Payment[]
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
 
   @@index([clientId])
   @@index([projectId])
@@ -657,20 +660,23 @@ model Expense {
   @@index([categoryId])
 }
 
-// Retención recibida de un cliente. No es efectivo cobrado ni modifica el
-// saldo de los hitos; se muestra aparte en los resúmenes.
+// Retención recibida de un cliente. Nunca es efectivo cobrado; si
+// appliesToBalance está activo, descuenta del saldo de los hitos.
 model Withholding {
-  id            String          @id @default(cuid())
-  invoiceId     String
-  invoice       Invoice         @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
-  kind          WithholdingKind
-  amount        Decimal         @db.Decimal(12, 2)
-  percentage    Decimal?        @db.Decimal(5, 2)
-  receiptNumber String?
-  issueDate     DateTime?       @db.Date
-  notes         String?
-  createdAt     DateTime        @default(now())
-  updatedAt     DateTime        @updatedAt
+  id               String          @id @default(cuid())
+  invoiceId        String
+  invoice          Invoice         @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  kind             WithholdingKind
+  amount           Decimal         @db.Decimal(12, 2)
+  percentage       Decimal?        @db.Decimal(5, 2)
+  receiptNumber    String?
+  issueDate        DateTime?       @db.Date
+  // When true, the amount settles the invoice's milestones (the client paid
+  // net of it) without ever counting as cash collected.
+  appliesToBalance Boolean         @default(false)
+  notes            String?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
 
   @@index([invoiceId])
   @@index([issueDate])

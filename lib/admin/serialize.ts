@@ -330,6 +330,7 @@ export function forWithholdingDialog(w: {
   percentage: { toString(): string } | null;
   receiptNumber: string | null;
   issueDate: Date | null;
+  appliesToBalance: boolean;
   notes: string | null;
 }) {
   return {
@@ -339,6 +340,7 @@ export function forWithholdingDialog(w: {
     percentage: w.percentage?.toString() ?? null,
     receiptNumber: w.receiptNumber,
     issueDate: w.issueDate?.toISOString() ?? null,
+    appliesToBalance: w.appliesToBalance,
     notes: w.notes,
   };
 }

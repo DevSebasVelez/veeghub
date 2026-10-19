@@ -3,7 +3,9 @@ import { describe, it } from "node:test";
 
 import {
   NO_PROJECT,
+  allocateWithholdings,
   checkInvoiceTotals,
+  coveredStatus,
   invoiceBreakdown,
   receivableBalanceCents,
   summarize,
@@ -112,6 +114,70 @@ describe("receivable balance", () => {
     assert.equal(receivableBalanceCents("500", "0"), 50000);
     assert.equal(receivableBalanceCents("500", "200.50"), 29950);
     assert.equal(receivableBalanceCents("500", "600"), 0);
+  });
+});
+
+describe("withholdings applied to the balance", () => {
+  const r = (id: string, amount: string, paid: string, status = "INVOICED") => ({
+    id,
+    amount,
+    paidAmount: paid,
+    status,
+  });
+
+  it("subtracts applied withholdings from the balance", () => {
+    assert.equal(receivableBalanceCents("1150", "1077.50", "72.50"), 0);
+    assert.equal(receivableBalanceCents("1150", "0", "72.50"), 107750);
+  });
+
+  it("spreads withholdings oldest first, capped at each open balance", () => {
+    assert.deepEqual(
+      allocateWithholdings([r("a", "50", "40"), r("b", "100", "0")], "30"),
+      [
+        { id: "a", withheld: 1000 },
+        { id: "b", withheld: 2000 },
+      ],
+    );
+  });
+
+  it("never allocates to cancelled milestones nor beyond what is owed", () => {
+    assert.deepEqual(
+      allocateWithholdings(
+        [r("a", "100", "0", "CANCELLED"), r("b", "20", "15")],
+        "50",
+      ),
+      [
+        { id: "a", withheld: 0 },
+        { id: "b", withheld: 500 },
+      ],
+    );
+  });
+
+  it("closes a milestone paid net of withholdings", () => {
+    const base = { amount: "1150", invoiceId: "i", status: "PARTIALLY_PAID" };
+    assert.equal(coveredStatus({ ...base, paidAmount: "1077.50", withheldAmount: "72.50" }), "PAID");
+    assert.equal(coveredStatus({ ...base, paidAmount: "1077.50", withheldAmount: "0" }), "PARTIALLY_PAID");
+    assert.equal(coveredStatus({ ...base, paidAmount: "0", withheldAmount: "72.50" }), "PARTIALLY_PAID");
+  });
+
+  it("keeps the existing payment rules when there are no withholdings", () => {
+    const base = { amount: "100", withheldAmount: "0", invoiceId: "i" };
+    assert.equal(coveredStatus({ ...base, paidAmount: "100", status: "INVOICED" }), "PAID");
+    assert.equal(coveredStatus({ ...base, paidAmount: "0", status: "PAID" }), "INVOICED");
+    assert.equal(coveredStatus({ ...base, paidAmount: "0", status: "PAID", invoiceId: null }), "PLANNED");
+    assert.equal(coveredStatus({ ...base, paidAmount: "0", status: "OVERDUE" }), "OVERDUE");
+    assert.equal(coveredStatus({ ...base, paidAmount: "100", status: "CANCELLED" }), "CANCELLED");
+  });
+
+  it("removes applied withholdings from the summary balance", () => {
+    const res = summarize(
+      input({
+        receivables: [
+          { projectId: null, amount: "1150", paidAmount: "1077.50", withheldAmount: "72.50", status: "PARTIALLY_PAID" },
+        ],
+      }),
+    );
+    assert.equal(res.overall.receivableBalance, "0.00");
   });
 });
 

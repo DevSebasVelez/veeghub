@@ -91,7 +91,13 @@ export async function getFinancialSummary(filters: SummaryFilters) {
         ...(clientId ? { clientId } : {}),
         ...(projectId ? { projectId } : {}),
       },
-      select: { projectId: true, amount: true, paidAmount: true, status: true },
+      select: {
+        projectId: true,
+        amount: true,
+        paidAmount: true,
+        withheldAmount: true,
+        status: true,
+      },
     }),
     prisma.expense.findMany({
       where: byProject({ expenseDate: period.range }),
@@ -125,7 +131,12 @@ export async function getFinancialSummary(filters: SummaryFilters) {
       select: { kind: true, amount: true, invoice: { select: { projectId: true } } },
     }),
     prisma.withholding.findMany({
-      where: { invoice: { ...invoiceScope, status: { notIn: ["PAID", "CANCELLED"] } } },
+      // Applied ones already reduce the milestones' balance; only the rest
+      // feed the "net of withholdings" estimate.
+      where: {
+        appliesToBalance: false,
+        invoice: { ...invoiceScope, status: { notIn: ["PAID", "CANCELLED"] } },
+      },
       select: { kind: true, amount: true, invoice: { select: { projectId: true } } },
     }),
   ]);

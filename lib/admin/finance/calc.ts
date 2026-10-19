@@ -53,9 +53,76 @@ export function checkInvoiceTotals({
   return { complete: true, difference: fromCents(difference) };
 }
 
-/** What a milestone still owes. Never negative: an overpayment owes nothing. */
-export function receivableBalanceCents(amount: MoneyInput, paidAmount: MoneyInput) {
-  return Math.max(0, toCents(amount) - toCents(paidAmount));
+/**
+ * What a milestone still owes: amount − cash received − withholdings applied
+ * to it. Never negative: an overpayment owes nothing.
+ */
+export function receivableBalanceCents(
+  amount: MoneyInput,
+  paidAmount: MoneyInput,
+  withheldAmount: MoneyInput = 0,
+) {
+  return Math.max(0, toCents(amount) - toCents(paidAmount) - toCents(withheldAmount));
+}
+
+/** Same balance as a "123.45" string, for display code. */
+export function receivableBalance(r: {
+  amount: MoneyInput;
+  paidAmount: MoneyInput;
+  withheldAmount?: MoneyInput;
+}) {
+  return fromCents(receivableBalanceCents(r.amount, r.paidAmount, r.withheldAmount));
+}
+
+type AllocationReceivable = {
+  id: string;
+  amount: MoneyInput;
+  paidAmount: MoneyInput;
+  status: string;
+};
+
+/**
+ * Spreads the withholdings applied to an invoice over its milestones, oldest
+ * first, up to what each one still owes in cash. Cancelled milestones take
+ * nothing, and any excess (the client withheld more than was left) stays
+ * unallocated rather than inflating a balance.
+ */
+export function allocateWithholdings(
+  receivables: AllocationReceivable[],
+  appliedTotal: MoneyInput,
+) {
+  let left = toCents(appliedTotal);
+  return receivables.map((r) => {
+    if (r.status === "CANCELLED") return { id: r.id, withheld: 0 };
+    const open = receivableBalanceCents(r.amount, r.paidAmount);
+    const withheld = Math.min(open, Math.max(0, left));
+    left -= withheld;
+    return { id: r.id, withheld };
+  });
+}
+
+/**
+ * Status of a milestone from what covers it. Mirrors the rule the payment
+ * actions already used (paid ≥ amount → PAID, some paid → PARTIALLY_PAID)
+ * with withholdings counted as covering the balance. A milestone that is no
+ * longer covered at all falls back to INVOICED/PLANNED; any other manual
+ * status (OVERDUE, CANCELLED...) is kept.
+ */
+export function coveredStatus(r: {
+  amount: MoneyInput;
+  paidAmount: MoneyInput;
+  withheldAmount: MoneyInput;
+  status: string;
+  invoiceId: string | null;
+}) {
+  if (r.status === "CANCELLED") return r.status;
+  const covered = toCents(r.paidAmount) + toCents(r.withheldAmount);
+  if (covered >= toCents(r.amount) && covered > 0) return "PAID";
+  if (covered > 0) return "PARTIALLY_PAID";
+  if (r.status === "PAID" || r.status === "PARTIALLY_PAID") {
+    return r.invoiceId ? "INVOICED" : "PLANNED";
+  }
+  return r.status;
 }
 
 /**
@@ -91,6 +158,7 @@ export type SummaryReceivable = {
   projectId: string | null;
   amount: MoneyInput;
   paidAmount: MoneyInput;
+  withheldAmount?: MoneyInput;
   status: string;
 };
 
@@ -123,7 +191,10 @@ export type SummaryInput = {
   expensesPaid: SummaryExpense[];
   /** Received in the period. */
   withholdings: SummaryWithholding[];
-  /** Withholdings on invoices that are still open, for the net balance. */
+  /**
+   * Withholdings on still-open invoices that were NOT applied to the balance,
+   * for the "net of withholdings" estimate.
+   */
   openWithholdings: SummaryWithholding[];
 };
 
@@ -185,7 +256,11 @@ function accumulate(totals: Totals, input: SummaryInput, projects: SummaryProjec
 
   for (const r of input.receivables) {
     if (r.status === "PAID" || r.status === "CANCELLED") continue;
-    totals.receivableBalance += receivableBalanceCents(r.amount, r.paidAmount);
+    totals.receivableBalance += receivableBalanceCents(
+      r.amount,
+      r.paidAmount,
+      r.withheldAmount,
+    );
   }
 
   for (const w of input.withholdings) {

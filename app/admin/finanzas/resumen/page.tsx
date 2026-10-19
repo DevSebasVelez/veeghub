@@ -173,7 +173,7 @@ async function SummaryBody({
               label="Saldo pendiente de clientes"
               value={o.receivableBalance}
               kind="pending"
-              hint="Lo que falta cobrar de los hitos abiertos, a hoy."
+              hint="Lo que falta cobrar de los hitos abiertos, a hoy. Ya descuenta las retenciones marcadas para descontar del saldo."
             />
             <Figure
               label="Retenciones recibidas"
@@ -185,7 +185,7 @@ async function SummaryBody({
               label="Saldo pendiente neto de retenciones"
               value={o.receivableBalanceNetOfWithholdings}
               kind="estimate"
-              hint="Saldo menos retenciones de facturas abiertas, si el cliente las descuenta del pago."
+              hint="Saldo menos las retenciones registradas que no marcaste para descontar del saldo."
             />
           </CardContent>
         </Card>

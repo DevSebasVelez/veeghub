@@ -22,7 +22,7 @@ export async function getAdminDashboardData() {
     prisma.task.count({ where: { status: { not: "DONE" } } }),
     prisma.receivable.aggregate({
       where: { status: { not: "PAID" } },
-      _sum: { amount: true, paidAmount: true },
+      _sum: { amount: true, paidAmount: true, withheldAmount: true },
     }),
     prisma.invoice.count({ where: { status: "READY_TO_SEND" } }),
     prisma.credential.count(),
@@ -75,7 +75,8 @@ export async function getAdminDashboardData() {
 
   const receivableBalance =
     Number(receivableTotals._sum.amount ?? 0) -
-    Number(receivableTotals._sum.paidAmount ?? 0);
+    Number(receivableTotals._sum.paidAmount ?? 0) -
+    Number(receivableTotals._sum.withheldAmount ?? 0);
 
   return {
     now,
