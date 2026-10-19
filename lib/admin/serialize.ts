@@ -108,6 +108,7 @@ export function forInvoiceDialog(i: {
   accessKey: string | null;
   subtotal: { toString(): string } | null;
   taxAmount: { toString(): string } | null;
+  vatRate: { toString(): string } | null;
   total: { toString(): string };
   issueDate: Date | null;
   status: string;
@@ -123,6 +124,7 @@ export function forInvoiceDialog(i: {
     accessKey: i.accessKey,
     subtotal: i.subtotal?.toString() ?? null,
     taxAmount: i.taxAmount?.toString() ?? null,
+    vatRate: i.vatRate?.toString() ?? null,
     total: i.total.toString(),
     issueDate: i.issueDate?.toISOString() ?? null,
     status: i.status,
@@ -256,5 +258,107 @@ export function forDriveFileDialog(f: {
     folderId: f.folderId,
     clientId: f.clientId,
     projectId: f.projectId,
+  };
+}
+
+export function forExpenseDialog(e: {
+  id: string;
+  description: string;
+  categoryId: string | null;
+  payeeId: string | null;
+  payeeKind: string | null;
+  projectId: string | null;
+  expenseDate: Date;
+  paidAt: Date | null;
+  amount: { toString(): string };
+  taxAmount: { toString(): string } | null;
+  status: string;
+  method: string | null;
+  reference: string | null;
+  receiptNumber: string | null;
+  taxTreatment: string;
+  notes: string | null;
+  receiptFile?: { name: string } | null;
+}) {
+  return {
+    id: e.id,
+    description: e.description,
+    categoryId: e.categoryId,
+    payeeId: e.payeeId,
+    payeeKind: e.payeeKind,
+    projectId: e.projectId,
+    expenseDate: e.expenseDate.toISOString(),
+    paidAt: e.paidAt?.toISOString() ?? null,
+    amount: e.amount.toString(),
+    taxAmount: e.taxAmount?.toString() ?? null,
+    status: e.status,
+    method: e.method,
+    reference: e.reference,
+    receiptNumber: e.receiptNumber,
+    taxTreatment: e.taxTreatment,
+    notes: e.notes,
+    receiptFileName: e.receiptFile?.name ?? null,
+  };
+}
+
+export type ExpenseDTO = ReturnType<typeof forExpenseDialog>;
+
+export function forPayeeDialog(p: {
+  id: string;
+  name: string;
+  kind: string;
+  taxId: string | null;
+  email: string | null;
+  phone: string | null;
+  notes: string | null;
+}) {
+  return {
+    id: p.id,
+    name: p.name,
+    kind: p.kind,
+    taxId: p.taxId,
+    email: p.email,
+    phone: p.phone,
+    notes: p.notes,
+  };
+}
+
+export function forWithholdingDialog(w: {
+  id: string;
+  kind: string;
+  amount: { toString(): string };
+  percentage: { toString(): string } | null;
+  receiptNumber: string | null;
+  issueDate: Date | null;
+  notes: string | null;
+}) {
+  return {
+    id: w.id,
+    kind: w.kind,
+    amount: w.amount.toString(),
+    percentage: w.percentage?.toString() ?? null,
+    receiptNumber: w.receiptNumber,
+    issueDate: w.issueDate?.toISOString() ?? null,
+    notes: w.notes,
+  };
+}
+
+export function forTaxProfileDialog(t: {
+  id: string;
+  regime: string;
+  validFrom: Date;
+  validTo: Date | null;
+  vatRates: { toString(): string }[];
+  lastVerifiedAt: Date | null;
+  notes: string | null;
+}) {
+  return {
+    id: t.id,
+    regime: t.regime,
+    validFrom: t.validFrom.toISOString(),
+    validTo: t.validTo?.toISOString() ?? null,
+    vatRates: t.vatRates.map((r) => Number(r.toString()).toString()),
+    lastVerifiedAt: t.lastVerifiedAt?.toISOString() ?? null,
+    notes: t.notes,
   };
 }
