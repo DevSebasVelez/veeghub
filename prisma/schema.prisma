@@ -102,6 +102,33 @@ enum LeadActivityType {
   SYSTEM
 }
 
+enum ExpenseStatus {
+  PENDING
+  PAID
+}
+
+// Clasificación del pago según la realidad y la documentación disponible.
+// No implica relación laboral ni societaria.
+enum PayeeKind {
+  COLLABORATOR
+  SUPPLIER
+  EMPLOYEE
+  OTHER
+}
+
+// Solo informativo; no sustituye el criterio del contador.
+enum TaxTreatment {
+  UNCLASSIFIED
+  DEDUCTIBLE
+  NON_DEDUCTIBLE
+  UNDETERMINED
+}
+
+enum WithholdingKind {
+  VAT
+  INCOME
+}
+
 enum MetaEventStatus {
   PENDING
   PROCESSED
@@ -175,6 +202,7 @@ model Project {
   folders       DriveFolder[]
   files         DriveFile[]
   comments      Comment[]
+  expenses      Expense[]
   leadOrigin    Lead?         @relation("LeadProjectConversion")
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
@@ -263,6 +291,9 @@ model Invoice {
   accessKey     String?         @unique
   subtotal      Decimal?        @db.Decimal(12, 2)
   taxAmount     Decimal?        @db.Decimal(12, 2)
+  // Tarifa de IVA aplicada en ESTA factura. Se guarda tal cual se emitió y no
+  // se recalcula si cambia la configuración tributaria. NULL = no registrada.
+  vatRate       Decimal?        @db.Decimal(5, 2)
   total         Decimal         @db.Decimal(12, 2)
   currency      String          @default("USD")
   issueDate     DateTime?       @db.Date
@@ -272,6 +303,7 @@ model Invoice {
   rideFileId    String?
   rideFile      DriveFile?      @relation("InvoiceRideFile", fields: [rideFileId], references: [id], onDelete: SetNull)
   emailLogs     EmailDelivery[]
+  withholdings  Withholding[]
   sentAt        DateTime?
   paidAt        DateTime?
   createdAt     DateTime        @default(now())
@@ -327,21 +359,22 @@ model DriveFolder {
 }
 
 model DriveFile {
-  id             String       @id @default(cuid())
-  name           String
-  objectKey      String       @unique
-  mimeType       String
-  size           Int
-  folderId       String?
-  folder         DriveFolder? @relation(fields: [folderId], references: [id], onDelete: SetNull)
-  clientId       String?
-  client         Client?      @relation(fields: [clientId], references: [id], onDelete: SetNull)
-  projectId      String?
-  project        Project?     @relation(fields: [projectId], references: [id], onDelete: SetNull)
-  invoiceXmlFor  Invoice[]    @relation("InvoiceXmlFile")
-  invoiceRideFor Invoice[]    @relation("InvoiceRideFile")
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
+  id              String       @id @default(cuid())
+  name            String
+  objectKey       String       @unique
+  mimeType        String
+  size            Int
+  folderId        String?
+  folder          DriveFolder? @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  clientId        String?
+  client          Client?      @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  projectId       String?
+  project         Project?     @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  invoiceXmlFor   Invoice[]    @relation("InvoiceXmlFile")
+  invoiceRideFor  Invoice[]    @relation("InvoiceRideFile")
+  expenseReceipts Expense[]    @relation("ExpenseReceiptFile")
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
 
   @@index([folderId])
   @@index([clientId])
@@ -558,4 +591,103 @@ model MetaCampaignInsight {
   @@unique([campaignId, date])
   @@index([accountId, date])
   @@index([date])
+}
+
+model ExpenseCategory {
+  id          String    @id @default(cuid())
+  name        String    @unique
+  description String?
+  // Archivar en vez de borrar: los egresos históricos conservan su categoría.
+  archived    Boolean   @default(false)
+  expenses    Expense[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model Payee {
+  id        String    @id @default(cuid())
+  name      String
+  // Clasificación sugerida al registrar un pago; cada egreso guarda la suya.
+  kind      PayeeKind @default(OTHER)
+  taxId     String?
+  email     String?
+  phone     String?
+  notes     String?
+  expenses  Expense[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([name])
+}
+
+// Registro único de egresos: gastos generales y pagos a personas. Tenerlos en
+// una sola tabla evita contar dos veces el mismo pago en los resúmenes.
+model Expense {
+  id            String           @id @default(cuid())
+  description   String
+  categoryId    String?
+  category      ExpenseCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  payeeId       String?
+  payee         Payee?           @relation(fields: [payeeId], references: [id], onDelete: SetNull)
+  payeeKind     PayeeKind?
+  projectId     String?
+  project       Project?         @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  expenseDate   DateTime         @db.Date
+  paidAt        DateTime?        @db.Date
+  amount        Decimal          @db.Decimal(12, 2)
+  // IVA indicado en el comprobante del proveedor, si existe. Informativo.
+  taxAmount     Decimal?         @db.Decimal(12, 2)
+  currency      String           @default("USD")
+  status        ExpenseStatus    @default(PENDING)
+  method        String?
+  reference     String?
+  receiptNumber String?
+  receiptFileId String?
+  receiptFile   DriveFile?       @relation("ExpenseReceiptFile", fields: [receiptFileId], references: [id], onDelete: SetNull)
+  taxTreatment  TaxTreatment     @default(UNCLASSIFIED)
+  notes         String?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  @@index([expenseDate])
+  @@index([paidAt])
+  @@index([projectId, expenseDate], map: "expense_project_date_idx")
+  @@index([status, expenseDate], map: "expense_status_date_idx")
+  @@index([payeeId])
+  @@index([categoryId])
+}
+
+// Retención recibida de un cliente. No es efectivo cobrado ni modifica el
+// saldo de los hitos; se muestra aparte en los resúmenes.
+model Withholding {
+  id            String          @id @default(cuid())
+  invoiceId     String
+  invoice       Invoice         @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  kind          WithholdingKind
+  amount        Decimal         @db.Decimal(12, 2)
+  percentage    Decimal?        @db.Decimal(5, 2)
+  receiptNumber String?
+  issueDate     DateTime?       @db.Date
+  notes         String?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  @@index([invoiceId])
+  @@index([issueDate])
+}
+
+// Configuración tributaria del titular por período de vigencia. Referencia
+// administrativa editable; no reemplaza la información oficial del SRI.
+model TaxProfile {
+  id             String    @id @default(cuid())
+  regime         String
+  validFrom      DateTime  @db.Date
+  validTo        DateTime? @db.Date
+  vatRates       Decimal[] @db.Decimal(5, 2)
+  lastVerifiedAt DateTime? @db.Date
+  notes          String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([validFrom])
 }
