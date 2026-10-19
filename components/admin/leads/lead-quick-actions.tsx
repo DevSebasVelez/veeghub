@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { Check, Mail, MessageCircle, Phone } from "lucide-react";
 
 import { markLeadContacted } from "@/lib/admin/actions/leads/actions";
+import { unwrap } from "@/lib/admin/actions/types";
 import { waLink } from "@/components/admin/leads/constants";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -36,7 +37,7 @@ export function LeadQuickActions({
   function handleContacted() {
     startTransition(async () => {
       try {
-        await markLeadContacted(id);
+        unwrap(await markLeadContacted(id));
         router.refresh();
         toast.success("Marcado como contactado.");
       } catch (err) {

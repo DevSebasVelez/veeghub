@@ -8,76 +8,88 @@ import { taskSchema, parseForm } from "@/lib/admin/schemas";
 import { actionState } from "@/lib/admin/actions/shared";
 import type { AdminFormState } from "@/lib/admin/actions/types";
 
-export async function createTask(formData: FormData) {
+export async function createTask(formData: FormData): Promise<AdminFormState> {
   await requireAdmin();
-  const data = parseForm(taskSchema, formData);
 
-  await prisma.task.create({ data });
+  return actionState(async () => {
+    const data = parseForm(taskSchema, formData);
 
-  revalidatePath("/admin");
-  revalidatePath("/admin/tareas");
-  revalidatePath("/admin/proyectos");
+    await prisma.task.create({ data });
+
+    revalidatePath("/admin");
+    revalidatePath("/admin/tareas");
+    revalidatePath("/admin/proyectos");
+  });
 }
 
-export async function updateTask(id: string, formData: FormData) {
+export async function updateTask(id: string, formData: FormData): Promise<AdminFormState> {
   await requireAdmin();
-  const data = parseForm(taskSchema, formData);
 
-  await prisma.task.update({
-    where: { id },
-    data: {
-      ...data,
-      completedAt: data.status === "DONE" ? new Date() : null,
-    },
+  return actionState(async () => {
+    const data = parseForm(taskSchema, formData);
+
+    await prisma.task.update({
+      where: { id },
+      data: {
+        ...data,
+        completedAt: data.status === "DONE" ? new Date() : null,
+      },
+    });
+
+    revalidatePath("/admin");
+    revalidatePath("/admin/tareas");
+    revalidatePath("/admin/proyectos");
   });
-
-  revalidatePath("/admin");
-  revalidatePath("/admin/tareas");
-  revalidatePath("/admin/proyectos");
 }
 
-export async function toggleTaskStatus(id: string, done: boolean) {
+export async function toggleTaskStatus(id: string, done: boolean): Promise<AdminFormState> {
   await requireAdmin();
 
-  const task = await prisma.task.update({
-    where: { id },
-    data: {
-      status: done ? "DONE" : "TODO",
-      completedAt: done ? new Date() : null,
-    },
-    select: { projectId: true },
-  });
+  return actionState(async () => {
 
-  revalidatePath("/admin");
-  revalidatePath("/admin/tareas");
-  revalidatePath("/admin/proyectos");
-  revalidatePath(`/admin/proyectos/${task.projectId}`);
+    const task = await prisma.task.update({
+      where: { id },
+      data: {
+        status: done ? "DONE" : "TODO",
+        completedAt: done ? new Date() : null,
+      },
+      select: { projectId: true },
+    });
+
+    revalidatePath("/admin");
+    revalidatePath("/admin/tareas");
+    revalidatePath("/admin/proyectos");
+    revalidatePath(`/admin/proyectos/${task.projectId}`);
+  });
 }
 
-export async function renameTask(id: string, title: string) {
+export async function renameTask(id: string, title: string): Promise<AdminFormState> {
   await requireAdmin();
-  const trimmed = title.trim();
-  if (!trimmed) throw new Error("El título no puede estar vacío");
 
-  const task = await prisma.task.findUnique({
-    where: { id },
-    select: { projectId: true },
+  return actionState(async () => {
+    const trimmed = title.trim();
+    if (!trimmed) throw new Error("El título no puede estar vacío");
+
+    const task = await prisma.task.findUnique({
+      where: { id },
+      select: { projectId: true },
+    });
+
+    await prisma.task.update({
+      where: { id },
+      data: { title: trimmed },
+    });
+
+    revalidatePath("/admin/tareas");
+    if (task?.projectId) revalidatePath(`/admin/proyectos/${task.projectId}`);
   });
-
-  await prisma.task.update({
-    where: { id },
-    data: { title: trimmed },
-  });
-
-  revalidatePath("/admin/tareas");
-  if (task?.projectId) revalidatePath(`/admin/proyectos/${task.projectId}`);
 }
 
 export async function createTaskState(
   _state: AdminFormState,
   formData: FormData,
 ) {
-  return actionState(() => createTask(formData));
+  return createTask(formData);
 }
 
 export async function updateTaskState(
@@ -85,5 +97,5 @@ export async function updateTaskState(
   _state: AdminFormState,
   formData: FormData,
 ) {
-  return actionState(() => updateTask(id, formData));
+  return updateTask(id, formData);
 }

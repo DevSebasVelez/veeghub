@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { FolderPlus } from "lucide-react";
 
 import { createFolder, updateFolder } from "@/lib/admin/actions/drive/actions";
+import { unwrap } from "@/lib/admin/actions/types";
 import {
   DialogSubmitFooter,
   EditTrigger,
@@ -53,7 +54,7 @@ export function FolderEditDialog({
     setSaving(true);
     try {
       const formData = new FormData(event.currentTarget);
-      await updateFolder(folder.id, formData);
+      unwrap(await updateFolder(folder.id, formData));
       setOpen(false);
       router.refresh();
       toast.success("Carpeta actualizada.");
@@ -129,7 +130,7 @@ export function CreateFolderDialog({
     setSaving(true);
     try {
       const formData = new FormData(event.currentTarget);
-      await createFolder(formData);
+      unwrap(await createFolder(formData));
       setOpen(false);
       router.refresh();
       toast.success("Carpeta creada.");

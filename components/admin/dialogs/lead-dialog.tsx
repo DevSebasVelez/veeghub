@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 import { createLead, updateLead } from "@/lib/admin/actions/leads/actions";
+import { unwrap } from "@/lib/admin/actions/types";
 import {
   CreateTrigger,
   DialogSubmitFooter,
@@ -148,7 +149,7 @@ export function CreateLeadDialog() {
 
     setSaving(true);
     try {
-      await createLead(new FormData(event.currentTarget));
+      unwrap(await createLead(new FormData(event.currentTarget)));
       setOpen(false);
       router.refresh();
       toast.success("Lead creado.");
@@ -196,7 +197,7 @@ export function LeadEditDialog({ lead }: { lead: LeadFormValues }) {
 
     setSaving(true);
     try {
-      await updateLead(lead.id, new FormData(event.currentTarget));
+      unwrap(await updateLead(lead.id, new FormData(event.currentTarget)));
       setOpen(false);
       router.refresh();
       toast.success("Lead actualizado.");

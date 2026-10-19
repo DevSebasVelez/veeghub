@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 import { createClient, updateClient } from "@/lib/admin/actions/clients/actions";
+import { unwrap } from "@/lib/admin/actions/types";
 import {
   CreateTrigger,
   DialogSubmitFooter,
@@ -110,7 +111,7 @@ export function ClientEditDialog({ client }: { client: Props }) {
     setSaving(true);
     try {
       const formData = new FormData(event.currentTarget);
-      await updateClient(client.id, formData);
+      unwrap(await updateClient(client.id, formData));
       setOpen(false);
       router.refresh();
       toast.success("Cliente actualizado.");
@@ -154,7 +155,7 @@ export function CreateClientDialog() {
     setSaving(true);
     try {
       const formData = new FormData(event.currentTarget);
-      await createClient(formData);
+      unwrap(await createClient(formData));
       setOpen(false);
       router.refresh();
       toast.success("Cliente creado.");

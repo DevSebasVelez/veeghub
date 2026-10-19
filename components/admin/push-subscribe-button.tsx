@@ -75,12 +75,13 @@ export function PushSubscribeButton() {
 
         const json = subscription.toJSON();
 
-        await savePushSubscription({
+        const saved = await savePushSubscription({
           endpoint: subscription.endpoint,
           p256dh: json.keys?.p256dh ?? "",
           auth: json.keys?.auth ?? "",
           userAgent: navigator.userAgent,
         });
+        if (!saved.ok) throw new Error(saved.error);
 
         setState("on");
         toast.success("Avisos activados en este dispositivo.");
@@ -97,7 +98,8 @@ export function PushSubscribeButton() {
         const subscription = await registration.pushManager.getSubscription();
 
         if (subscription) {
-          await removePushSubscription(subscription.endpoint);
+          const removed = await removePushSubscription(subscription.endpoint);
+          if (!removed.ok) throw new Error(removed.error);
           await subscription.unsubscribe();
         }
 
@@ -113,7 +115,8 @@ export function PushSubscribeButton() {
     startTransition(async () => {
       try {
         const result = await sendTestPush();
-        toast.success(`Enviado a ${result.sent} dispositivo(s).`);
+        if (!result.ok) throw new Error(result.error);
+        toast.success(`Enviado a ${result.data.sent} dispositivo(s).`);
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "Error");
       }

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 import { updateLeadStage } from "@/lib/admin/actions/leads/actions";
+import { unwrap } from "@/lib/admin/actions/types";
 import { STAGE_LABELS, STAGE_TEXT_COLOR } from "@/components/admin/leads/constants";
 import {
   Select,
@@ -36,7 +37,7 @@ export function LeadStageSelect({
 
     startTransition(async () => {
       try {
-        await updateLeadStage(id, next);
+        unwrap(await updateLeadStage(id, next));
         router.refresh();
         toast.success(`Movido a ${STAGE_LABELS[next]}.`);
       } catch (err) {

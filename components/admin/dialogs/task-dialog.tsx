@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 import { createTask, updateTask } from "@/lib/admin/actions/tasks/actions";
+import { unwrap } from "@/lib/admin/actions/types";
 import {
   CreateTrigger,
   DialogSubmitFooter,
@@ -72,9 +73,9 @@ export function TaskDialog({
     try {
       const formData = new FormData(event.currentTarget);
       if (task) {
-        await updateTask(task.id, formData);
+        unwrap(await updateTask(task.id, formData));
       } else {
-        await createTask(formData);
+        unwrap(await createTask(formData));
       }
       setOpen(false);
       router.refresh();

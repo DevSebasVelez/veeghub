@@ -18,6 +18,7 @@ import {
   deleteFolder,
   deleteDriveFile,
 } from "@/lib/admin/actions/drive/actions";
+import { unwrap } from "@/lib/admin/actions/types";
 import { ConfirmationDialog } from "@/components/admin/confirmation-dialog";
 import { DriveFileEditDialog } from "@/components/admin/dialogs/drive-file-dialog";
 import { FolderEditDialog } from "@/components/admin/dialogs/folder-dialog";
@@ -654,21 +655,21 @@ export function DriveView({
 
   async function handleDeleteFolder(id: string) {
     try {
-      await deleteFolder(id);
+      unwrap(await deleteFolder(id));
       router.refresh();
       toast.success("Carpeta eliminada.");
-    } catch {
-      toast.error("Error al eliminar carpeta");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Error al eliminar carpeta");
     }
   }
 
   async function handleDeleteFile(id: string) {
     try {
-      await deleteDriveFile(id);
+      unwrap(await deleteDriveFile(id));
       router.refresh();
       toast.success("Archivo eliminado.");
-    } catch {
-      toast.error("Error al eliminar archivo");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Error al eliminar archivo");
     }
   }
 

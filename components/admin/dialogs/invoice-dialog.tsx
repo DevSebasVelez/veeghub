@@ -9,6 +9,7 @@ import {
   createInvoiceWithKeys,
   updateInvoiceWithKeys,
 } from "@/lib/admin/actions/invoices/actions";
+import { unwrap } from "@/lib/admin/actions/types";
 import {
   DialogSubmitFooter,
   EditTrigger,
@@ -476,7 +477,7 @@ export function CreateInvoiceDialog({
         fd.set("rideMimeType", ride.mimeType);
         fd.set("rideSize", String(ride.size));
       }
-      await createInvoiceWithKeys(fd);
+      unwrap(await createInvoiceWithKeys(fd));
       setOpen(false);
       setXml(null);
       setRide(null);
@@ -585,7 +586,7 @@ export function InvoiceEditDialog({
         fd.set("rideMimeType", ride.mimeType);
         fd.set("rideSize", String(ride.size));
       }
-      await updateInvoiceWithKeys(invoice.id, fd);
+      unwrap(await updateInvoiceWithKeys(invoice.id, fd));
       setOpen(false);
       router.refresh();
       toast.success("Factura actualizada.");

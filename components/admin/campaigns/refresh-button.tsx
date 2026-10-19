@@ -23,7 +23,13 @@ export function RefreshInsightsButton({
       try {
         // force: the button is an explicit request, so the TTL guard — which is
         // there to stop incidental calls — should not silently do nothing.
-        const result = await refreshCampaignInsights({ since, until, force: true });
+        const outcome = await refreshCampaignInsights({
+          since,
+          until,
+          force: true,
+        });
+        if (!outcome.ok) throw new Error(outcome.error);
+        const result = outcome.data;
 
         if (result.status === "throttled") {
           toast.error(result.reason ?? "Límite de la API alcanzado.");

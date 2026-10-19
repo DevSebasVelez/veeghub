@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 
 import { addLeadActivity } from "@/lib/admin/actions/leads/actions";
+import { unwrap } from "@/lib/admin/actions/types";
 import { ACTIVITY_LABELS } from "@/components/admin/leads/constants";
 import { Button } from "@/components/ui/button";
 import { FormSelect } from "@/components/admin/form-select";
@@ -26,7 +27,7 @@ export function LeadActivityForm({ leadId }: { leadId: string }) {
 
     setSaving(true);
     try {
-      await addLeadActivity(leadId, new FormData(event.currentTarget));
+      unwrap(await addLeadActivity(leadId, new FormData(event.currentTarget)));
       formRef.current?.reset();
       router.refresh();
       toast.success("Actividad registrada.");

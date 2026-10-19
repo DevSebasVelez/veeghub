@@ -1,7 +1,7 @@
 import Link from "next/link";
-import { ExternalLink, Send } from "lucide-react";
+import { ExternalLink } from "lucide-react";
 
-import { sendInvoiceEmail } from "@/lib/admin/actions/invoices/actions";
+import { QuickSendInvoiceForm } from "@/components/admin/send-invoice-form";
 import { InvoiceStatusFilter } from "@/app/admin/facturas/invoice-status-filter";
 import {
   CreateInvoiceDialog,
@@ -14,7 +14,6 @@ import { getInvoicesPageData } from "@/lib/admin/queries/invoices";
 import { formatCurrency, formatDate, formatDateOnly } from "@/lib/admin/format";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 
 export default async function InvoicesPage({
   searchParams,
@@ -142,37 +141,14 @@ export default async function InvoicesPage({
 
                     <div className="flex w-full shrink-0 flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center">
                       {invoice.xmlFile && invoice.rideFile ? (
-                        <form
-                          action={sendInvoiceEmail}
-                          className="grid w-full gap-2 sm:flex sm:w-auto"
-                        >
-                          <input
-                            type="hidden"
-                            name="invoiceId"
-                            value={invoice.id}
-                          />
-                          <Input
-                            name="to"
-                            type="email"
-                            defaultValue={
-                              invoice.client.billingEmail ??
-                              invoice.client.email ??
-                              ""
-                            }
-                            placeholder="cliente@email.com"
-                            className="h-9 w-full min-w-0 text-sm sm:h-8 sm:w-44"
-                            required
-                          />
-                          <Button
-                            type="submit"
-                            size="sm"
-                            variant="outline"
-                            className="w-full sm:w-auto"
-                          >
-                            <Send className="size-3.5" />
-                            Enviar
-                          </Button>
-                        </form>
+                        <QuickSendInvoiceForm
+                          invoiceId={invoice.id}
+                          defaultTo={
+                            invoice.client.billingEmail ??
+                            invoice.client.email ??
+                            ""
+                          }
+                        />
                       ) : (
                         <span className="text-xs text-muted-foreground">
                           Sube XML y RIDE para enviar
