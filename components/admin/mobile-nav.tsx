@@ -8,6 +8,7 @@ import {
   LayoutDashboard,
   Magnet,
   Users,
+  Wallet,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -28,6 +29,7 @@ const NAV_ITEMS = [
     icon: BadgeDollarSign,
     exact: false,
   },
+  { href: "/admin/egresos", label: "Egresos", icon: Wallet, exact: false },
 ];
 
 export function MobileNav() {
