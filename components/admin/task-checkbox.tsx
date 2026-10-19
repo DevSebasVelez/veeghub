@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 import { toggleTaskStatus } from "@/lib/admin/actions/tasks/actions";
+import { unwrap } from "@/lib/admin/actions/types";
 import { Checkbox } from "@/components/ui/checkbox";
 
 export function TaskCheckbox({ id, done }: { id: string; done: boolean }) {
@@ -11,10 +12,10 @@ export function TaskCheckbox({ id, done }: { id: string; done: boolean }) {
 
   async function handleChange(checked: boolean) {
     try {
-      await toggleTaskStatus(id, checked);
+      unwrap(await toggleTaskStatus(id, checked));
       router.refresh();
-    } catch {
-      toast.error("Error al actualizar tarea");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Error al actualizar tarea");
     }
   }
 

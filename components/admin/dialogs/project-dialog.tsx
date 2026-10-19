@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 import { createProject, updateProject } from "@/lib/admin/actions/projects/actions";
+import { unwrap } from "@/lib/admin/actions/types";
 import {
   CreateTrigger,
   DialogSubmitFooter,
@@ -72,9 +73,9 @@ export function ProjectDialog({
     try {
       const formData = new FormData(event.currentTarget);
       if (project) {
-        await updateProject(project.id, formData);
+        unwrap(await updateProject(project.id, formData));
       } else {
-        await createProject(formData);
+        unwrap(await createProject(formData));
       }
       setOpen(false);
       router.refresh();

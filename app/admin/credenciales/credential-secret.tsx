@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 
 import { revealCredential } from "@/lib/admin/actions/credentials/actions";
 import { Button } from "@/components/ui/button";
@@ -32,7 +33,12 @@ export function CredentialSecret({
           }
 
           startTransition(async () => {
-            setSecret(await revealCredential(id));
+            const result = await revealCredential(id);
+            if (!result.ok) {
+              toast.error(result.error);
+              return;
+            }
+            setSecret(result.data);
           });
         }}
         disabled={isPending}

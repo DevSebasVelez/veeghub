@@ -140,7 +140,12 @@ export default async function ClientDetailPage({
       include: {
         tasks: { select: { id: true, status: true } },
         receivables: {
-          select: { amount: true, paidAmount: true, status: true },
+          select: {
+            amount: true,
+            paidAmount: true,
+            withheldAmount: true,
+            status: true,
+          },
           where: { status: { notIn: ["PAID", "CANCELLED"] } },
         },
       },
@@ -306,7 +311,7 @@ export default async function ClientDetailPage({
       : [];
 
   const totalPending = receivables.reduce(
-    (sum, r) => sum + Math.max(0, Number(r.amount) - Number(r.paidAmount)),
+    (sum, r) => sum + Math.max(0, Number(r.amount) - Number(r.paidAmount) - Number(r.withheldAmount)),
     0,
   );
 
@@ -448,7 +453,7 @@ export default async function ClientDetailPage({
                       const pendingBalance = project.receivables.reduce(
                         (sum, r) =>
                           sum +
-                          Math.max(0, Number(r.amount) - Number(r.paidAmount)),
+                          Math.max(0, Number(r.amount) - Number(r.paidAmount) - Number(r.withheldAmount)),
                         0,
                       );
                       return (
@@ -517,7 +522,7 @@ export default async function ClientDetailPage({
                 ) : (
                   <div className="divide-y">
                     {receivables.map((r) => {
-                      const remaining = Number(r.amount) - Number(r.paidAmount);
+                      const remaining = Number(r.amount) - Number(r.paidAmount) - Number(r.withheldAmount);
                       return (
                         <div
                           key={r.id}

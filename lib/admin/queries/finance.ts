@@ -29,7 +29,7 @@ export async function getFinanceHeaderData() {
     }),
     prisma.receivable.aggregate({
       where: { status: { notIn: ["PAID", "CANCELLED"] } },
-      _sum: { amount: true, paidAmount: true },
+      _sum: { amount: true, paidAmount: true, withheldAmount: true },
     }),
     prisma.payment.aggregate({ _sum: { amount: true } }),
     prisma.receivable.count({
@@ -46,7 +46,8 @@ export async function getFinanceHeaderData() {
     pendingForPayment,
     totalPending:
       Number(pendingAgg._sum.amount ?? 0) -
-      Number(pendingAgg._sum.paidAmount ?? 0),
+      Number(pendingAgg._sum.paidAmount ?? 0) -
+      Number(pendingAgg._sum.withheldAmount ?? 0),
     totalCollected: Number(collectedAgg._sum.amount ?? 0),
     overdueCount,
   };

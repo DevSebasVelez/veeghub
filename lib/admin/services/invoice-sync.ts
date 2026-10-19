@@ -1,4 +1,8 @@
 import type { Prisma } from "@/app/generated/prisma/client";
+import {
+  releaseWithholdings,
+  syncInvoiceWithholdings,
+} from "@/lib/admin/services/withholding-sync";
 
 export async function syncInvoicePaidStatus(
   tx: Prisma.TransactionClient,
@@ -16,11 +20,14 @@ export async function syncInvoicePaidStatus(
 
   const hitos = await tx.receivable.findMany({
     where: { invoiceId },
-    select: { amount: true, paidAmount: true },
+    select: { amount: true, paidAmount: true, withheldAmount: true },
   });
+  // Applied withholdings settle a milestone just like cash does.
   const allPaid =
     hitos.length > 0 &&
-    hitos.every((h) => Number(h.paidAmount) >= Number(h.amount));
+    hitos.every(
+      (h) => Number(h.paidAmount) + Number(h.withheldAmount) >= Number(h.amount),
+    );
 
   if (allPaid && invoice.status !== "PAID") {
     await tx.invoice.update({
@@ -41,6 +48,7 @@ export async function syncInvoiceReceivables(
   invoiceId: string,
   receivableIds: string[],
 ) {
+  await releaseWithholdings(tx, { invoiceId, id: { notIn: receivableIds } });
   await tx.receivable.updateMany({
     where: { invoiceId, id: { notIn: receivableIds }, status: "INVOICED" },
     data: { status: "PLANNED" },
@@ -60,4 +68,6 @@ export async function syncInvoiceReceivables(
       data: { status: "INVOICED" },
     });
   }
+
+  await syncInvoiceWithholdings(tx, invoiceId);
 }

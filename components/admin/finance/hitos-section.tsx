@@ -114,7 +114,9 @@ export async function HitosSection({
                 <TableBody>
                   {receivables.map((item) => {
                     const remaining =
-                      Number(item.amount) - Number(item.paidAmount);
+                      Number(item.amount) -
+                      Number(item.paidAmount) -
+                      Number(item.withheldAmount);
                     const isOverdue =
                       item.dueDate &&
                       item.dueDate < new Date() &&
@@ -155,6 +157,11 @@ export async function HitosSection({
                           >
                             {formatCurrency(remaining.toFixed(2))}
                           </span>
+                          {Number(item.withheldAmount) > 0 ? (
+                            <span className="block text-xs text-muted-foreground">
+                              Retenido {formatCurrency(item.withheldAmount.toString())}
+                            </span>
+                          ) : null}
                         </TableCell>
                         <TableCell>
                           {item.dueDate ? (
@@ -249,7 +256,7 @@ function HitoMobileCard({
     typeof QuickInvoiceDialog
   >["clientsWithContext"];
 }) {
-  const remaining = Number(item.amount) - Number(item.paidAmount);
+  const remaining = Number(item.amount) - Number(item.paidAmount) - Number(item.withheldAmount);
   const isPaid = remaining <= 0;
   const isOverdue =
     item.dueDate &&
@@ -287,6 +294,11 @@ function HitoMobileCard({
             ? `${formatCurrency(remaining.toFixed(2))} por cobrar`
             : "Pagado ✓"}
         </span>
+        {Number(item.withheldAmount) > 0 ? (
+          <span className="text-xs text-muted-foreground">
+            Retenido {formatCurrency(item.withheldAmount.toString())}
+          </span>
+        ) : null}
         {item.dueDate ? (
           <span
             className={cn(

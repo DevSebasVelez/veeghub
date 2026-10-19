@@ -38,7 +38,12 @@ type ProjectRow = {
   dueDate: Date | null;
   client: { name: string } | null;
   tasks: { id: string; status: string }[];
-  receivables: { amount: unknown; paidAmount: unknown; status: string }[];
+  receivables: {
+    amount: unknown;
+    paidAmount: unknown;
+    withheldAmount: unknown;
+    status: string;
+  }[];
   _count: { tasks: number; files: number };
 };
 
@@ -117,7 +122,7 @@ function projectStats(project: ProjectRow) {
   const totalTasks = project.tasks.length;
   const progress = totalTasks ? Math.round((doneTasks / totalTasks) * 100) : 0;
   const pendingBalance = project.receivables.reduce(
-    (sum, r) => sum + Math.max(0, Number(r.amount) - Number(r.paidAmount)),
+    (sum, r) => sum + Math.max(0, Number(r.amount) - Number(r.paidAmount) - Number(r.withheldAmount)),
     0,
   );
   return { doneTasks, totalTasks, progress, pendingBalance };

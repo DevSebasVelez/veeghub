@@ -107,6 +107,12 @@ const optionalMoney = z.preprocess(
     ),
 );
 
+// Percentage 0–100 (IVA rate, withholding %). Empty means "not recorded".
+const optionalRate = optionalMoney.refine(
+  (v) => v === null || v <= 100,
+  "La tarifa debe estar entre 0 y 100.",
+);
+
 export const clientSchema = z.object({
   name: requiredText,
   legalName: optionalText,
@@ -184,6 +190,7 @@ export const invoiceSchema = z.object({
   accessKey: optionalText,
   subtotal: optionalMoney,
   taxAmount: optionalMoney,
+  vatRate: optionalRate,
   total: money,
   issueDate: optionalDate,
   status: z
@@ -317,6 +324,179 @@ export const credentialSchema = z
       path: ["secret"],
     },
   );
+
+export const PAYEE_KINDS = [
+  "COLLABORATOR",
+  "SUPPLIER",
+  "EMPLOYEE",
+  "OTHER",
+] as const;
+
+export const TAX_TREATMENTS = [
+  "UNCLASSIFIED",
+  "DEDUCTIBLE",
+  "NON_DEDUCTIBLE",
+  "UNDETERMINED",
+] as const;
+
+export const expenseSchema = z
+  .object({
+    description: requiredText,
+    categoryId: optionalId,
+    payeeId: optionalId,
+    payeeKind: z.preprocess(
+      (v) => (v === "none" || v === "" || v == null ? null : v),
+      z.enum(PAYEE_KINDS).nullable(),
+    ),
+    projectId: optionalId,
+    expenseDate: z.preprocess(
+      coerceStr,
+      z
+        .string()
+        .trim()
+        .min(1, "Indica la fecha del gasto.")
+        .transform((v) => new Date(v)),
+    ),
+    paidAt: optionalDate,
+    amount: money.refine((v) => v > 0, "El importe debe ser mayor que cero."),
+    taxAmount: optionalMoney,
+    status: z.enum(["PENDING", "PAID"]).default("PENDING"),
+    method: optionalText,
+    reference: optionalText,
+    receiptNumber: optionalText,
+    taxTreatment: z.enum(TAX_TREATMENTS).default("UNCLASSIFIED"),
+    notes: optionalText,
+  })
+  .refine((d) => d.status !== "PAID" || d.paidAt, {
+    message: "Indica la fecha de pago de un egreso pagado.",
+    path: ["paidAt"],
+  })
+  .refine((d) => d.taxAmount === null || d.taxAmount <= d.amount, {
+    message: "El IVA no puede superar el importe total.",
+    path: ["taxAmount"],
+  })
+  // A pending expense keeps no payment date, so the cash flow can't pick it up.
+  .transform((d) =>
+    d.status === "PENDING" ? { ...d, paidAt: null } : d,
+  );
+
+export const recurringExpenseSchema = z
+  .object({
+    description: requiredText,
+    categoryId: optionalId,
+    payeeId: optionalId,
+    payeeKind: z.preprocess(
+      (v) => (v === "none" || v === "" || v == null ? null : v),
+      z.enum(PAYEE_KINDS).nullable(),
+    ),
+    projectId: optionalId,
+    amount: money.refine((v) => v > 0, "El importe debe ser mayor que cero."),
+    taxAmount: optionalMoney,
+    method: optionalText,
+    taxTreatment: z.enum(TAX_TREATMENTS).default("UNCLASSIFIED"),
+    notes: optionalText,
+    frequency: z.enum(["MONTHLY", "YEARLY"]).default("MONTHLY"),
+    dayOfMonth: z.coerce
+      .number()
+      .int("Día inválido.")
+      .min(1, "El día debe estar entre 1 y 28.")
+      .max(28, "El día debe estar entre 1 y 28."),
+    startDate: z.preprocess(
+      coerceStr,
+      z
+        .string()
+        .trim()
+        .min(1, "Indica desde cuándo se repite.")
+        .transform((v) => new Date(v)),
+    ),
+    endDate: optionalDate,
+  })
+  .refine((d) => d.taxAmount === null || d.taxAmount <= d.amount, {
+    message: "El IVA no puede superar el importe total.",
+    path: ["taxAmount"],
+  })
+  .refine((d) => !d.endDate || d.endDate >= d.startDate, {
+    message: "La fecha de fin debe ser posterior al inicio.",
+    path: ["endDate"],
+  });
+
+export const markExpensePaidSchema = z.object({
+  paidAt: z.preprocess(
+    coerceStr,
+    z
+      .string()
+      .trim()
+      .min(1, "Indica la fecha de pago.")
+      .transform((v) => new Date(v)),
+  ),
+  method: optionalText,
+  reference: optionalText,
+});
+
+export const expenseCategorySchema = z.object({
+  name: requiredText,
+  description: optionalText,
+});
+
+export const payeeSchema = z.object({
+  name: requiredText,
+  kind: z.enum(PAYEE_KINDS).default("OTHER"),
+  taxId: optionalText,
+  email: optionalText,
+  phone: optionalText,
+  notes: optionalText,
+});
+
+export const withholdingSchema = z.object({
+  kind: z.enum(["VAT", "INCOME"]),
+  amount: money.refine((v) => v > 0, "El valor debe ser mayor que cero."),
+  percentage: optionalRate,
+  receiptNumber: optionalText,
+  issueDate: optionalDate,
+  appliesToBalance: z.preprocess((v) => v === "on" || v === "true", z.boolean()),
+  notes: optionalText,
+});
+
+// "0, 15" → [0, 15]. Each rate is validated; duplicates are dropped.
+const rateList = z.preprocess(
+  coerceStr,
+  z
+    .string()
+    .trim()
+    .transform((v) =>
+      v
+        .split(/[;,\s]+/)
+        .map((s) => s.trim())
+        .filter(Boolean)
+        .map((s) => Number(s.replace("%", ""))),
+    )
+    .refine(
+      (rates) => rates.every((r) => Number.isFinite(r) && r >= 0 && r <= 100),
+      "Cada tarifa debe ser un número entre 0 y 100.",
+    )
+    .transform((rates) => [...new Set(rates)].sort((a, b) => a - b)),
+);
+
+export const taxProfileSchema = z
+  .object({
+    regime: requiredText,
+    validFrom: z.preprocess(
+      coerceStr,
+      z
+        .string()
+        .trim()
+        .min(1, "Indica desde cuándo rige.")
+        .transform((v) => new Date(v)),
+    ),
+    validTo: optionalDate,
+    vatRates: rateList,
+    lastVerifiedAt: optionalDate,
+    notes: optionalText,
+  })
+  .refine((d) => !d.validTo || d.validTo >= d.validFrom, {
+    message: "La fecha de fin debe ser posterior al inicio.",
+    path: ["validTo"],
+  });
 
 export function parseForm<T extends z.ZodType>(schema: T, formData: FormData) {
   return schema.parse(Object.fromEntries(formData));

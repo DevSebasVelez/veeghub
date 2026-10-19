@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { Trash2 } from "lucide-react";
 
 import { deleteLead } from "@/lib/admin/actions/leads/actions";
+import { unwrap } from "@/lib/admin/actions/types";
 import { ConfirmationDialog } from "@/components/admin/confirmation-dialog";
 import { Button } from "@/components/ui/button";
 
@@ -25,7 +26,7 @@ export function DeleteLeadButton({
   async function handleDelete() {
     // ConfirmationDialog does not catch, so the toast belongs here.
     try {
-      await deleteLead(id);
+      unwrap(await deleteLead(id));
       toast.success("Lead eliminado.");
 
       if (redirectTo) router.push(redirectTo);
