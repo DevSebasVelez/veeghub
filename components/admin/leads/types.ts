@@ -18,6 +18,8 @@ export type LeadCardData = {
   firstContactedAt: string | null;
   nextFollowUpAt: string | null;
   convertedClientId: string | null;
+  temperature: string | null;
+  aiSummary: string | null;
   createdAt: string;
   // Derived on the server: computing "hace 6 min" inside a client component
   // makes it disagree with the server render and React flags a hydration
@@ -43,6 +45,8 @@ export function forLeadCard(lead: {
   firstContactedAt: Date | null;
   nextFollowUpAt: Date | null;
   convertedClientId: string | null;
+  temperature: string | null;
+  aiSummary: string | null;
   createdAt: Date;
 }): LeadCardData {
   return {
@@ -61,6 +65,8 @@ export function forLeadCard(lead: {
     firstContactedAt: lead.firstContactedAt?.toISOString() ?? null,
     nextFollowUpAt: lead.nextFollowUpAt?.toISOString() ?? null,
     convertedClientId: lead.convertedClientId,
+    temperature: lead.temperature,
+    aiSummary: lead.aiSummary,
     createdAt: lead.createdAt.toISOString(),
     ageLabel: shortAge(lead.createdAt),
     stale:
