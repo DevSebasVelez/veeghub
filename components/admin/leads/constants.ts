@@ -14,6 +14,7 @@ export const SOURCE_LABELS: Record<string, string> = {
   WHATSAPP: "WhatsApp",
   REFERRAL: "Referido",
   WEBSITE: "Sitio web",
+  WEB_CHAT: "Chat IA web",
   MANUAL: "Manual",
   CSV_IMPORT: "Importado CSV",
   OTHER: "Otro",
@@ -39,18 +40,31 @@ export const STAGE_TEXT_COLOR: Record<string, string> = {
   LOST: "text-muted-foreground line-through",
 };
 
+/** Qué tan listo está para comprar, según el asistente IA del sitio. */
+export const TEMPERATURE_LABELS: Record<string, string> = {
+  HOT: "Caliente",
+  WARM: "Tibio",
+  COLD: "Frío",
+};
+
 /** Minutes a NEW lead can sit before the card turns red. */
 export const STALE_MINUTES = 30;
 
-/** wa.me needs E.164 with no plus sign. */
-export function waLink(phone: string | null, name: string) {
+/**
+ * wa.me needs E.164 with no plus sign. `about` is what the lead asked for —
+ * the chat's summary of their need — so the first message shows we read it.
+ */
+export function waLink(phone: string | null, name: string, about?: string | null) {
   if (!phone) return null;
 
   const digits = phone.replace(/\D/g, "");
   if (!digits) return null;
 
+  const firstName = name.split(" ")[0];
   const text = encodeURIComponent(
-    `Hola ${name.split(" ")[0]}, te escribo de VeegSoft por tu consulta. ¿Tienes un momento?`,
+    about
+      ? `Hola ${firstName}, te escribo de VeegSoft por lo que conversaste en nuestra web sobre ${about.replace(/[.\s]+$/, "")}. ¿Tienes un momento para contarme un poco más?`
+      : `Hola ${firstName}, te escribo de VeegSoft por tu consulta. ¿Tienes un momento?`,
   );
 
   return `https://wa.me/${digits}?text=${text}`;

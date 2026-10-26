@@ -7,6 +7,7 @@ import { formatCurrency, formatDate } from "@/lib/admin/format";
 import { LeadQuickActions } from "@/components/admin/leads/lead-quick-actions";
 import { LeadStageSelect } from "@/components/admin/leads/lead-stage-select";
 import { SOURCE_LABELS } from "@/components/admin/leads/constants";
+import { TemperaturePill } from "@/components/admin/leads/temperature-pill";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   Table,
@@ -72,6 +73,11 @@ export function LeadTable({ leads }: { leads: LeadCardData[] }) {
                           {lead.company}
                         </div>
                       ) : null}
+                      {lead.aiSummary ? (
+                        <div className="max-w-72 truncate text-xs text-muted-foreground">
+                          {lead.aiSummary}
+                        </div>
+                      ) : null}
                     </TableCell>
                     <TableCell className="text-sm">
                       <div className="tabular-nums">{lead.phone ?? "—"}</div>
@@ -82,7 +88,11 @@ export function LeadTable({ leads }: { leads: LeadCardData[] }) {
                       ) : null}
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
-                      {SOURCE_LABELS[lead.source] ?? lead.source}
+                      <div>{SOURCE_LABELS[lead.source] ?? lead.source}</div>
+                      <TemperaturePill
+                        temperature={lead.temperature}
+                        className="mt-1"
+                      />
                     </TableCell>
                     <TableCell className="max-w-48 truncate text-sm text-muted-foreground">
                       {lead.metaCampaignName ?? "—"}

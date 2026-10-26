@@ -6,13 +6,28 @@ type LeadAlert = {
   phone: string | null;
   serviceTag: string | null;
   campaign: string | null;
+  /**
+   * Overrides for channels that have something better to say than the
+   * campaign line — the website chat sends the AI summary here.
+   */
+  title?: string;
+  body?: string;
 };
 
 function alertBody(lead: LeadAlert) {
   return (
+    lead.body ||
     [lead.campaign, lead.serviceTag, lead.phone].filter(Boolean).join(" · ") ||
     "Lead nuevo desde Meta"
   );
+}
+
+function escapeHtml(text: string) {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
 }
 
 /**
@@ -25,7 +40,7 @@ export async function notifyNewLead(lead: LeadAlert) {
 
   try {
     const result = await sendPushToAdmins({
-      title: `🔥 Nuevo lead: ${lead.name}`,
+      title: lead.title ?? `🔥 Nuevo lead: ${lead.name}`,
       body: alertBody(lead),
       url: `/admin/leads/${lead.id}`,
       tag: `lead-${lead.id}`,
@@ -56,10 +71,10 @@ async function sendEmailFallback(lead: LeadAlert) {
     await resend.emails.send({
       from,
       to,
-      subject: `Nuevo lead: ${lead.name}`,
+      subject: lead.title ?? `Nuevo lead: ${lead.name}`,
       html: `
-        <h2>${lead.name}</h2>
-        <p>${alertBody(lead)}</p>
+        <h2>${escapeHtml(lead.name)}</h2>
+        <p>${escapeHtml(alertBody(lead))}</p>
         ${lead.phone ? `<p><a href="https://wa.me/${lead.phone.replace(/\D/g, "")}">Escribir por WhatsApp</a></p>` : ""}
         <p><a href="${base}/admin/leads/${lead.id}">Ver el lead en Veeghub</a></p>
       `,

@@ -131,6 +131,40 @@ Las landings de campaña `/us/*` mandan además tres campos opcionales:
 
 ---
 
+### Leads del asistente IA (desde 2026-10-26)
+
+El chat de veegsoft.com registra al visitante con la herramienta
+`registrar_lead` y llama a este mismo endpoint con `channel: "chat"` y un bloque
+`chat`:
+
+```json
+{
+  "name": "María", "phone": "+593991234567", "serviceTag": "desarrollo-software",
+  "sourcePath": "/servicios/desarrollo-software", "channel": "chat",
+  "chat": {
+    "sessionId": "uuid de la sesión del chat",
+    "summary": "2-4 frases para quien va a contactar",
+    "temperature": "HOT | WARM | COLD",
+    "insights": { "necesidad": "...", "servicio": "...", "urgencia": "alta",
+                  "plazo": "...", "preferenciaContacto": "whatsapp",
+                  "presupuestoMencionado": null, "siguientePaso": "...",
+                  "ubicacion": "..." },
+    "transcript": [{ "role": "user", "text": "..." }, { "role": "assistant", "text": "..." }]
+  }
+}
+```
+
+- Entra como `source: WEB_CHAT` con `temperature`, `aiSummary`, `aiInsights` y
+  `conversation`. La ficha del lead los muestra arriba («Qué quiere») con el botón
+  de WhatsApp que ya cita la necesidad.
+- **Upsert por `chat.sessionId`** (`Lead.chatSessionId`, único): si el visitante
+  corrige un dato, el asistente vuelve a registrar y se actualiza el mismo lead
+  (respuesta `200`, `created: false`) con una actividad «El asistente IA
+  actualizó…». La etapa no se toca.
+- **Notificación:** todo lead web *creado* (chat o formulario) dispara
+  `notifyNewLead` en `after()`: push con la temperatura y el resumen; correo a
+  `LEAD_ALERT_EMAIL` si ningún push llega. Una actualización no vuelve a avisar.
+
 ## Duplicados
 
 Si el teléfono o el correo coinciden con un lead anterior que no esté en `LOST`,

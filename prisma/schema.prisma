@@ -87,9 +87,17 @@ enum LeadSource {
   WHATSAPP
   REFERRAL
   WEBSITE
+  WEB_CHAT
   MANUAL
   CSV_IMPORT
   OTHER
+}
+
+/// Qué tan listo está el lead para comprar, según el asistente IA del sitio.
+enum LeadTemperature {
+  HOT
+  WARM
+  COLD
 }
 
 enum LeadActivityType {
@@ -483,6 +491,18 @@ model Lead {
   metaCreatedAt    DateTime?
   rawPayload       Json?
 
+  /// Calificación del asistente IA de veegsoft.com. Sólo la llenan los leads
+  /// del chat (`source: WEB_CHAT`); los demás canales la dejan en null.
+  temperature   LeadTemperature?
+  aiSummary     String?
+  /// Necesidad, servicio, urgencia, plazo, preferencia de contacto, siguiente paso…
+  aiInsights    Json?
+  /// Transcripción `{ role, text }[]` de la conversación con el asistente.
+  conversation  Json?
+  /// Sesión del chat: el asistente puede volver a registrar al corregir un
+  /// dato y debe actualizar el mismo lead, no crear otro.
+  chatSessionId String?          @unique
+
   firstContactedAt DateTime?
   nextFollowUpAt   DateTime?
   stageChangedAt   DateTime  @default(now())
@@ -501,6 +521,7 @@ model Lead {
   @@index([stage, createdAt], map: "lead_stage_created_idx")
   @@index([stage, nextFollowUpAt], map: "lead_stage_followup_idx")
   @@index([source, createdAt], map: "lead_source_created_idx")
+  @@index([temperature, createdAt])
   @@index([metaCampaignId])
   @@index([phone])
   @@index([email])

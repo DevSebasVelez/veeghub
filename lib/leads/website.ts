@@ -70,7 +70,7 @@ export function verifyWebsiteLeadSignature(
 }
 
 /**
- * Forma del envío. `name` y `message` son lo único imprescindible: el resto
+ * Forma del envío. `name` es lo único imprescindible: el resto
  * depende de qué formulario del sitio lo manda —el corto de las landings pide
  * menos campos que el de `/contacto`— y un lead sin empresa sigue siendo un
  * lead.
@@ -106,6 +106,38 @@ export const websiteLeadSchema = z.object({
       utm_campaign: z.string().max(300).optional(),
       utm_term: z.string().max(300).optional(),
       utm_content: z.string().max(300).optional(),
+    })
+    .optional()
+    .nullable(),
+  /** `chat` cuando lo registra el asistente IA; el formulario no lo manda. */
+  channel: z.enum(["form", "chat"]).optional(),
+  /**
+   * Lo que el asistente IA entendió de la conversación. El sitio arma la
+   * transcripción en su servidor, no la manda el navegador.
+   */
+  chat: z
+    .object({
+      sessionId: z.string().trim().min(8).max(100),
+      summary: z.string().trim().min(1).max(2000),
+      temperature: z.enum(["HOT", "WARM", "COLD"]),
+      insights: z.object({
+        necesidad: z.string().trim().max(500).optional().nullable(),
+        servicio: z.string().trim().max(120).optional().nullable(),
+        urgencia: z.string().trim().max(120).optional().nullable(),
+        plazo: z.string().trim().max(200).optional().nullable(),
+        preferenciaContacto: z.string().trim().max(60).optional().nullable(),
+        presupuestoMencionado: z.string().trim().max(200).optional().nullable(),
+        siguientePaso: z.string().trim().max(500).optional().nullable(),
+        ubicacion: z.string().trim().max(200).optional().nullable(),
+      }),
+      transcript: z
+        .array(
+          z.object({
+            role: z.enum(["user", "assistant"]),
+            text: z.string().max(2000),
+          }),
+        )
+        .max(80),
     })
     .optional()
     .nullable(),
@@ -173,31 +205,129 @@ async function marcarPosibleDuplicado(
   });
 }
 
-export async function ingestWebsiteLead(input: WebsiteLeadInput) {
+export type WebsiteLeadResult = {
+  id: string;
+  /** `false` cuando el asistente volvió a registrar la misma conversación. */
+  created: boolean;
+  name: string;
+  phone: string | null;
+  serviceTag: string | null;
+  temperature: "HOT" | "WARM" | "COLD" | null;
+  aiSummary: string | null;
+  channel: "form" | "chat";
+};
+
+export async function ingestWebsiteLead(
+  input: WebsiteLeadInput,
+): Promise<WebsiteLeadResult> {
   const phoneRaw = limpio(input.phone);
   const phone = normalizePhone(phoneRaw);
   const email = limpio(input.email)?.toLowerCase() ?? null;
   const origen = limpio(input.sourcePath);
   const campana = resumenDeCampana(input);
+  const chat = input.chat ?? null;
+
+  const datos = {
+    name: input.name.trim(),
+    email,
+    phone,
+    phoneRaw,
+    company: limpio(input.company),
+    message: limpio(input.message),
+    serviceTag: limpio(input.serviceTag),
+  };
+
+  if (!chat) {
+    const lead = await prisma.lead.create({
+      data: {
+        ...datos,
+        source: "WEBSITE",
+        rawPayload: input as unknown as Prisma.InputJsonValue,
+        activities: {
+          create: {
+            type: "SYSTEM",
+            body:
+              (origen
+                ? `Lead recibido desde el formulario de ${origen}.`
+                : "Lead recibido desde el formulario del sitio web.") +
+              (campana ? ` ${campana}.` : ""),
+          },
+        },
+      },
+      select: { id: true },
+    });
+
+    await marcarPosibleDuplicado(lead.id, phone, email);
+
+    return {
+      id: lead.id,
+      created: true,
+      name: datos.name,
+      phone,
+      serviceTag: datos.serviceTag,
+      temperature: null,
+      aiSummary: null,
+      channel: "form",
+    };
+  }
+
+  // El asistente puede registrar dos veces la misma conversación (el visitante
+  // corrige el teléfono, o suma un dato). Se actualiza el mismo lead: la
+  // calificación nueva reemplaza a la anterior, y la etapa no se toca porque
+  // puede que alguien ya lo haya contactado.
+  const ia = {
+    temperature: chat.temperature,
+    aiSummary: chat.summary,
+    aiInsights: chat.insights as Prisma.InputJsonValue,
+    conversation: chat.transcript as unknown as Prisma.InputJsonValue,
+    rawPayload: input as unknown as Prisma.InputJsonValue,
+  };
+
+  const existente = await prisma.lead.findUnique({
+    where: { chatSessionId: chat.sessionId },
+    select: { id: true },
+  });
+
+  if (existente) {
+    await prisma.lead.update({
+      where: { id: existente.id },
+      data: {
+        ...datos,
+        ...ia,
+        activities: {
+          create: {
+            type: "SYSTEM",
+            body: "El asistente IA actualizó los datos y el resumen de la conversación.",
+          },
+        },
+      },
+    });
+
+    return {
+      id: existente.id,
+      created: false,
+      name: datos.name,
+      phone,
+      serviceTag: datos.serviceTag,
+      temperature: chat.temperature,
+      aiSummary: chat.summary,
+      channel: "chat",
+    };
+  }
 
   const lead = await prisma.lead.create({
     data: {
-      name: input.name.trim(),
-      email,
-      phone,
-      phoneRaw,
-      company: limpio(input.company),
-      message: limpio(input.message),
-      serviceTag: limpio(input.serviceTag),
-      source: "WEBSITE",
-      rawPayload: input as unknown as Prisma.InputJsonValue,
+      ...datos,
+      ...ia,
+      source: "WEB_CHAT",
+      chatSessionId: chat.sessionId,
       activities: {
         create: {
           type: "SYSTEM",
           body:
             (origen
-              ? `Lead recibido desde el formulario de ${origen}.`
-              : "Lead recibido desde el formulario del sitio web.") +
+              ? `Lead captado por el asistente IA del sitio en ${origen}.`
+              : "Lead captado por el asistente IA del sitio web.") +
             (campana ? ` ${campana}.` : ""),
         },
       },
@@ -207,5 +337,14 @@ export async function ingestWebsiteLead(input: WebsiteLeadInput) {
 
   await marcarPosibleDuplicado(lead.id, phone, email);
 
-  return lead;
+  return {
+    id: lead.id,
+    created: true,
+    name: datos.name,
+    phone,
+    serviceTag: datos.serviceTag,
+    temperature: chat.temperature,
+    aiSummary: chat.summary,
+    channel: "chat",
+  };
 }

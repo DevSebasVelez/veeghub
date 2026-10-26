@@ -58,6 +58,7 @@ export default async function LeadsPage({
     page?: string;
     stage?: string;
     source?: string;
+    temp?: string;
     q?: string;
     vista?: string;
   }>;
@@ -154,6 +155,7 @@ export default async function LeadsPage({
               searchParams={{
                 stage: filters.stage,
                 source: filters.source,
+                temp: filters.temp,
                 q: filters.q,
                 vista: "lista",
               }}

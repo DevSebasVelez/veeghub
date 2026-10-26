@@ -29,6 +29,8 @@ export const leadListSelect = {
   firstContactedAt: true,
   nextFollowUpAt: true,
   convertedClientId: true,
+  temperature: true,
+  aiSummary: true,
   createdAt: true,
 } as const;
 
@@ -59,6 +61,8 @@ export type LeadFilters = {
   page?: string;
   stage?: string;
   source?: string;
+  /** Temperatura del asistente IA: HOT, WARM o COLD. */
+  temp?: string;
   q?: string;
 };
 
@@ -72,6 +76,9 @@ export async function getLeadsPageData(filters: LeadFilters) {
       : {}),
     ...(filters.source && filters.source !== "all"
       ? { source: filters.source as never }
+      : {}),
+    ...(filters.temp && filters.temp !== "all"
+      ? { temperature: filters.temp as never }
       : {}),
     ...(query
       ? {
