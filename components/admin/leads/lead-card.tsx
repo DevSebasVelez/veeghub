@@ -7,6 +7,7 @@ import { formatCurrency } from "@/lib/admin/format";
 import { LeadQuickActions } from "@/components/admin/leads/lead-quick-actions";
 import { LeadStageSelect } from "@/components/admin/leads/lead-stage-select";
 import { SOURCE_LABELS } from "@/components/admin/leads/constants";
+import { TemperaturePill } from "@/components/admin/leads/temperature-pill";
 import type { LeadCardData } from "@/components/admin/leads/types";
 
 export function LeadCard({ lead }: { lead: LeadCardData }) {
@@ -47,7 +48,14 @@ export function LeadCard({ lead }: { lead: LeadCardData }) {
         </p>
       ) : null}
 
+      {lead.aiSummary ? (
+        <p className="mt-1.5 line-clamp-2 text-xs text-foreground/80">
+          {lead.aiSummary}
+        </p>
+      ) : null}
+
       <div className="mt-2 flex flex-wrap items-center gap-1.5">
+        <TemperaturePill temperature={lead.temperature} />
         {lead.serviceTag ? (
           <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium">
             {lead.serviceTag}

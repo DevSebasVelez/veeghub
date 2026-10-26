@@ -4,7 +4,11 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useTransition } from "react";
 import { Search } from "lucide-react";
 
-import { SOURCE_LABELS, STAGE_LABELS } from "@/components/admin/leads/constants";
+import {
+  SOURCE_LABELS,
+  STAGE_LABELS,
+  TEMPERATURE_LABELS,
+} from "@/components/admin/leads/constants";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -77,6 +81,23 @@ export function LeadFilters() {
         <SelectContent>
           <SelectItem value="all">Todos los orígenes</SelectItem>
           {Object.entries(SOURCE_LABELS).map(([value, label]) => (
+            <SelectItem key={value} value={value}>
+              {label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+
+      <Select
+        value={params.get("temp") ?? "all"}
+        onValueChange={(value) => setParam("temp", value)}
+      >
+        <SelectTrigger className="sm:w-40">
+          <SelectValue placeholder="Temperatura" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">Toda temperatura</SelectItem>
+          {Object.entries(TEMPERATURE_LABELS).map(([value, label]) => (
             <SelectItem key={value} value={value}>
               {label}
             </SelectItem>
