@@ -897,7 +897,9 @@ visibles y aprobación humana**.
 2. **Asesor IA semanal:** resumen por cliente con métricas + leads del CRM → recomendaciones
    concretas (nuevo ángulo, cambiar público, mover presupuesto). Se guardan como tareas
    (`Task` ya existe) para que no se pierdan.
-3. **Conversions API (Meta)** y **conversiones offline / mejoradas (Google)**: cuando un lead
+3. **Conversions API (Meta)** (plan de detalle:
+   [`2026-11-17-senal-de-calidad-a-meta.md`](2026-11-17-senal-de-calidad-a-meta.md)) y
+   **conversiones offline / mejoradas (Google)**: cuando un lead
    pasa a `WON` en el CRM, devolver el evento a la plataforma para que optimice por clientes
    reales, no por formularios. Es el **F7 pendiente del plan de leads** — hacerlo una vez y
    servirá a ambos planes. Ojo: para leads de clientes, respetar D4 (la señal la envía la app
