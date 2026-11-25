@@ -764,3 +764,209 @@ model RecurringExpense {
 
   @@index([active])
 }
+
+// ─── Marketing (docs/plans/2026-11-25-modulo-marketing.md) ──────────────────
+// Las publicaciones no son `Task`: una tarea exige proyecto de cliente y una
+// publicación tiene su propio ciclo (borrador → aprobado → publicado).
+
+enum ContentChannel {
+  LINKEDIN_PERSONAL
+  LINKEDIN_COMPANY
+  GBP
+  INSTAGRAM
+  FACEBOOK
+  TIKTOK
+  YOUTUBE
+  BLOG
+}
+
+enum ContentStatus {
+  IDEA
+  BORRADOR
+  EN_REVISION
+  APROBADO
+  PROGRAMADO
+  PUBLICADO
+  FALLIDO
+  DESCARTADO
+}
+
+enum IdeaStage {
+  IDEA
+  GUION
+  GRABADO
+  EDITADO
+  PUBLICADO
+  ARCHIVADO
+}
+
+enum AssetKind {
+  IMAGEN
+  VIDEO
+  RENDER_3D
+  CAPTURA
+  LOGO
+  PLANTILLA
+  OTRO
+}
+
+model ContentCampaign {
+  id        String        @id @default(cuid())
+  name      String
+  /// Va a `utm_campaign`.
+  slug      String        @unique
+  objective String?
+  startsOn  DateTime?     @db.Date
+  endsOn    DateTime?     @db.Date
+  posts     ContentPost[]
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+}
+
+model ContentPost {
+  id             String             @id @default(cuid())
+  campaignId     String?
+  campaign       ContentCampaign?   @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  ideaId         String?
+  idea           ContentIdea?       @relation(fields: [ideaId], references: [id], onDelete: SetNull)
+  channel        ContentChannel
+  status         ContentStatus      @default(BORRADOR)
+  /// Nombre interno.
+  title          String
+  /// Texto final del canal.
+  body           String
+  /// LinkedIn: el enlace va en el primer comentario. El enlace con UTM se
+  /// agrega al final al publicar o copiar.
+  firstComment   String?
+  /// URL destino SIN utm; el UTM se arma al publicar (`lib/marketing/utm.ts`).
+  linkUrl        String?
+  /// Instante, anclado a America/Guayaquil al parsear.
+  scheduledAt    DateTime?
+  publishedAt    DateTime?
+  externalId     String?
+  externalUrl    String?
+  error          String?
+  assets         ContentPostAsset[]
+  aiGenerationId String?
+  approvedById   String?
+  approvedAt     DateTime?
+  /// Aviso del día anterior (8:00) ya enviado.
+  reminderSentAt DateTime?
+  /// Aviso de «llegó la hora» ya enviado (modo manual).
+  dueNotifiedAt  DateTime?
+  /// Impresiones, clics, reacciones (F7).
+  metrics        Json?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  @@index([status, scheduledAt])
+  @@index([channel, scheduledAt])
+  @@index([campaignId])
+}
+
+model ContentIdea {
+  id           String        @id @default(cuid())
+  /// Id del HTML original (101, 201, 401…).
+  legacyId     Int?
+  /// "1-reels-principales.html"…
+  source       String?
+  title        String
+  sector       String?
+  category     String?
+  /// Reel corto, reel largo, carrusel, post.
+  format       String?
+  stage        IdeaStage     @default(IDEA)
+  priority     Int?
+  audience     String?
+  /// [{ tipo: "hook"|"caso"|"giro"|"pantalla"|"cierre", voz, motion }]
+  beats        Json
+  visualPrompt String?
+  notes        String?
+  /// Campos sueltos del esquema 5 (offer, benefit, hook_style…).
+  meta         Json?
+  words        Int?
+  seconds      Int?
+  tags         String[]
+  publishedUrl String?
+  posts        ContentPost[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  @@unique([source, legacyId])
+  @@index([stage])
+  @@index([sector])
+}
+
+model ContentAsset {
+  id        String             @id @default(cuid())
+  kind      AssetKind
+  name      String
+  r2Key     String             @unique
+  mime      String
+  size      Int?
+  width     Int?
+  height    Int?
+  /// "industria:construccion", "render", "visor"…
+  tags      String[]
+  alt       String?
+  posts     ContentPostAsset[]
+  createdAt DateTime           @default(now())
+
+  @@index([kind, createdAt])
+}
+
+model ContentPostAsset {
+  postId   String
+  post     ContentPost  @relation(fields: [postId], references: [id], onDelete: Cascade)
+  assetId  String
+  asset    ContentAsset @relation(fields: [assetId], references: [id], onDelete: Restrict)
+  position Int
+
+  @@id([postId, assetId])
+  @@index([assetId])
+}
+
+model BrandGuideline {
+  id        String   @id @default(cuid())
+  /// "tono", "cifras", "prohibidos", "paleta", "linkedin", "gbp", "reels"…
+  key       String   @unique
+  title     String
+  /// Markdown que se inyecta al prompt.
+  content   String
+  /// Orden fijo en el prompt: cambiarlo invalida la caché del prefijo.
+  position  Int      @default(0)
+  active    Boolean  @default(true)
+  updatedAt DateTime @updatedAt
+}
+
+model AiGeneration {
+  id              String   @id @default(cuid())
+  /// "ideas", "guion", "copy", "plan_semanal", "estrategia".
+  kind            String
+  model           String
+  input           Json
+  output          Json
+  inputTokens     Int
+  outputTokens    Int
+  cacheReadTokens Int?
+  costUsd         Decimal  @db.Decimal(10, 5)
+  /// Reglas que la salida rompió.
+  validatorFlags  String[]
+  createdById     String?
+  createdAt       DateTime @default(now())
+
+  @@index([createdAt])
+}
+
+/// Tokens OAuth (F6), cifrados con `lib/security/credentials.ts`.
+model ChannelConnection {
+  id              String         @id @default(cuid())
+  channel         ContentChannel @unique
+  accountName     String
+  accessTokenEnc  String
+  refreshTokenEnc String?
+  expiresAt       DateTime?
+  scopes          String[]
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+}
