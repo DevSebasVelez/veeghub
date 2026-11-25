@@ -71,7 +71,7 @@ El módulo tiene que:
 9. **El enlace va en el primer comentario** en LinkedIn. El publicador crea el post y luego el comentario con el enlace UTM.
 10. **UTM obligatorio:** cada post genera su enlace con `utm_source={canal}&utm_medium={social|organic}&utm_campaign={campaña}&utm_content={postId}`. Con eso F7 cruza contra GA4 y contra `Lead` (que ya guarda origen y UTM).
 11. **Las imágenes de un post son opcionales** (decidido 2026-11-25). Un post sin imágenes es un recordatorio válido. Mientras se publique a mano, adjuntarlas sólo ahorra buscarlas: el kit baja las correctas y en orden, también desde el celular. Se vuelven necesarias cuando F5 genere los creativos (se adjuntan solos) y F6 publique por API (las sube él). No se agrega trabajo para hacerlas obligatorias.
-12. **El cron no vive en Vercel** (decidido 2026-11-25): la cuenta es Hobby y sólo admite crons diarios; `*/15` hace fallar el deploy. `/api/cron/marketing` lo dispara un programador externo con `Authorization: Bearer $CRON_SECRET`. Cuál, se decide al desplegar (§8).
+12. **El cron no vive en Vercel** (decidido 2026-11-25): la cuenta es Hobby y sólo admite crons diarios; `*/15` hace fallar el deploy. `/api/cron/marketing` lo dispara un **Worker de Cloudflare con Cron Trigger** (`*/15 * * * *`) que llama con `Authorization: Bearer $CRON_SECRET` (decidido por Sebastián el 2026-11-25: gratis y fiable, y ya hay cuenta de Cloudflare por R2).
 
 ## 4. Modelo de datos (F1, con migración Prisma)
 
@@ -288,7 +288,7 @@ Los tokens se cifran con la misma utilidad que usa `Credential` (`lib/security`)
 
 ## 7. Para arrancar la próxima sesión (prompt sugerido)
 
-> Lee `docs/plans/2026-11-25-modulo-marketing.md` (empieza por el §8) y `docs/ui/convenciones-de-diseno.md`. Primero cerremos lo pendiente de F1/F3 que diga el §8 (programador del cron y despliegue) y después sigamos con F2: banco de ideas y teleprompter. Rama `feat/mkt-f2-banco-ideas` desde `feat/mkt-f1-fundaciones` (o desde `develop` si ya se mergeó). Sin push hasta que lo pida.
+> Lee `docs/plans/2026-11-25-modulo-marketing.md` (empieza por el §8) y `docs/ui/convenciones-de-diseno.md`. Primero cerremos lo pendiente de F1/F3 que diga el §8 (Worker de Cloudflare para el cron y despliegue) y después sigamos con F2: banco de ideas y teleprompter. Rama `feat/mkt-f2-banco-ideas` desde `feat/mkt-f1-fundaciones` (o desde `develop` si ya se mergeó). Sin push hasta que lo pida.
 
 ## 8. Bitácora
 
@@ -307,10 +307,7 @@ Los tokens se cifran con la misma utilidad que usa `Credential` (`lib/security`)
 **Lecciones:** un `<textarea>` envía `\r\n`; todo texto de formulario pasa por `formText()` en las acciones. El CORS de `veeghub-staging` sólo acepta `http://localhost:3000`: en otro puerto, la subida falla con «Error de red».
 
 **Pendiente antes de dar F1/F3 por cerradas:**
-1. **Programador del cron (decisión 12).** Opciones, en orden de preferencia:
-   - *Cloudflare Worker con Cron Trigger* (`*/15 * * * *`): ya hay cuenta de Cloudflare por R2, gratis, fiable; el secreto vive en el Worker.
-   - *cron-job.org*: gratis y sin código; el secreto queda en un servicio de terceros.
-   - *GitHub Actions `schedule`*: gratis, pero se retrasa hasta 15-30 min en horas pico; no sirve para «a las 7:30».
+1. **Crear el Worker del cron (decisión 12, decidido: Cloudflare).** Worker mínimo con `scheduled()` que hace `fetch("https://<dominio de producción>/api/cron/marketing", { headers: { Authorization: \`Bearer ${env.CRON_SECRET}\` } })` y registra el JSON de respuesta; Cron Trigger `*/15 * * * *` (UTC, da igual: la ruta calcula Ecuador sola); `CRON_SECRET` como secreto del Worker (`wrangler secret put`), el mismo valor que en Vercel. Verificar en los logs del Worker que responde 200. Descartados: cron-job.org (el secreto en un tercero) y GitHub Actions (se atrasa 15-30 min).
 2. **Desplegar** con el flujo de siempre (feat → develop → main). La migración corre sola en `vercel-build`.
 3. **Cargar producción:** `npm run mkt:assets` apuntando a la base y al bucket de producción (o desde la UI: «Cargar base» en Directrices e «Importar» en Calendario; la importación sin imágenes deja los posts sin adjuntos).
 4. **Aprobar los posts del cronograma.** Entran como borrador: sin «Aprobar» no hay aviso a la hora (sí el del día anterior).

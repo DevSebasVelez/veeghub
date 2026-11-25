@@ -18,8 +18,8 @@ function authorized(header: string | null) {
 /**
  * Recordatorios del calendario de marketing. Debe llamarse cada 15 minutos
  * con `Authorization: Bearer $CRON_SECRET`. Vercel Hobby sólo permite crons
- * diarios, así que lo dispara un programador externo (pendiente de elegir,
- * ver el plan de marketing §8). La ruta es idempotente: llamarla de más no
+ * diarios, así que lo dispara un Worker de Cloudflare con Cron Trigger
+ * (plan de marketing, decisión 12). La ruta es idempotente: llamarla de más no
  * repite avisos.
  */
 export async function GET(request: Request) {
