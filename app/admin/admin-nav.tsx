@@ -90,7 +90,17 @@ export function AdminNav({
                         <SidebarMenuButton
                           asChild
                           isActive={active}
-                          tooltip={{ children: count ? `${item.label} · ${count}` : item.label }}
+                          tooltip={{
+                            children: (
+                              <span className="flex flex-col">
+                                <span className="font-medium">
+                                  {item.label}
+                                  {count ? ` · ${count}` : ""}
+                                </span>
+                                <span className="opacity-70">{item.hint}</span>
+                              </span>
+                            ),
+                          }}
                           className={cn(
                             "relative h-11 gap-3 rounded-lg text-[15px] md:h-9 md:gap-2.5 md:text-sm",
                             "[&_svg]:size-5 md:[&_svg]:size-4",
@@ -103,7 +113,6 @@ export function AdminNav({
                             href={item.href}
                             onClick={closeOnMobile}
                             aria-current={active ? "page" : undefined}
-                            title={item.hint}
                           >
                             <Icon aria-hidden="true" />
                             <span>{item.label}</span>
