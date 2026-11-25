@@ -39,13 +39,13 @@ export function ImportPostsDialog() {
         return;
       }
 
-      const { created, skipped, missingAssets } = result.data;
+      const { created, skipped, fetchedAssets, missingAssets } = result.data;
       toast.success(
-        `${created} post${created === 1 ? "" : "s"} importado${created === 1 ? "" : "s"}${skipped ? `, ${skipped} ya existían` : ""}.`,
+        `${created} post${created === 1 ? "" : "s"} importado${created === 1 ? "" : "s"}${skipped ? `, ${skipped} ya existían` : ""}${fetchedAssets ? `; ${fetchedAssets} imágenes traídas de veegsoft.com` : ""}.`,
       );
       if (missingAssets.length) {
         toast.warning(
-          `${missingAssets.length} imágenes no están en la biblioteca todavía. Corre npm run mkt:assets y vuelve a importar.`,
+          `${missingAssets.length} imágenes no se pudieron traer (el carrusel de lanzamiento no es público). Súbelas a la biblioteca si las necesitas.`,
         );
       }
       setOpen(false);
@@ -68,8 +68,8 @@ export function ImportPostsDialog() {
           <DialogTitle>Importar cronograma de industrias</DialogTitle>
           <DialogDescription>
             Sube <code>veegsoft-web/docs/marketing/posts-industrias.md</code>. Crea la campaña
-            «Lanzamiento industrias» con sus posts de LinkedIn y GBP como borradores; los que ya
-            existen no se tocan.
+            «Lanzamiento industrias» con sus posts de LinkedIn y GBP como borradores y trae sus
+            imágenes de veegsoft.com. Los posts que ya existen no se tocan. Tarda unos segundos.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
