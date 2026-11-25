@@ -91,6 +91,19 @@ La acción secundaria de una tarjeta es un **botón redondo** con ícono (`round
 - Filtros: `next/form` o selects que escriben la URL; la URL es el estado.
 - Destructivo: `ghost` en rojo + `ConfirmationDialog`.
 
+### Menú lateral
+
+- **Una sola fuente:** `components/admin/nav-config.ts`. El sidebar, la barra móvil y el título de la
+  cabecera («Sección › Página») leen de ahí; una sección nueva es una entrada en el grupo que le toca.
+- Grupos: **Inicio · Comercial · Operación · Finanzas · Recursos**. No se agrega un grupo para un
+  solo ítem salvo Inicio.
+- Activo: fondo + barra de 3 px a la izquierda + `aria-current="page"`; gana el `href` más largo
+  que coincide (`/admin/finanzas/resumen` sigue marcando «Cobros»).
+- Contadores (`badge`) sólo para lo que pide acción hoy (leads sin contactar, posts de hoy). Se
+  calculan en `lib/admin/queries/nav.ts`.
+- Móvil: barra inferior con los 4 accesos diarios + «Menú», que abre el sidebar completo. Objetivos
+  táctiles de 44 px como mínimo.
+
 ## 7. Listas y tablas
 
 - Fila = **baldosa o punto** a la izquierda, título `text-sm font-medium`, meta `text-xs
