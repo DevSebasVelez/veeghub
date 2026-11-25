@@ -13,6 +13,7 @@ import {
   LayoutDashboard,
   Magnet,
   Megaphone,
+  Newspaper,
   Users,
   Wallet,
 } from "lucide-react";
@@ -37,6 +38,7 @@ const navItems = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
   { href: "/admin/leads", label: "Leads", icon: Magnet },
   { href: "/admin/campanas", label: "Campañas", icon: Megaphone },
+  { href: "/admin/marketing", label: "Marketing", icon: Newspaper },
   { href: "/admin/clientes", label: "Clientes", icon: Users },
   { href: "/admin/proyectos", label: "Proyectos", icon: BriefcaseBusiness },
   { href: "/admin/tareas", label: "Tareas", icon: CheckSquare },
