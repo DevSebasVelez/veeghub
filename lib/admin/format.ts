@@ -175,3 +175,25 @@ export function dayStartInstant(value: Date | string, zone = APP_TIME_ZONE) {
 
   return new Date(utcMidnight.getTime() - offset * 60000);
 }
+
+/**
+ * "HH:mm" of an instant in the business timezone (24 h), for calendar chips.
+ * Computed on the server: the browser's clock zone may differ.
+ */
+export function timeInAppZone(value: Date | string, zone = APP_TIME_ZONE) {
+  const instant = new Date(value);
+  const local = new Date(instant.getTime() + zoneOffsetMinutes(instant, zone) * 60000);
+
+  return local.toISOString().slice(11, 16);
+}
+
+/**
+ * "yyyy-MM-ddTHH:mm" wall-clock reading in the business timezone — the value
+ * a date + time field shows, and what `parseLocalDateTime()` reads back.
+ */
+export function localDateTimeInAppZone(value: Date | string, zone = APP_TIME_ZONE) {
+  const instant = new Date(value);
+  const local = new Date(instant.getTime() + zoneOffsetMinutes(instant, zone) * 60000);
+
+  return local.toISOString().slice(0, 16);
+}
