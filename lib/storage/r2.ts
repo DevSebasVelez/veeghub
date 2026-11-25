@@ -1,4 +1,5 @@
 import {
+  DeleteObjectCommand,
   GetObjectCommand,
   PutObjectCommand,
   S3Client,
@@ -121,4 +122,15 @@ export async function getR2ObjectBuffer(key: string) {
   const bytes = await response.Body.transformToByteArray();
 
   return Buffer.from(bytes);
+}
+
+export async function deleteFromR2(key: string) {
+  const { bucket } = getR2Config();
+
+  await getClient().send(
+    new DeleteObjectCommand({
+      Bucket: bucket,
+      Key: key,
+    }),
+  );
 }

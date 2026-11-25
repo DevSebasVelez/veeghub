@@ -17,6 +17,8 @@ import {
 
 import { formatCurrency, formatDate, formatDateOnly } from "@/lib/admin/format";
 import { getAdminDashboardData } from "@/lib/admin/queries/dashboard";
+import { getTodayPosts } from "@/lib/admin/queries/marketing";
+import { PostRow } from "@/components/admin/marketing/post-chip";
 import { Button } from "@/components/ui/button";
 
 const PRIORITY_STYLES: Record<string, string> = {
@@ -36,6 +38,10 @@ const PRIORITY_LABELS: Record<string, string> = {
 };
 
 export default async function AdminPage() {
+  const [dashboard, todayPosts] = await Promise.all([
+    getAdminDashboardData(),
+    getTodayPosts(),
+  ]);
   const {
     now,
     clients,
@@ -51,7 +57,7 @@ export default async function AdminPage() {
     newLeads,
     uncontactedLeads,
     cash,
-  } = await getAdminDashboardData();
+  } = dashboard;
 
   return (
     <div className="space-y-6">
@@ -156,6 +162,35 @@ export default async function AdminPage() {
       </div>
 
       <div className="grid gap-4 xl:grid-cols-2">
+        {todayPosts.length ? (
+          <div className="overflow-hidden rounded-xl border border-border bg-card xl:col-span-2">
+            <div className="flex items-center justify-between border-b border-border px-5 py-4">
+              <div>
+                <h2 className="text-sm font-semibold">
+                  Hoy toca publicar
+                  <span className="ml-2 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary tabular-nums">
+                    {todayPosts.length}
+                  </span>
+                </h2>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  Lo programado para hoy y lo que ya avisó y sigue sin publicarse.
+                </p>
+              </div>
+              <Link
+                href="/admin/marketing/calendario?vista=lista"
+                className="text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+              >
+                Ver calendario
+              </Link>
+            </div>
+            <div className="divide-y divide-border">
+              {todayPosts.map((post) => (
+                <PostRow key={post.id} post={post} />
+              ))}
+            </div>
+          </div>
+        ) : null}
+
         <div className="overflow-hidden rounded-xl border border-border bg-card">
           <div className="flex items-center justify-between border-b border-border px-5 py-4">
             <div>

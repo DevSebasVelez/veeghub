@@ -26,6 +26,8 @@
 2. **F6 — cron de backfill.** Ya desbloqueado (`pages_manage_ads` concedido). Red de seguridad por
    si el webhook pierde una entrega.
 3. **F7 — métricas y Conversions API.** Devolverle a Meta los leads ganados para que optimice.
+   **→ Reemplazado por [`2026-11-17-senal-de-calidad-a-meta.md`](2026-11-17-senal-de-calidad-a-meta.md)**
+   (auditoría de la cuenta, diagnóstico y paso a paso P0–P11). F6 (cron) se resuelve ahí también.
 4. **Reuniones creadas antes del fix de zona horaria** están 5 horas corridas en la base. Falta
    decidir si se corrigen con un script.
 5. Menores: importador CSV de leads, chip de origen en el detalle de cliente, y alinear `AreaTabs`
@@ -614,6 +616,10 @@ En el detalle del cliente: un chip discreto "Origen: Meta Ads · {campaña}" con
 
 
 ### F7 — Métricas y feedback a Meta (optimización real del gasto)
+
+> ⚠️ **Desactualizado.** El diseño vigente (payload correcto, etapas, cola, cron, requisitos de
+> volumen) está en [`2026-11-17-senal-de-calidad-a-meta.md`](2026-11-17-senal-de-calidad-a-meta.md).
+> El ejemplo de abajo omite `custom_data.event_source`/`lead_event_source`, que Meta exige.
 
 **Archivos:** `lib/admin/queries/leads-reports.ts`, `app/admin/reportes/page.tsx` (sección nueva), `lib/meta/conversions.ts`
 

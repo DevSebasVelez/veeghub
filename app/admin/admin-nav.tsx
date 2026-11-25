@@ -2,21 +2,6 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import {
-  BadgeDollarSign,
-  BriefcaseBusiness,
-  CalendarDays,
-  CheckSquare,
-  FileText,
-  Folder,
-  KeyRound,
-  LayoutDashboard,
-  Magnet,
-  Megaphone,
-  Users,
-  Wallet,
-} from "lucide-react";
-import { FaChartLine } from "react-icons/fa6";
 
 import {
   Sidebar,
@@ -27,32 +12,31 @@ import {
   SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
+  SidebarMenuBadge,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarRail,
+  SidebarSeparator,
   useSidebar,
 } from "@/components/ui/sidebar";
 import { UserMenu } from "@/components/admin/user-menu";
+import {
+  NAV_SECTIONS,
+  isNavItemActive,
+  type NavBadges,
+} from "@/components/admin/nav-config";
+import { cn } from "@/lib/utils";
 
-const navItems = [
-  { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/admin/leads", label: "Leads", icon: Magnet },
-  { href: "/admin/campanas", label: "Campañas", icon: Megaphone },
-  { href: "/admin/clientes", label: "Clientes", icon: Users },
-  { href: "/admin/proyectos", label: "Proyectos", icon: BriefcaseBusiness },
-  { href: "/admin/tareas", label: "Tareas", icon: CheckSquare },
-  { href: "/admin/reuniones", label: "Reuniones", icon: CalendarDays },
-  { href: "/admin/finanzas", label: "Finanzas", icon: BadgeDollarSign },
-  { href: "/admin/egresos", label: "Egresos", icon: Wallet },
-  { href: "/admin/facturas", label: "Facturas", icon: FileText },
-  { href: "/admin/reportes", label: "Reportes", icon: FaChartLine },
-  { href: "/admin/drive", label: "Drive", icon: Folder },
-  { href: "/admin/credenciales", label: "Credenciales", icon: KeyRound },
-];
+function badgeLabel(value: number) {
+  return value > 99 ? "99+" : String(value);
+}
 
 export function AdminNav({
   user,
+  badges = {},
 }: {
   user: { name: string | null; email: string | null };
+  badges?: NavBadges;
 }) {
   const pathname = usePathname();
   const { isMobile, setOpenMobile } = useSidebar();
@@ -62,55 +46,91 @@ export function AdminNav({
   };
 
   return (
-    <Sidebar collapsible="icon">
-      <SidebarHeader>
-        <div className="flex items-center gap-2 px-2 py-1">
-          <div className="flex size-8 items-center justify-center rounded-lg bg-primary text-sm font-semibold text-primary-foreground">
+    <Sidebar collapsible="icon" aria-label="Navegación principal">
+      <SidebarHeader className="h-14 justify-center border-b border-sidebar-border">
+        <Link
+          href="/admin"
+          onClick={closeOnMobile}
+          className="flex items-center gap-2.5 rounded-lg px-1.5 py-1 outline-hidden focus-visible:ring-2 focus-visible:ring-sidebar-ring group-data-[collapsible=icon]:px-0"
+        >
+          <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary text-sm font-semibold text-primary-foreground">
             V
-          </div>
-          <div className="min-w-0">
-            <div className="truncate text-sm font-semibold">Veeghub</div>
-            <div className="truncate text-xs text-muted-foreground">
-              Operaciones
-            </div>
-          </div>
-        </div>
+          </span>
+          <span className="min-w-0 group-data-[collapsible=icon]:hidden">
+            <span className="block truncate text-sm font-semibold leading-tight">VeegHub</span>
+            <span className="block truncate text-xs text-muted-foreground">Operaciones</span>
+          </span>
+        </Link>
       </SidebarHeader>
-      <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupLabel>Administración</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {navItems.map((item) => {
-                const Icon = item.icon;
-                const isActive =
-                  item.href === "/admin"
-                    ? pathname === item.href
-                    : pathname.startsWith(item.href);
 
-                return (
-                  <SidebarMenuItem key={item.href}>
-                    <SidebarMenuButton
-                      asChild
-                      isActive={isActive}
-                      tooltip={item.label}
-                      className="h-11 gap-3 text-base md:h-8 md:gap-2 md:text-sm [&_svg]:size-5 md:[&_svg]:size-4"
-                    >
-                      <Link href={item.href} onClick={closeOnMobile}>
-                        <Icon />
-                        <span>{item.label}</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                );
-              })}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+      <SidebarContent className="gap-0 py-2">
+        {NAV_SECTIONS.map((section, index) => {
+          const labelId = `nav-${section.id}`;
+
+          return (
+            <SidebarGroup key={section.id} className="py-1.5">
+              {index > 0 ? (
+                <SidebarSeparator className="mb-2 hidden group-data-[collapsible=icon]:block" />
+              ) : null}
+              <SidebarGroupLabel
+                id={labelId}
+                className="h-7 text-xs font-medium text-muted-foreground"
+              >
+                {section.label}
+              </SidebarGroupLabel>
+              <SidebarGroupContent>
+                <SidebarMenu aria-labelledby={labelId} className="gap-0.5">
+                  {section.items.map((item) => {
+                    const Icon = item.icon;
+                    const active = isNavItemActive(item, pathname);
+                    const count = item.badge ? (badges[item.badge] ?? 0) : 0;
+
+                    return (
+                      <SidebarMenuItem key={item.href}>
+                        <SidebarMenuButton
+                          asChild
+                          isActive={active}
+                          tooltip={{ children: count ? `${item.label} · ${count}` : item.label }}
+                          className={cn(
+                            "relative h-11 gap-3 rounded-lg text-[15px] md:h-9 md:gap-2.5 md:text-sm",
+                            "[&_svg]:size-5 md:[&_svg]:size-4",
+                            // Bar on the left edge marks the current page, not only the fill.
+                            "data-[active=true]:font-medium data-[active=true]:before:absolute data-[active=true]:before:inset-y-2 data-[active=true]:before:left-0 data-[active=true]:before:w-[3px] data-[active=true]:before:rounded-r-full data-[active=true]:before:bg-primary",
+                            "group-data-[collapsible=icon]:data-[active=true]:before:hidden",
+                          )}
+                        >
+                          <Link
+                            href={item.href}
+                            onClick={closeOnMobile}
+                            aria-current={active ? "page" : undefined}
+                            title={item.hint}
+                          >
+                            <Icon aria-hidden="true" />
+                            <span>{item.label}</span>
+                          </Link>
+                        </SidebarMenuButton>
+                        {count ? (
+                          <SidebarMenuBadge
+                            aria-label={`${count} pendientes`}
+                            className="top-3 right-2 h-5 min-w-5 rounded-full bg-primary px-1.5 text-[11px] font-semibold text-primary-foreground peer-data-[size=default]/menu-button:top-3 md:top-2 md:peer-data-[size=default]/menu-button:top-2 peer-hover/menu-button:text-primary-foreground peer-data-active/menu-button:text-primary-foreground"
+                          >
+                            {badgeLabel(count)}
+                          </SidebarMenuBadge>
+                        ) : null}
+                      </SidebarMenuItem>
+                    );
+                  })}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+          );
+        })}
       </SidebarContent>
-      <SidebarFooter>
+
+      <SidebarFooter className="border-t border-sidebar-border">
         <UserMenu name={user.name} email={user.email} />
       </SidebarFooter>
+      <SidebarRail />
     </Sidebar>
   );
 }
