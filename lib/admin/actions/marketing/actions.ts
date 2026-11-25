@@ -273,7 +273,9 @@ export async function importPostsIndustriasFile(formData: FormData) {
     }
     if (file.size > 1024 * 1024) throw new Error("El archivo pesa más de 1 MB.");
 
-    const result = await importPostsIndustrias(await file.text());
+    // On the server there is no veegsoft-web checkout: bring the images the
+    // posts need from the public site.
+    const result = await importPostsIndustrias(await file.text(), { fetchMissingAssets: true });
     revalidateMarketing();
     return result;
   });

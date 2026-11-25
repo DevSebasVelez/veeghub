@@ -2,6 +2,60 @@ import prisma from "@/lib/db/prisma";
 import { parseLocalDateTime } from "@/lib/admin/schemas";
 import { GUIDELINE_SEEDS } from "@/lib/marketing/guidelines-seed";
 import { parsePostsIndustrias } from "@/lib/marketing/import-industrias";
+import { imageDimensions, websiteSourceFor } from "@/lib/marketing/assets";
+import { uploadToR2 } from "@/lib/storage/r2";
+
+const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
+
+/**
+ * Brings a library image the schedule needs from veegsoft.com into this
+ * deployment's R2, under the same key `scripts/import-assets.ts` uses — so
+ * production can be loaded from the UI without its secrets on a laptop.
+ * Returns the new asset id, or null when the image is not public or fails.
+ */
+async function fetchWebsiteAsset(r2Key: string) {
+  const source = websiteSourceFor(r2Key);
+  if (!source) return null;
+
+  try {
+    const response = await fetch(source.url, { signal: AbortSignal.timeout(15000) });
+    const type = response.headers.get("content-type") ?? "";
+    if (!response.ok || !type.startsWith("image/")) return null;
+
+    const body = Buffer.from(await response.arrayBuffer());
+    if (body.length > MAX_IMAGE_BYTES) return null;
+
+    await uploadToR2({ key: r2Key, body, contentType: source.mime });
+    const asset = await prisma.contentAsset.upsert({
+      where: { r2Key },
+      create: {
+        kind: source.kind,
+        name: source.name,
+        r2Key,
+        mime: source.mime,
+        size: body.length,
+        ...(await imageDimensions(body)),
+        tags: source.tags,
+      },
+      update: {},
+      select: { id: true },
+    });
+
+    return asset.id;
+  } catch (error) {
+    console.error("[marketing] no se pudo traer", source.url, error);
+    return null;
+  }
+}
+
+/** Runs `task` over `items` with at most `limit` at a time. */
+async function inBatches<T, R>(items: T[], limit: number, task: (item: T) => Promise<R>) {
+  const results: R[] = [];
+  for (let i = 0; i < items.length; i += limit) {
+    results.push(...(await Promise.all(items.slice(i, i + limit).map(task))));
+  }
+  return results;
+}
 
 /**
  * Creates the guideline keys that are missing. Existing rows are left alone —
@@ -25,6 +79,8 @@ export type ImportResult = {
   campaignId: string;
   created: number;
   skipped: number;
+  /** Images brought from veegsoft.com during this import. */
+  fetchedAssets: number;
   /** Library images the file names that are not uploaded yet. */
   missingAssets: string[];
 };
@@ -35,9 +91,13 @@ export type ImportResult = {
  * Idempotent by (campaign, channel, title): a post already imported is never
  * touched again, so running it twice — or after editing a post in VeegHub —
  * loses nothing. Images are linked when they are already in the library
- * (`scripts/import-assets.ts`); the missing ones are reported, not invented.
+ * (`scripts/import-assets.ts`) or, with `fetchMissingAssets`, brought from
+ * veegsoft.com; whatever still misses is reported, not invented.
  */
-export async function importPostsIndustrias(markdown: string): Promise<ImportResult> {
+export async function importPostsIndustrias(
+  markdown: string,
+  { fetchMissingAssets = false }: { fetchMissingAssets?: boolean } = {},
+): Promise<ImportResult> {
   const parsed = parsePostsIndustrias(markdown);
 
   const campaign = await prisma.contentCampaign.upsert({
@@ -66,6 +126,26 @@ export async function importPostsIndustrias(markdown: string): Promise<ImportRes
 
   const seen = new Set(existing.map((post) => `${post.channel}|${post.title}`));
   const assetIds = new Map(assets.map((asset) => [asset.r2Key, asset.id]));
+
+  let fetchedAssets = 0;
+  if (fetchMissingAssets) {
+    const wanted = [
+      ...new Set(
+        parsed.posts
+          .filter((post) => !seen.has(`${post.channel}|${post.title}`))
+          .flatMap((post) => post.assetKeys)
+          .filter((key) => !assetIds.has(key)),
+      ),
+    ];
+    const ids = await inBatches(wanted, 6, fetchWebsiteAsset);
+    wanted.forEach((key, index) => {
+      const id = ids[index];
+      if (id) {
+        assetIds.set(key, id);
+        fetchedAssets += 1;
+      }
+    });
+  }
   const missing = new Set<string>();
 
   let created = 0;
@@ -114,6 +194,7 @@ export async function importPostsIndustrias(markdown: string): Promise<ImportRes
     campaignId: campaign.id,
     created,
     skipped,
+    fetchedAssets,
     missingAssets: [...missing],
   };
 }

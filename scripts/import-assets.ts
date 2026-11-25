@@ -20,6 +20,7 @@ import path from "node:path";
 import prisma from "@/lib/db/prisma";
 import { uploadToR2 } from "@/lib/storage/r2";
 import type { AssetKindValue } from "@/lib/marketing/constants";
+import { classifyIndustryImage, imageDimensions } from "@/lib/marketing/assets";
 
 const args = process.argv.slice(2);
 const dryRun = args.includes("--dry-run");
@@ -43,14 +44,6 @@ type Candidate = {
   alt: string | null;
 };
 
-function classify(slug: string, base: string): Pick<Candidate, "kind" | "tags"> {
-  const tags = [`industria:${slug}`];
-  if (/escena-3d|-3d-recorrido/.test(base)) return { kind: "RENDER_3D", tags: [...tags, "render"] };
-  if (base.startsWith("visor")) return { kind: "CAPTURA", tags: [...tags, "visor"] };
-  if (base === "movil") return { kind: "CAPTURA", tags: [...tags, "app"] };
-  return { kind: "CAPTURA", tags: [...tags, "pantalla"] };
-}
-
 async function listImages(dir: string) {
   try {
     return (await readdir(dir)).filter((file) => MIME[path.extname(file).toLowerCase()]).sort();
@@ -73,7 +66,7 @@ async function candidates(): Promise<Candidate[]> {
         file: path.join(dir, file),
         r2Key: `marketing/industrias/${slug}/${file}`,
         name: `${slug} · ${file}`,
-        ...classify(slug, base),
+        ...classifyIndustryImage(slug, base),
         alt: null,
       });
     }
@@ -92,17 +85,6 @@ async function candidates(): Promise<Candidate[]> {
   }
 
   return list;
-}
-
-async function dimensions(buffer: Buffer) {
-  try {
-    // sharp ships with Next; optional here so the script never fails on it.
-    const sharp = (await import("sharp")).default;
-    const meta = await sharp(buffer).metadata();
-    return { width: meta.width ?? null, height: meta.height ?? null };
-  } catch {
-    return { width: null, height: null };
-  }
 }
 
 async function main() {
@@ -136,7 +118,7 @@ async function main() {
         r2Key: candidate.r2Key,
         mime,
         size: body.length,
-        ...(await dimensions(body)),
+        ...(await imageDimensions(body)),
         tags: candidate.tags,
         alt: candidate.alt,
       },
