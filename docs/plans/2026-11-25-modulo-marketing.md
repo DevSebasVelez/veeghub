@@ -1,7 +1,7 @@
 # Plan: Módulo de Marketing — centro de contenido de VeegSoft
 
 **Creado:** 2026-11-25
-**Estado:** 🟡 F1 y F3 hechas en `feat/mkt-f1-fundaciones` (2026-11-25), sin desplegar
+**Estado:** 🟡 F1 y F3 desplegadas el 2026-11-25 (`main` 4834bef); faltan el Worker del cron y cargar datos en producción (§8)
 **Rama sugerida:** `feat/marketing`, con una sub-rama por fase (`feat/mkt-f1-fundaciones`, etc.)
 **Origen:** sesión de `veegsoft-web` del 2026-11-25 (lanzamiento de las 9 páginas de industria y primer post de LinkedIn publicado a mano desde Claude Code)
 
@@ -17,9 +17,9 @@
 
 | Fase | Qué entrega | Depende de | Estado |
 |---|---|---|---|
-| **F1** | Fundaciones: modelos, navegación, directrices de marca y biblioteca de recursos | — | 🟡 hecho, sin desplegar |
+| **F1** | Fundaciones: modelos, navegación, directrices de marca y biblioteca de recursos | — | 🟡 desplegado; falta cargar datos en producción |
 | **F2** | Banco de ideas: importar los ~199 reels, CRUD, estados y teleprompter | F1 | ⬜ |
-| **F3** | Calendario y planificador: publicaciones por canal, cronograma, «hoy toca» y recordatorios push y email | F1 | 🟡 hecho, sin desplegar |
+| **F3** | Calendario y planificador: publicaciones por canal, cronograma, «hoy toca» y recordatorios push y email | F1 | 🟡 desplegado; falta el Worker del cron |
 | **F4** | Generador con IA (Anthropic): ideas, guiones, copys por canal y plan semanal, siempre con las directrices | F1 (+F2/F3 para usar sus datos) | ⬜ |
 | **F5** | Creativos: plantillas de imagen (carrusel 4:5, GBP, OG) renderizadas en el servidor | F1, F4 | ⬜ |
 | **F6** | Publicación por API: LinkedIn (perfil), Facebook/Instagram (Meta) y Google Business Profile, con aprobación humana | F3 + trámites | ⬜ |
@@ -288,11 +288,11 @@ Los tokens se cifran con la misma utilidad que usa `Credential` (`lib/security`)
 
 ## 7. Para arrancar la próxima sesión (prompt sugerido)
 
-> Lee `docs/plans/2026-11-25-modulo-marketing.md` (empieza por el §8) y `docs/ui/convenciones-de-diseno.md`. Primero cerremos lo pendiente de F1/F3 que diga el §8 (Worker de Cloudflare para el cron y despliegue) y después sigamos con F2: banco de ideas y teleprompter. Rama `feat/mkt-f2-banco-ideas` desde `feat/mkt-f1-fundaciones` (o desde `develop` si ya se mergeó). Sin push hasta que lo pida.
+> Lee `docs/plans/2026-11-25-modulo-marketing.md` (empieza por el §8) y `docs/ui/convenciones-de-diseno.md`. Primero cerremos lo pendiente de F1/F3 que diga el §8 (Worker de Cloudflare para el cron, cargar datos en producción y aprobar posts) y después sigamos con F2: banco de ideas y teleprompter. Rama `feat/mkt-f2-banco-ideas` desde `develop`. Sin push hasta que lo pida.
 
 ## 8. Bitácora
 
-### 2026-11-25 — F1 y F3 (rama `feat/mkt-f1-fundaciones`, sin push)
+### 2026-11-25 — F1 y F3 (desplegadas: `main` 4834bef, Vercel OK)
 
 **Hecho y probado en el navegador** (oscuro, claro y 390 px):
 - Migración `20261125214831_marketing_module` (aditiva). Además de §4: `ContentPost.reminderSentAt` / `dueNotifiedAt` (para no avisar dos veces), `ContentAsset.size`, `BrandGuideline.position` (orden fijo en el prompt) y `@@unique([source, legacyId])` en `ContentIdea` (lo necesita el importador de F2).
@@ -308,7 +308,7 @@ Los tokens se cifran con la misma utilidad que usa `Credential` (`lib/security`)
 
 **Pendiente antes de dar F1/F3 por cerradas:**
 1. **Crear el Worker del cron (decisión 12, decidido: Cloudflare).** Worker mínimo con `scheduled()` que hace `fetch("https://<dominio de producción>/api/cron/marketing", { headers: { Authorization: \`Bearer ${env.CRON_SECRET}\` } })` y registra el JSON de respuesta; Cron Trigger `*/15 * * * *` (UTC, da igual: la ruta calcula Ecuador sola); `CRON_SECRET` como secreto del Worker (`wrangler secret put`), el mismo valor que en Vercel. Verificar en los logs del Worker que responde 200. Descartados: cron-job.org (el secreto en un tercero) y GitHub Actions (se atrasa 15-30 min).
-2. **Desplegar** con el flujo de siempre (feat → develop → main). La migración corre sola en `vercel-build`.
+2. ~~Desplegar~~ — hecho el 2026-11-25 (`main` 4834bef). En el mismo deploy salió el sidebar nuevo por secciones (`components/admin/nav-config.ts`).
 3. **Cargar producción:** `npm run mkt:assets` apuntando a la base y al bucket de producción (o desde la UI: «Cargar base» en Directrices e «Importar» en Calendario; la importación sin imágenes deja los posts sin adjuntos).
 4. **Aprobar los posts del cronograma.** Entran como borrador: sin «Aprobar» no hay aviso a la hora (sí el del día anterior).
 5. Variable opcional `MARKETING_ALERT_EMAIL` (si no está, usa `LEAD_ALERT_EMAIL`).
