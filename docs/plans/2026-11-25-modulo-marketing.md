@@ -9,9 +9,9 @@
 
 ## 0. Para retomar en otra sesión
 
-**Lee primero** el §1 (objetivo), el §3 (decisiones tomadas, que no se vuelven a discutir) y la fase en curso. Cada fase se puede hacer por separado: dice qué hay que hacer fuera del código (LinkedIn, Google, Anthropic), qué se programa y cómo saber que terminó.
+**Lee primero** el §8 (bitácora: qué quedó hecho y qué sigue), el §1 (objetivo), el §3 (decisiones tomadas, que no se vuelven a discutir) y la fase en curso. Cada fase se puede hacer por separado: dice qué hay que hacer fuera del código (LinkedIn, Google, Anthropic), qué se programa y cómo saber que terminó.
 
-**Antes de escribir código:** `AGENTS.md` (este Next no es el que conoces: lee `node_modules/next/dist/docs/`) y `docs/runbooks/fechas-y-zona-horaria.md`. Una publicación programada es un **instante**: se ancla a `America/Guayaquil`.
+**Antes de escribir código:** `docs/ui/convenciones-de-diseno.md` (toda pantalla nueva), `AGENTS.md` (este Next no es el que conoces: lee `node_modules/next/dist/docs/`) y `docs/runbooks/fechas-y-zona-horaria.md`. Una publicación programada es un **instante**: se ancla a `America/Guayaquil`.
 
 ### Tablero de fases
 
@@ -56,7 +56,7 @@ El módulo tiene que:
 | Directrices de marca | `veegsoft-web/CLAUDE.md` y `src/lib/asistente/prompt.ts` | Sin precios ni plazos. Solo cifras verificadas (+5 años, +100 proyectos). Sin oficinas: el trabajo es remoto y Cuenca es donde nació la empresa. Tono afirmativo, nunca contra terceros. Industrias: vender el sistema, no la norma. Paleta ink, brand #1E5A8F, aqua, moss, ochre y clay, sin morado. |
 | Imágenes de producto | `veegsoft-web/public/industrias/<slug>/*.webp` y `public/proyectos/` | Renders 3D, pantallas, apps y visores de los 9 sistemas demo. |
 | Clave de Anthropic | `.env` de veegsoft-web (`ANTHROPIC_API_KEY`) | La usa el chat del sitio. **Aquí se agrega como variable propia de VeegHub**, no se comparte el archivo. |
-| Infra de VeegHub | este repo | Vercel con `CRON_SECRET` (hay crons), web-push (`lib/notifications/push.ts`), Resend (`lib/email`), Cloudflare R2 (`lib/storage/r2.ts`), Drive, Meta (`lib/meta`, con app y páginas ya conectadas) y leads con origen y UTM. |
+| Infra de VeegHub | este repo | Vercel **Hobby** (sólo crons diarios; hasta F3 no había ningún cron) con `CRON_SECRET`, web-push (`lib/notifications/push.ts`), Resend (`lib/email`), Cloudflare R2 (`lib/storage/r2.ts`), Drive, Meta (`lib/meta`, con app y páginas ya conectadas) y leads con origen y UTM. |
 
 ## 3. Decisiones tomadas (no se vuelven a discutir)
 
@@ -70,6 +70,8 @@ El módulo tiene que:
 8. **LinkedIn primero desde el perfil personal** (más alcance que la página, ya comprobado), con la API «Share on LinkedIn» (`w_member_social`), que no requiere revisión. La página de empresa exige la Community Management API, que sí requiere aprobación: va después.
 9. **El enlace va en el primer comentario** en LinkedIn. El publicador crea el post y luego el comentario con el enlace UTM.
 10. **UTM obligatorio:** cada post genera su enlace con `utm_source={canal}&utm_medium={social|organic}&utm_campaign={campaña}&utm_content={postId}`. Con eso F7 cruza contra GA4 y contra `Lead` (que ya guarda origen y UTM).
+11. **Las imágenes de un post son opcionales** (decidido 2026-11-25). Un post sin imágenes es un recordatorio válido. Mientras se publique a mano, adjuntarlas sólo ahorra buscarlas: el kit baja las correctas y en orden, también desde el celular. Se vuelven necesarias cuando F5 genere los creativos (se adjuntan solos) y F6 publique por API (las sube él). No se agrega trabajo para hacerlas obligatorias.
+12. **El cron no vive en Vercel** (decidido 2026-11-25): la cuenta es Hobby y sólo admite crons diarios; `*/15` hace fallar el deploy. `/api/cron/marketing` lo dispara un programador externo con `Authorization: Bearer $CRON_SECRET`. Cuál, se decide al desplegar (§8).
 
 ## 4. Modelo de datos (F1, con migración Prisma)
 
@@ -218,7 +220,7 @@ Los tokens se cifran con la misma utilidad que usa `Credential` (`lib/security`)
 ### F3 — Calendario y planificador (va antes que F2)
 - Vista de mes y de semana por canal (chips por color), lista «Próximos 14 días» y un widget **«Hoy toca publicar»** en el dashboard de `/admin`.
 - Editor de post: canal, texto con contador por canal (LinkedIn 3.000, GBP 1.500), primer comentario, URL destino con vista previa del UTM, recursos ordenables desde la biblioteca, fecha y hora en Ecuador, y estados con el botón **Aprobar**.
-- **Recordatorios:** el cron cada 15 minutos (`/api/cron/marketing`, protegido con `CRON_SECRET`) busca posts `APROBADO` cuya hora ya llegó.
+- **Recordatorios:** el cron cada 15 minutos (`/api/cron/marketing`, protegido con `CRON_SECRET`, disparado desde fuera de Vercel: decisión 12) busca posts `APROBADO` cuya hora ya llegó.
   - Si el canal tiene API (F6), publica.
   - Si no, manda push y email con «Copiar texto / Descargar imágenes / Abrir canal» y deja el post en `PROGRAMADO`, a la espera de «Marcar publicado» con la URL.
   - Además, un aviso a las 8:00 del día anterior.
@@ -284,6 +286,37 @@ Los tokens se cifran con la misma utilidad que usa `Credential` (`lib/security`)
 - **Zona horaria:** las fechas programadas son instantes en Ecuador (runbook).
 - **Vercel:** Satori sí funciona allí, Chromium no; no se usa Playwright en producción.
 
-## 7. Para arrancar la sesión en VeegHub (prompt sugerido)
+## 7. Para arrancar la próxima sesión (prompt sugerido)
 
-> Lee `docs/plans/2026-11-25-modulo-marketing.md` completo y `AGENTS.md`. Empecemos por F1 y luego F3: migración Prisma de §4, navegación «Marketing», directrices sembradas desde `../veegsoft-web/CLAUDE.md` y `~/Documents/VEEG SOFT/MARKETING/Reels/GUIA-ESTILO-REELS.md`, biblioteca en R2 y el calendario con importación de `../veegsoft-web/docs/marketing/posts-industrias.md` y recordatorios por cron. Rama `feat/mkt-f1-fundaciones`. Sin push hasta que lo pida.
+> Lee `docs/plans/2026-11-25-modulo-marketing.md` (empieza por el §8) y `docs/ui/convenciones-de-diseno.md`. Primero cerremos lo pendiente de F1/F3 que diga el §8 (programador del cron y despliegue) y después sigamos con F2: banco de ideas y teleprompter. Rama `feat/mkt-f2-banco-ideas` desde `feat/mkt-f1-fundaciones` (o desde `develop` si ya se mergeó). Sin push hasta que lo pida.
+
+## 8. Bitácora
+
+### 2026-11-25 — F1 y F3 (rama `feat/mkt-f1-fundaciones`, sin push)
+
+**Hecho y probado en el navegador** (oscuro, claro y 390 px):
+- Migración `20261125214831_marketing_module` (aditiva). Además de §4: `ContentPost.reminderSentAt` / `dueNotifiedAt` (para no avisar dos veces), `ContentAsset.size`, `BrandGuideline.position` (orden fijo en el prompt) y `@@unique([source, legacyId])` en `ContentIdea` (lo necesita el importador de F2).
+- «Marketing» en la barra lateral → `/admin/marketing/{calendario,biblioteca,directrices}` con `AreaNav`. Ideas, generador, creativos y métricas se agregan con su fase.
+- Calendario: mes, semana (filas por canal) y lista de 14 días + «sin fecha»; franja de KPIs; editor con contador por canal, UTM en vivo, primer comentario, imágenes ordenables y fecha/hora en Ecuador; botón **Aprobar**; cambiar el contenido de un post aprobado lo devuelve a borrador; kit «publicar a mano»; tarjeta «Hoy toca publicar» en `/admin`.
+- Cron `GET /api/cron/marketing` (`lib/marketing/reminders.ts`): post `APROBADO` cuya hora llegó → push + email y queda `PROGRAMADO`; desde las 8:00 de Ecuador, resumen de los posts de mañana (incluye los no aprobados, para aprobarlos a tiempo). Simulado en las horas clave: cada aviso sale una sola vez.
+- Biblioteca en R2 (`marketing/…`), subida directa con URL firmada, etiquetas y filtros. Directrices: 10 sembradas (`lib/marketing/guidelines-seed.ts`), editables.
+- Importador de `posts-industrias.md`: campaña `industrias`, 19 posts (el lanzamiento como `PUBLICADO`, el resto `BORRADOR` a las 7:30), con sus imágenes.
+- Scripts: `npm run mkt:assets` (sube `veegsoft-web/public/industrias/**` y el carrusel de lanzamiento) y `npm run mkt:import` (directrices + cronograma). Ambos idempotentes; usan el `DATABASE_URL` y el bucket del `.env`.
+- Local: base con todo cargado; las 72 imágenes están en `veeghub-staging`.
+
+**Lecciones:** un `<textarea>` envía `\r\n`; todo texto de formulario pasa por `formText()` en las acciones. El CORS de `veeghub-staging` sólo acepta `http://localhost:3000`: en otro puerto, la subida falla con «Error de red».
+
+**Pendiente antes de dar F1/F3 por cerradas:**
+1. **Programador del cron (decisión 12).** Opciones, en orden de preferencia:
+   - *Cloudflare Worker con Cron Trigger* (`*/15 * * * *`): ya hay cuenta de Cloudflare por R2, gratis, fiable; el secreto vive en el Worker.
+   - *cron-job.org*: gratis y sin código; el secreto queda en un servicio de terceros.
+   - *GitHub Actions `schedule`*: gratis, pero se retrasa hasta 15-30 min en horas pico; no sirve para «a las 7:30».
+2. **Desplegar** con el flujo de siempre (feat → develop → main). La migración corre sola en `vercel-build`.
+3. **Cargar producción:** `npm run mkt:assets` apuntando a la base y al bucket de producción (o desde la UI: «Cargar base» en Directrices e «Importar» en Calendario; la importación sin imágenes deja los posts sin adjuntos).
+4. **Aprobar los posts del cronograma.** Entran como borrador: sin «Aprobar» no hay aviso a la hora (sí el del día anterior).
+5. Variable opcional `MARKETING_ALERT_EMAIL` (si no está, usa `LEAD_ALERT_EMAIL`).
+6. Basura menor: un objeto huérfano en `veeghub-staging/marketing/subidas/` de una prueba de subida fallida.
+
+**Hecho cuando (F3):** el 1-dic a las 7:30 llega el push del post de manufactura sin abrir Claude Code. Requiere los puntos 1-4.
+
+**Sigue: F2** — banco de ideas y teleprompter (§5). Antes de programar, revisar los 5 HTML de `~/Documents/VEEG SOFT/MARKETING/Banco de Ideas/` y su `#modal-teleprompter` / `#reel-dialog`; el parser de los archivos 1-4 sin `eval` (acorn o json5).
