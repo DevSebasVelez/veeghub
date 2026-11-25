@@ -1,7 +1,7 @@
 # Plan: Módulo de Marketing — centro de contenido de VeegSoft
 
 **Creado:** 2026-11-25
-**Estado:** 🟡 F1 y F3 desplegadas el 2026-11-25 (`main` 4834bef); faltan el Worker del cron y cargar datos en producción (§8)
+**Estado:** 🟡 F1 y F3 en producción con datos cargados (2026-11-25); falta sólo el Worker del cron (§8)
 **Rama sugerida:** `feat/marketing`, con una sub-rama por fase (`feat/mkt-f1-fundaciones`, etc.)
 **Origen:** sesión de `veegsoft-web` del 2026-11-25 (lanzamiento de las 9 páginas de industria y primer post de LinkedIn publicado a mano desde Claude Code)
 
@@ -17,9 +17,9 @@
 
 | Fase | Qué entrega | Depende de | Estado |
 |---|---|---|---|
-| **F1** | Fundaciones: modelos, navegación, directrices de marca y biblioteca de recursos | — | 🟡 desplegado; falta cargar datos en producción |
+| **F1** | Fundaciones: modelos, navegación, directrices de marca y biblioteca de recursos | — | ✅ en producción, con directrices y biblioteca |
 | **F2** | Banco de ideas: importar los ~199 reels, CRUD, estados y teleprompter | F1 | ⬜ |
-| **F3** | Calendario y planificador: publicaciones por canal, cronograma, «hoy toca» y recordatorios push y email | F1 | 🟡 desplegado; falta el Worker del cron |
+| **F3** | Calendario y planificador: publicaciones por canal, cronograma, «hoy toca» y recordatorios push y email | F1 | 🟡 en producción; falta el Worker del cron |
 | **F4** | Generador con IA (Anthropic): ideas, guiones, copys por canal y plan semanal, siempre con las directrices | F1 (+F2/F3 para usar sus datos) | ⬜ |
 | **F5** | Creativos: plantillas de imagen (carrusel 4:5, GBP, OG) renderizadas en el servidor | F1, F4 | ⬜ |
 | **F6** | Publicación por API: LinkedIn (perfil), Facebook/Instagram (Meta) y Google Business Profile, con aprobación humana | F3 + trámites | ⬜ |
@@ -288,7 +288,7 @@ Los tokens se cifran con la misma utilidad que usa `Credential` (`lib/security`)
 
 ## 7. Para arrancar la próxima sesión (prompt sugerido)
 
-> Lee `docs/plans/2026-11-25-modulo-marketing.md` (empieza por el §8) y `docs/ui/convenciones-de-diseno.md`. Primero cerremos lo pendiente de F1/F3 que diga el §8 (Worker de Cloudflare para el cron, cargar datos en producción y aprobar posts) y después sigamos con F2: banco de ideas y teleprompter. Rama `feat/mkt-f2-banco-ideas` desde `develop`. Sin push hasta que lo pida.
+> Lee `docs/plans/2026-11-25-modulo-marketing.md` (empieza por el §8) y `docs/ui/convenciones-de-diseno.md`. Primero creemos el Worker de Cloudflare del cron (§8, punto 1) antes del 30-nov a las 8:00 y después sigamos con F2: banco de ideas y teleprompter. Rama `feat/mkt-f2-banco-ideas` desde `develop`. Sin push hasta que lo pida.
 
 ## 8. Bitácora
 
@@ -309,11 +309,11 @@ Los tokens se cifran con la misma utilidad que usa `Credential` (`lib/security`)
 **Pendiente antes de dar F1/F3 por cerradas:**
 1. **Crear el Worker del cron (decisión 12, decidido: Cloudflare).** Worker mínimo con `scheduled()` que hace `fetch("https://<dominio de producción>/api/cron/marketing", { headers: { Authorization: \`Bearer ${env.CRON_SECRET}\` } })` y registra el JSON de respuesta; Cron Trigger `*/15 * * * *` (UTC, da igual: la ruta calcula Ecuador sola); `CRON_SECRET` como secreto del Worker (`wrangler secret put`), el mismo valor que en Vercel. Verificar en los logs del Worker que responde 200. Descartados: cron-job.org (el secreto en un tercero) y GitHub Actions (se atrasa 15-30 min).
 2. ~~Desplegar~~ — hecho el 2026-11-25 (`main` 4834bef). En el mismo deploy salió el sidebar nuevo por secciones (`components/admin/nav-config.ts`).
-3. **Cargar producción desde la UI** (las variables de producción son *Sensitive* en Vercel: `vercel env pull` las baja vacías y los scripts locales no sirven contra producción). «Cargar base» en Directrices e «Importar» en Calendario con `posts-industrias.md`: la importación trae sola las 36 imágenes de industria desde veegsoft.com (`lib/marketing/assets.ts`). Las 3 del carrusel de lanzamiento no son públicas; ese post ya está publicado, se suben a mano sólo si hacen falta. Probado contra una base vacía: 10 directrices, 19 posts, 36 imágenes y 45 adjuntos en ~7 s.
-4. **Aprobar los posts del cronograma.** Entran como borrador: sin «Aprobar» no hay aviso a la hora (sí el del día anterior).
+3. ~~Cargar producción~~ — hecho el 2026-11-25 desde la UI: 10 directrices, 19 posts, 36 imágenes. **Cómo se hizo** (las variables de producción son *Sensitive* en Vercel: `vercel env pull` las baja vacías y los scripts locales no sirven contra producción). «Cargar base» en Directrices e «Importar» en Calendario con `posts-industrias.md`: la importación trae sola las 36 imágenes de industria desde veegsoft.com (`lib/marketing/assets.ts`). Las 3 del carrusel de lanzamiento no son públicas; ese post ya está publicado, se suben a mano sólo si hacen falta. Probado contra una base vacía: 10 directrices, 19 posts, 36 imágenes y 45 adjuntos en ~7 s.
+4. Aprobar los posts del cronograma — **Manufactura (LinkedIn y GBP) del 1-dic aprobados** el 2026-11-25. Los siguientes se aprueban semana a semana (el resumen de las 8:00 del día anterior lo recuerda).
 5. Variable opcional `MARKETING_ALERT_EMAIL` (si no está, usa `LEAD_ALERT_EMAIL`).
 6. Basura menor: un objeto huérfano en `veeghub-staging/marketing/subidas/` de una prueba de subida fallida.
 
-**Hecho cuando (F3):** el 1-dic a las 7:30 llega el push del post de manufactura sin abrir Claude Code. Requiere los puntos 1-4.
+**Hecho cuando (F3):** el 1-dic a las 7:30 llega el push del post de manufactura sin abrir Claude Code. Ya sólo depende del punto 1 (Worker); sin él no sale ningún aviso.
 
 **Sigue: F2** — banco de ideas y teleprompter (§5). Antes de programar, revisar los 5 HTML de `~/Documents/VEEG SOFT/MARKETING/Banco de Ideas/` y su `#modal-teleprompter` / `#reel-dialog`; el parser de los archivos 1-4 sin `eval` (acorn o json5).
