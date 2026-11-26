@@ -24,7 +24,7 @@
 | **F5** | Creativos: plantillas de imagen (carrusel 4:5, GBP, OG) renderizadas en el servidor | F1, F4 | ⬜ |
 | **F6** | Publicación por API: LinkedIn (perfil), Facebook/Instagram (Meta) y Google Business Profile, con aprobación humana | F3 + trámites | ⬜ |
 | **F7** | Métricas y estrategia: UTM, GA4, leads por pieza y asesor IA de estrategia | F3, F6 | ⬜ |
-| **F8** | Centro de Meta Ads: sincronización sola, estado/objetivo/tipo de cada campaña, gasto mes a mes, alcance, alertas y calidad de lead por anuncio | — (usa el cron de F3) | ⬜ |
+| **F8** | Centro de Meta Ads: sincronización sola, estado/objetivo/tipo de cada campaña, gasto mes a mes, alcance, alertas y calidad de lead por anuncio | — (usa el cron de F3) | 🟡 hecha en `develop` (F8.1–F8.5 en modo lectura) |
 
 Orden recomendado: **F1 → F3 → F2 → F4 → F5 → F6 → F7 → F8.** F8 no depende de F4–F7: si las campañas pesan más que el contenido orgánico, se puede adelantar justo después de F2. F3 va antes que F2 porque el calendario es lo que evita olvidar las publicaciones, que es el dolor de hoy. Los trámites de F6 conviene iniciarlos ya, porque las aprobaciones tardan.
 
@@ -451,3 +451,22 @@ Probado en el navegador, en escritorio y en móvil, en claro y oscuro:
 2. En producción, Marketing › Ideas › «Importar» con los 5 HTML.
 3. Grabar un reel desde el teleprompter en el celular y en el portátil. Cuando ya no hagan falta los HTML, F2 queda cerrada.
 
+
+### 2026-11-26 — F8: centro de Meta Ads + color del módulo (rama `feat/mkt-f8-meta-ads`)
+
+Sebastián pidió adelantar F8 completa y quitarle lo «plano, blanco y negro» al módulo.
+
+**Campos verificados** contra la Marketing API `v26.0` con la cuenta real antes de programar: `effective_status`, `objective`, `optimization_goal`, `destination_type` (`ON_AD`, `WHATSAPP`…), `learning_stage_info`, `daily_budget` en centavos, `actions` (`lead`, `link_click`, `onsite_conversion.messaging_conversation_started_7d`), `time_increment=monthly` para alcance mensual, desgloses `publisher_platform,platform_position`, `age,gender`, `region`, y `/{page}/leadgen_forms` + `/{form}/leads` para el backfill (el token sí tiene el permiso).
+
+- **F8.1 — Sincronización sola** (`lib/meta/sync.ts`):
+  - La corre el **mismo cron de marketing** (`/api/cron/marketing`, ya disparado por el Worker cada 15 min): no hace falta tocar el Worker. Rápida como mucho cada 50 min; completa una vez al día. `/api/cron/meta?modo=full&forzar=1` y `npm run meta:sync` para forzarla.
+  - Rápida: estructura, insights de ayer y hoy (campaña y anuncio), alcance de 7 días y del mes, backfill de leads de las últimas 48 h. Completa: 28 días (180 la primera vez), 12 meses de alcance mensual y desgloses de este mes y el anterior.
+  - Pagina `paging.next` y se detiene al 80 % de uso de la API. Los errores quedan en `MetaAdAccount.lastSyncError` y se ven en la página.
+  - La página ya no sincroniza al abrirse; «Actualizar» fuerza la completa. Probado en local: 22 llamadas, ~15 s.
+- **F8.2 — Estado y tipo:** modelos `MetaCampaign`, `MetaAdSet`, `MetaAd`. Tipo legible por destino del conjunto (`lib/meta/campaign-kind.ts`) y seis estados con color. Push cuando un anuncio pasa a rechazado/con problemas (una vez por estado) y, en la completa, cuando una campaña activa con presupuesto gastó $0 ayer.
+- **F8.3 — Reportes:** filtros de período (7/30/90 días, mes, rango libre), estado y tipo, en la URL. KPIs con variación contra el período anterior; alcance real sólo por mes o 7 días (`MetaPeriodStat`). «Mes a mes» con 12 meses. CSV del período. Tarjeta «Marketing del mes» en `/admin/reportes`.
+- **F8.4 — Por anuncio:** `MetaAdInsight` diario × leads del CRM por `metaAdId`: % contactado/calificado/ganado, costo por calificado y por cliente; ranking por clientes y calificados. «Audiencia» con plataforma, ubicación, edad, sexo y región, y dónde sale más barato el lead.
+- **F8.5 — Recomendaciones** (`lib/meta/recommendations.ts`, con tests): anuncio rechazado, activa sin gastar, frecuencia > 3, CPL +40 % sobre 30 días, gasta sin leads, aprendizaje limitado, CTR bajo frente a sus hermanos, leads que no califican, leads de Meta que no llegaron al CRM, y la oportunidad (mejor anuncio por costo por calificado). Nada escribe en Meta.
+- **Color:** `components/admin/tone.tsx` (tonos por tema) y §2.1 en `docs/ui/convenciones-de-diseno.md`. Aplicado a Campañas y a todo Marketing (nav con íconos, KPIs, ideas con franja de categoría, fichas).
+- **Para cerrar F8:** desplegar (la migración corre en el build) y esperar una pasada del cron o tocar «Actualizar». Revisar que «Leads que no llegaron al CRM» no se dispare en producción; si se dispara, comparar contra Leads.
+- **Pendiente (fuera de alcance, necesita `ads_management`):** pausar/activar y presupuesto desde el panel, públicos lookalike. Sigue en `2026-10-21-gestor-campanas-ads.md`.
