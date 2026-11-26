@@ -70,7 +70,7 @@ export function GuidelineEditor({ guideline }: { guideline: Guideline }) {
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex min-w-0 flex-1 items-center gap-2">
-          <Input name="title" defaultValue={guideline.title} className="h-9 max-w-sm font-medium" required />
+          <Input name="title" defaultValue={guideline.title} aria-label="Título de la directriz" className="h-10 max-w-sm font-medium sm:h-9" required />
           <code className="rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">{guideline.key}</code>
         </div>
         <label className="flex items-center gap-2 text-sm">
@@ -86,6 +86,7 @@ export function GuidelineEditor({ guideline }: { guideline: Guideline }) {
       </div>
       <Textarea
         name="content"
+        aria-label={`Contenido de «${guideline.title}»`}
         defaultValue={guideline.content}
         rows={Math.min(18, Math.max(6, guideline.content.split("\n").length + 1))}
         className="font-mono text-[13px] leading-6"
@@ -93,7 +94,7 @@ export function GuidelineEditor({ guideline }: { guideline: Guideline }) {
       />
       <div className="flex items-center justify-between gap-2">
         <span className="text-xs text-muted-foreground">Editada {guideline.updatedLabel}</span>
-        <Button type="submit" size="sm" disabled={saving || !dirty}>
+        <Button type="submit" size="sm" className="max-sm:h-10" disabled={saving || !dirty}>
           {saving ? <Loader2 className="size-3.5 animate-spin" /> : null}
           Guardar
         </Button>
@@ -126,7 +127,7 @@ export function SeedGuidelinesButton({ missing }: { missing: number }) {
   }
 
   return (
-    <Button size="sm" variant={missing ? "default" : "outline"} onClick={seed} disabled={busy}>
+    <Button size="sm" className="max-sm:h-10" variant={missing ? "default" : "outline"} onClick={seed} disabled={busy}>
       {busy ? <Loader2 className="size-3.5 animate-spin" /> : <Sprout className="size-3.5" />}
       {missing ? `Cargar ${missing} directrices base` : "Cargar base"}
     </Button>
@@ -158,7 +159,7 @@ export function NewGuidelineDialog() {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button size="sm" variant="outline">
+        <Button size="sm" variant="outline" className="max-sm:h-10">
           <Plus className="size-3.5" />
           Nueva
         </Button>

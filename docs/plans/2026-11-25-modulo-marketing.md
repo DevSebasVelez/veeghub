@@ -1,7 +1,7 @@
 # Plan: Módulo de Marketing — centro de contenido de VeegSoft
 
 **Creado:** 2026-11-25
-**Estado:** 🟡 F1 y F3 desplegadas el 2026-11-25 (`main` 4834bef); faltan el Worker del cron y cargar datos en producción (§8)
+**Estado:** 🟢 F1 y F3 en producción con datos cargados (2026-11-25) y cron activo vía Worker de Cloudflare (2026-11-26). F2 y el pulido móvil están hechos en `develop`, sin desplegar.
 **Rama sugerida:** `feat/marketing`, con una sub-rama por fase (`feat/mkt-f1-fundaciones`, etc.)
 **Origen:** sesión de `veegsoft-web` del 2026-11-25 (lanzamiento de las 9 páginas de industria y primer post de LinkedIn publicado a mano desde Claude Code)
 
@@ -17,15 +17,16 @@
 
 | Fase | Qué entrega | Depende de | Estado |
 |---|---|---|---|
-| **F1** | Fundaciones: modelos, navegación, directrices de marca y biblioteca de recursos | — | 🟡 desplegado; falta cargar datos en producción |
-| **F2** | Banco de ideas: importar los ~199 reels, CRUD, estados y teleprompter | F1 | ⬜ |
-| **F3** | Calendario y planificador: publicaciones por canal, cronograma, «hoy toca» y recordatorios push y email | F1 | 🟡 desplegado; falta el Worker del cron |
+| **F1** | Fundaciones: modelos, navegación, directrices de marca y biblioteca de recursos | — | ✅ en producción, con directrices y biblioteca |
+| **F2** | Banco de ideas: importar los ~199 reels, CRUD, estados y teleprompter | F1 | 🟡 hecha en `develop` (2026-11-26); falta desplegar, importar en producción y grabar una prueba en el celular |
+| **F3** | Calendario y planificador: publicaciones por canal, cronograma, «hoy toca» y recordatorios push y email | F1 | 🟢 en producción; cron activo (Worker, 2026-11-26); falta confirmar el push del 1-dic |
 | **F4** | Generador con IA (Anthropic): ideas, guiones, copys por canal y plan semanal, siempre con las directrices | F1 (+F2/F3 para usar sus datos) | ⬜ |
 | **F5** | Creativos: plantillas de imagen (carrusel 4:5, GBP, OG) renderizadas en el servidor | F1, F4 | ⬜ |
 | **F6** | Publicación por API: LinkedIn (perfil), Facebook/Instagram (Meta) y Google Business Profile, con aprobación humana | F3 + trámites | ⬜ |
 | **F7** | Métricas y estrategia: UTM, GA4, leads por pieza y asesor IA de estrategia | F3, F6 | ⬜ |
+| **F8** | Centro de Meta Ads: sincronización sola, estado/objetivo/tipo de cada campaña, gasto mes a mes, alcance, alertas y calidad de lead por anuncio | — (usa el cron de F3) | 🟡 hecha en `develop` (F8.1–F8.5 en modo lectura) |
 
-Orden recomendado: **F1 → F3 → F2 → F4 → F5 → F6 → F7.** F3 va antes que F2 porque el calendario es lo que evita olvidar las publicaciones, que es el dolor de hoy. Los trámites de F6 conviene iniciarlos ya, porque las aprobaciones tardan.
+Orden recomendado: **F1 → F3 → F2 → F4 → F5 → F6 → F7 → F8.** F8 no depende de F4–F7: si las campañas pesan más que el contenido orgánico, se puede adelantar justo después de F2. F3 va antes que F2 porque el calendario es lo que evita olvidar las publicaciones, que es el dolor de hoy. Los trámites de F6 conviene iniciarlos ya, porque las aprobaciones tardan.
 
 ### Regla de oro del módulo
 
@@ -279,6 +280,81 @@ Los tokens se cifran con la misma utilidad que usa `Credential` (`lib/security`)
 - **Panel:** qué pilar, canal, sector y formato trae más visitas y leads.
 - **Asesor IA mensual:** lee las métricas y el calendario y propone qué repetir, qué cortar y qué probar. Queda como borrador de estrategia, que Sebastián aprueba.
 
+### F8 — Centro de Meta Ads (agregada 2026-11-26)
+
+**Por qué.** Hoy `/admin/campanas` sólo se actualiza cuando alguien la abre (o con el botón «Actualizar»), muestra gasto/impresiones/clics por campaña y no dice si una campaña está activa, qué objetivo tiene, si es de formulario o de mensajes, ni cuánto se gastó cada mes. Sebastián quiere un centro de marketing donde se vea **qué funciona, cuánto cuesta y qué mover para vender más**.
+
+**Qué existe (verificado el 2026-11-26).**
+- `lib/meta/insights.ts`: `GET act_…/insights` con `level=campaign`, `time_increment=1`, `time_range` y los campos `campaign_id, campaign_name, spend, impressions, clicks, reach`. `limit=500` sin paginar (`paging.next` se ignora). TTL de 15 min y tope del 80 % de uso de la API.
+- La sincronización corre sólo al abrir la página (`after()`) o con «Actualizar» (`force`). Sólo sincroniza el rango visible.
+- `MetaCampaignInsight`: una fila por campaña y día, única por `(campaignId, date)`. `MetaAdAccount`: una cuenta (`act_3364960217152672`).
+- **No se lee ni se guarda:** `status`/`effective_status`, `objective`, `optimization_goal`, `destination_type`, presupuesto, estrategia de puja, conjuntos de anuncios, anuncios, creativos, `actions`, `frequency`, `cpm`.
+- El alcance (`reach`) se guarda por día, pero **no se puede sumar entre días** (la misma persona cuenta varias veces) y la UI no lo usa.
+- Filtro de la página: sólo `?dias=7|30|90|365`. No hay mes ni rango libre.
+- Los leads se cuentan desde la tabla `Lead` (`metaCampaignId`/`metaAdsetId`/`metaAdId` ya se guardan en cada lead), no desde Meta.
+- No hay CAPI ni cron de Meta. El token no tiene `ads_management` (sólo lectura).
+
+**Relación con otros planes (no duplicar).**
+- `2026-10-21-gestor-campanas-ads.md` F3 (pausar/activar, editar presupuesto, sincronizar `effective_status` y rechazos) se **absorbe aquí en modo lectura**. Escribir en Meta (pausar, presupuesto) sigue en ese plan, porque necesita `ads_management`.
+- `2026-11-17-senal-de-calidad-a-meta.md`: P8 (costo por lead calificado por anuncio, `level=ad`) se construye aquí (F8.4). CAPI (P3–P7) sigue en ese plan; F8 sólo lo **muestra** cuando exista.
+
+> Antes de programar: revisar con la documentación vigente de la Marketing API (versión `v26.0`, `META_GRAPH_VERSION`) los nombres exactos de campos y enums. Los de abajo son los esperados, no verificados.
+
+#### F8.1 — Sincronización sola (lo primero)
+- Ruta `GET /api/cron/meta` con `CRON_SECRET`, disparada por el **mismo Worker** `veeghub-cron` (otro `fetch` en su `scheduled()`, o un segundo Cron Trigger cada hora). No se agrega nada a Vercel (decisión 12).
+- Cada pasada: estructura (campañas, conjuntos y anuncios con estado) + insights de **hoy y ayer** (Meta corrige el día anterior). Una vez al día, re-sincroniza los últimos 28 días (atribución tardía).
+- Paginación real (`paging.next`) y respeto del tope de uso que ya existe.
+- La página deja de sincronizar al abrirse: lee lo guardado y muestra «Actualizado hace X min». El botón «Actualizar» se queda como forzado.
+- Backfill de leads de formularios (`GET /{form_id}/leads`), pendiente desde el plan de CRM F6, en la misma ruta: si el webhook pierde un lead, el cron lo recupera.
+- **Hecho cuando:** sin abrir el panel durante un día, los datos de ayer están completos a las 8:00.
+
+#### F8.2 — Estado y tipo de cada campaña
+- Modelos nuevos: `MetaCampaign` (id, nombre, `status`, `effectiveStatus`, `objective`, `buyingType`, `dailyBudget`/`lifetimeBudget`, `startTime`/`stopTime`, `updatedTime`), `MetaAdSet` (id, campaña, `optimizationGoal`, `destinationType`, `billingEvent`, presupuesto, público resumido, `effectiveStatus`) y `MetaAd` (id, conjunto, nombre, `effectiveStatus`, miniatura del creativo, `issues`/`ad_review_feedback`).
+- **Tipo legible** derivado de `objective` + `optimization_goal` + `destination_type`, por ejemplo «Formulario instantáneo», «Mensajes de WhatsApp», «Mensajes de Messenger/IG», «Tráfico al sitio», «Reconocimiento». Pill neutra con ícono.
+- **Estado** con los colores de las convenciones: activa (emerald), en aprendizaje (amber), pausada (zinc), con problemas o rechazada (red), programada (blue).
+- Ficha de campaña (patrón «Plan»): KPIs arriba, conjuntos y anuncios debajo con su gasto y sus leads, y a la derecha los datos (objetivo, tipo, presupuesto, fechas, estado).
+- Push cuando un anuncio pasa a `DISAPPROVED`/`WITH_ISSUES` o una campaña activa deja de gastar 24 h.
+
+#### F8.3 — Reportes: gasto mes a mes y filtros
+- Filtros por URL: **mes** (selector como `report-month-filter`), rango libre, estado, tipo y campaña. La URL es el estado.
+- **Gasto mes a mes:** barras de los últimos 12 meses (gasto) con línea de leads y costo por lead. Tabla debajo: mes, gasto, leads, CPL, clientes ganados, costo por cliente, variación contra el mes anterior.
+- **Alcance real:** pedir el `reach` del período agregado (sin `time_increment`) y guardarlo aparte, por período y campaña, para no sumar alcances diarios. Mostrar alcance, frecuencia y CPM.
+- Insights con `actions` y `cost_per_action_type` para contar en Meta los leads, las conversaciones iniciadas y los clics al enlace, al lado de los leads que llegaron al CRM. La diferencia entre ambos sirve como alerta de leads perdidos.
+- Exportar CSV del período.
+- `/admin/reportes` (cobros/flujo) gana una tarjeta «Marketing del mes»: gasto, leads, CPL y clientes ganados.
+
+#### F8.4 — Calidad y ventas por anuncio
+- Insights a nivel `ad` (diario) para cruzar cada anuncio con los leads del CRM por `metaAdId`.
+- Por anuncio y conjunto: leads, % contactado, % calificado, % ganado, **costo por lead calificado** y **costo por cliente**. Es el P8 del plan de señal de calidad.
+- Ranking «qué anuncio trae clientes, no sólo leads», y alerta cuando un anuncio barato trae leads que nunca califican.
+- Desglose por plataforma y ubicación (`publisher_platform`, `platform_position`), edad/sexo y región, para decidir dónde poner el presupuesto.
+
+#### F8.5 — Recomendaciones para vender más
+- Reglas simples y visibles, sin IA al principio. Ejemplos:
+  - Frecuencia > 3 en 7 días: el público se cansó, rotar el creativo.
+  - CPL un 40 % sobre la media de 30 días.
+  - Conjunto en aprendizaje limitado.
+  - Campaña sin gasto con presupuesto activo.
+  - Anuncio con CTR bajo frente a sus hermanos.
+- Cada recomendación es una tarjeta con el dato que la dispara y un enlace al Administrador de anuncios. Nada se cambia solo: sin `ads_management`, sólo se avisa.
+- Más adelante (con F4): el asesor IA de F7 lee estas métricas junto con las del orgánico y propone el plan del mes.
+- Ideas para evaluar en su momento, cada una con su permiso o trámite:
+  - Públicos personalizados desde los clientes ganados (lookalike). Requiere `ads_management`.
+  - Biblioteca de anuncios de la competencia (`ads_archive`).
+  - Estadísticas de la página e Instagram orgánico (`pages_read_engagement`, `instagram_manage_insights`), para tener orgánico y pagado en el mismo panel.
+
+**Riesgos.**
+- Límite de uso de la API: la estructura cambia poco (cada hora basta) y los insights se piden sólo para hoy y ayer.
+- Zona horaria: Meta reporta el gasto en la zona de la cuenta publicitaria (runbook §7.4). Hay que verificar que coincida con Ecuador o convertir.
+- `date_preset` excluye hoy: usar `time_range`.
+- Los `action_type` de leads no son estables: mapear varios (`lead`, `onsite_conversion.lead_grouped`, `leadgen_grouped`) y probarlo con datos reales.
+
+**Hecho cuando:**
+- Sin abrir el panel, el gasto de ayer y el estado de todas las campañas están al día.
+- Se filtra por mes y se ve el gasto mes a mes con su CPL.
+- Cada campaña muestra su tipo y su estado.
+- Hay al menos una recomendación con datos reales.
+
 ## 6. Riesgos y cuidados
 - **Gasto de IA:** tope mensual configurable (variable de entorno) que bloquea las generaciones al superarse, y costo visible siempre.
 - **Tokens de redes:** cifrados, nunca en logs y con permisos mínimos.
@@ -288,7 +364,7 @@ Los tokens se cifran con la misma utilidad que usa `Credential` (`lib/security`)
 
 ## 7. Para arrancar la próxima sesión (prompt sugerido)
 
-> Lee `docs/plans/2026-11-25-modulo-marketing.md` (empieza por el §8) y `docs/ui/convenciones-de-diseno.md`. Primero cerremos lo pendiente de F1/F3 que diga el §8 (Worker de Cloudflare para el cron, cargar datos en producción y aprobar posts) y después sigamos con F2: banco de ideas y teleprompter. Rama `feat/mkt-f2-banco-ideas` desde `develop`. Sin push hasta que lo pida.
+> Lee `docs/plans/2026-11-25-modulo-marketing.md` (empieza por el §8) y `docs/ui/convenciones-de-diseno.md`. F2 está hecha en `develop` (§8, 2026-11-26): falta desplegarla e importar las ideas en producción. Lo siguiente es F4 (generador con IA) o adelantar F8 (centro de Meta Ads), según lo que decida Sebastián. Sin push hasta que lo pida.
 
 ## 8. Bitácora
 
@@ -307,13 +383,98 @@ Los tokens se cifran con la misma utilidad que usa `Credential` (`lib/security`)
 **Lecciones:** un `<textarea>` envía `\r\n`; todo texto de formulario pasa por `formText()` en las acciones. El CORS de `veeghub-staging` sólo acepta `http://localhost:3000`: en otro puerto, la subida falla con «Error de red».
 
 **Pendiente antes de dar F1/F3 por cerradas:**
-1. **Crear el Worker del cron (decisión 12, decidido: Cloudflare).** Worker mínimo con `scheduled()` que hace `fetch("https://<dominio de producción>/api/cron/marketing", { headers: { Authorization: \`Bearer ${env.CRON_SECRET}\` } })` y registra el JSON de respuesta; Cron Trigger `*/15 * * * *` (UTC, da igual: la ruta calcula Ecuador sola); `CRON_SECRET` como secreto del Worker (`wrangler secret put`), el mismo valor que en Vercel. Verificar en los logs del Worker que responde 200. Descartados: cron-job.org (el secreto en un tercero) y GitHub Actions (se atrasa 15-30 min).
+1. ~~Crear el Worker del cron~~ — hecho el 2026-11-26. Worker `veeghub-cron` en Cloudflare, creado desde el panel web (sin wrangler): `scheduled()` llama a `https://veeghub.veegsoft.com/api/cron/marketing` con `Authorization: Bearer ${env.CRON_SECRET}` y hace `console.log` de la respuesta; también tiene `fetch()` para probarlo a mano abriendo su URL `workers.dev`. Cron Trigger `*/15 * * * *`; `CRON_SECRET` es un *Secret* del Worker, el mismo valor que en Vercel. Probado: `200 {"due":0,"tomorrow":0,"pushed":0,"emailed":0}`. Si algún día da 401: el secreto no coincide o Vercel no se redesplegó tras cambiarlo. Descartados: cron-job.org (el secreto en un tercero) y GitHub Actions (se atrasa 15-30 min).
 2. ~~Desplegar~~ — hecho el 2026-11-25 (`main` 4834bef). En el mismo deploy salió el sidebar nuevo por secciones (`components/admin/nav-config.ts`).
-3. **Cargar producción desde la UI** (las variables de producción son *Sensitive* en Vercel: `vercel env pull` las baja vacías y los scripts locales no sirven contra producción). «Cargar base» en Directrices e «Importar» en Calendario con `posts-industrias.md`: la importación trae sola las 36 imágenes de industria desde veegsoft.com (`lib/marketing/assets.ts`). Las 3 del carrusel de lanzamiento no son públicas; ese post ya está publicado, se suben a mano sólo si hacen falta. Probado contra una base vacía: 10 directrices, 19 posts, 36 imágenes y 45 adjuntos en ~7 s.
-4. **Aprobar los posts del cronograma.** Entran como borrador: sin «Aprobar» no hay aviso a la hora (sí el del día anterior).
+3. ~~Cargar producción~~ — hecho el 2026-11-25 desde la UI: 10 directrices, 19 posts, 36 imágenes. **Cómo se hizo** (las variables de producción son *Sensitive* en Vercel: `vercel env pull` las baja vacías y los scripts locales no sirven contra producción). «Cargar base» en Directrices e «Importar» en Calendario con `posts-industrias.md`: la importación trae sola las 36 imágenes de industria desde veegsoft.com (`lib/marketing/assets.ts`). Las 3 del carrusel de lanzamiento no son públicas; ese post ya está publicado, se suben a mano sólo si hacen falta. Probado contra una base vacía: 10 directrices, 19 posts, 36 imágenes y 45 adjuntos en ~7 s.
+4. Aprobar los posts del cronograma — **Manufactura (LinkedIn y GBP) del 1-dic aprobados** el 2026-11-25. Los siguientes se aprueban semana a semana (el resumen de las 8:00 del día anterior lo recuerda).
 5. Variable opcional `MARKETING_ALERT_EMAIL` (si no está, usa `LEAD_ALERT_EMAIL`).
 6. Basura menor: un objeto huérfano en `veeghub-staging/marketing/subidas/` de una prueba de subida fallida.
 
-**Hecho cuando (F3):** el 1-dic a las 7:30 llega el push del post de manufactura sin abrir Claude Code. Requiere los puntos 1-4.
+**Hecho cuando (F3):** el 1-dic a las 7:30 llega el push del post de manufactura sin abrir Claude Code. Worker activo desde el 2026-11-26: el 30-nov a las 8:00 debe llegar el resumen de mañana y el 1-dic a las 7:30 el push. Si llegan, F3 queda cerrada.
 
 **Sigue: F2** — banco de ideas y teleprompter (§5). Antes de programar, revisar los 5 HTML de `~/Documents/VEEG SOFT/MARKETING/Banco de Ideas/` y su `#modal-teleprompter` / `#reel-dialog`; el parser de los archivos 1-4 sin `eval` (acorn o json5).
+
+### 2026-11-26 — Pulido de UI/UX móvil (rama `feat/mkt-ui-polish`)
+
+Probado en el navegador a 390 px y en escritorio, en claro y oscuro:
+- **Ficha del post:** tiene dos secciones por URL, «Listo para publicar» (por defecto) y «Editar» (`?vista=editar`).
+  - «Listo para publicar» muestra el texto, el primer comentario (con su UTM) y las imágenes, cada uno con «Copiar», que confirma con un check.
+  - Las imágenes se abren en un visor a pantalla completa: flechas, deslizar con el dedo, descargar.
+  - Tiene «Descargar todas» y «Abrir canal». En el celular aparece también **«Compartir con imágenes»** (Web Share API): copia el texto y manda las imágenes a la app de LinkedIn o de Google.
+  - Un post publicado se ve sólo como referencia.
+  - En el celular el orden es estado → contenido → datos.
+- `GET /api/admin/marketing/assets/[id]?archivo=1` sirve los bytes desde el mismo origen (máximo 4 MB). Así «Compartir» no depende del CORS de R2.
+- **Editor:** las imágenes se abren en el visor; los botones de ordenar crecen en el celular; «Guardar» queda fijo abajo en el celular.
+- **Calendario en el celular:**
+  - Mes: puntos de color por canal; tocar un día abre su agenda debajo.
+  - Semana: lista por día en vez de la tabla con scroll lateral.
+  - Las filas muestran la miniatura de la primera imagen y el estado debajo.
+  - Los botones de navegación son de 40 px.
+- **Biblioteca:** tocar una imagen abre el visor (antes abría la URL cruda en otra pestaña); los botones de cada tarjeta son de 40 px en el celular.
+
+**Falta probar en un teléfono real:** «Compartir con imágenes» (el navegador del escritorio no lo ofrece).
+
+### 2026-11-26 — F2: banco de ideas y teleprompter (rama `feat/mkt-f2-banco-ideas`)
+
+Probado en el navegador, en escritorio y en móvil, en claro y oscuro:
+- **Parser** (`lib/marketing/ideas-import.ts`):
+  - Archivos 1-4: lee el literal `rawScripts` desde el árbol sintáctico de `acorn`. Sólo acepta arreglos, objetos, textos y números; cualquier otra cosa (funciones, llamadas, plantillas con expresiones) se rechaza. **Nunca `eval`.**
+  - Archivo 5: lee el JSON de `#reel-data`. El sector sale de la audiencia (lo que va después del «·»). El gancho alternativo, la secuencia visual, la oferta, el beneficio y los demás campos van a `meta`.
+  - Tests: 6, incluido uno que lee los 5 archivos reales: 199 reels, ids únicos y 5 beats cada uno.
+- **Importar:**
+  - `npm run mkt:ideas` en local.
+  - En producción, «Importar» en Marketing › Ideas, con los 5 HTML a la vez (574 KB, por debajo del límite de 1 MB de las server actions).
+  - Es idempotente por `(source, legacyId)`: reimportar actualiza el guion y **conserva la etapa, las notas y la URL**.
+  - Probado desde la UI: 199 ideas en ~1 s.
+- **Lista** `/admin/marketing/ideas`:
+  - KPIs por etapa (activas, listas para grabar, por editar, publicadas).
+  - Búsqueda sin tildes en el título, el sector y el texto de los beats.
+  - Filtros de categoría, etapa, sector y prioridad, en la URL.
+  - Tarjetas con el gancho y un botón directo al teleprompter.
+- **Ficha** `/admin/marketing/ideas/[id]` (patrón «Plan»):
+  - Beats con lo que se dice y lo que se ve en pantalla. «Copiar texto» y «Guion completo».
+  - Gancho alternativo, secuencia de motion y prompt visual, cada uno con «Copiar».
+  - Etapa: un selector más «Marcar siguiente». Al pasar a PUBLICADO pide la URL.
+  - «Crear post a partir de esta idea»: crea un borrador de LinkedIn vinculado a la idea y abre el editor.
+  - Notas, posts vinculados, y anterior/siguiente.
+- **Teleprompter** `/admin/marketing/ideas/[id]/grabar`, a pantalla completa:
+  - Cuenta regresiva de 3 o 5 s, o sin cuenta.
+  - Velocidad en px/s, tamaño de letra y espejo, guardados en `localStorage` como en el HTML.
+  - Línea de lectura. Gancho principal o alternativo.
+  - Pausa al tocar el texto o con la barra espaciadora; se detiene si arrastras o cambias de pestaña.
+  - Mantiene la pantalla encendida mientras lee (Wake Lock).
+  - «Marcar grabado», y anterior/siguiente.
+  - Atajos: ↑↓ velocidad, +/− letra, M espejo, R inicio, ←→ otra idea, Esc salir.
+
+**Para cerrar F2:**
+1. Desplegar (`develop` → `main`).
+2. En producción, Marketing › Ideas › «Importar» con los 5 HTML.
+3. Grabar un reel desde el teleprompter en el celular y en el portátil. Cuando ya no hagan falta los HTML, F2 queda cerrada.
+
+
+### 2026-11-26 — F8: centro de Meta Ads + color del módulo (rama `feat/mkt-f8-meta-ads`)
+
+Sebastián pidió adelantar F8 completa y quitarle lo «plano, blanco y negro» al módulo.
+
+**Campos verificados** contra la Marketing API `v26.0` con la cuenta real antes de programar: `effective_status`, `objective`, `optimization_goal`, `destination_type` (`ON_AD`, `WHATSAPP`…), `learning_stage_info`, `daily_budget` en centavos, `actions` (`lead`, `link_click`, `onsite_conversion.messaging_conversation_started_7d`), `time_increment=monthly` para alcance mensual, desgloses `publisher_platform,platform_position`, `age,gender`, `region`, y `/{page}/leadgen_forms` + `/{form}/leads` para el backfill (el token sí tiene el permiso).
+
+- **F8.1 — Sincronización sola** (`lib/meta/sync.ts`):
+  - La corre el **mismo cron de marketing** (`/api/cron/marketing`, ya disparado por el Worker cada 15 min): no hace falta tocar el Worker. Rápida como mucho cada 50 min; completa una vez al día. `/api/cron/meta?modo=full&forzar=1` y `npm run meta:sync` para forzarla.
+  - Rápida: estructura, insights de ayer y hoy (campaña y anuncio), alcance de 7 días y del mes, backfill de leads de las últimas 48 h. Completa: 28 días (180 la primera vez), 12 meses de alcance mensual y desgloses de este mes y el anterior.
+  - Pagina `paging.next` y se detiene al 80 % de uso de la API. Los errores quedan en `MetaAdAccount.lastSyncError` y se ven en la página.
+  - La página ya no sincroniza al abrirse; «Actualizar» fuerza la completa. Probado en local: 22 llamadas, ~15 s.
+- **F8.2 — Estado y tipo:** modelos `MetaCampaign`, `MetaAdSet`, `MetaAd`. Tipo legible por destino del conjunto (`lib/meta/campaign-kind.ts`) y seis estados con color. Push cuando un anuncio pasa a rechazado/con problemas (una vez por estado) y, en la completa, cuando una campaña activa con presupuesto gastó $0 ayer.
+- **F8.3 — Reportes:** filtros de período (7/30/90 días, mes, rango libre), estado y tipo, en la URL. KPIs con variación contra el período anterior; alcance real sólo por mes o 7 días (`MetaPeriodStat`). «Mes a mes» con 12 meses. CSV del período. Tarjeta «Marketing del mes» en `/admin/reportes`.
+- **F8.4 — Por anuncio:** `MetaAdInsight` diario × leads del CRM por `metaAdId`: % contactado/calificado/ganado, costo por calificado y por cliente; ranking por clientes y calificados. «Audiencia» con plataforma, ubicación, edad, sexo y región, y dónde sale más barato el lead.
+- **F8.5 — Recomendaciones** (`lib/meta/recommendations.ts`, con tests): anuncio rechazado, activa sin gastar, frecuencia > 3, CPL +40 % sobre 30 días, gasta sin leads, aprendizaje limitado, CTR bajo frente a sus hermanos, leads que no califican, leads de Meta que no llegaron al CRM, y la oportunidad (mejor anuncio por costo por calificado). Nada escribe en Meta.
+- **Color:** `components/admin/tone.tsx` (tonos por tema) y §2.1 en `docs/ui/convenciones-de-diseno.md`. Aplicado a Campañas y a todo Marketing (nav con íconos, KPIs, ideas con franja de categoría, fichas).
+- **Para cerrar F8:** desplegar (la migración corre en el build) y esperar una pasada del cron o tocar «Actualizar». Revisar que «Leads que no llegaron al CRM» no se dispare en producción; si se dispara, comparar contra Leads.
+- **Pendiente (fuera de alcance, necesita `ads_management`):** pausar/activar y presupuesto desde el panel, públicos lookalike. Sigue en `2026-10-21-gestor-campanas-ads.md`.
+
+### 2026-11-26 — Ajustes al banco de ideas tras revisión (rama `fix/mkt-ideas-edit`)
+
+- **Editar el guion** (`?vista=editar` en la ficha): título, cada parte (voz y «en pantalla»), gancho alternativo y prompt visual, con palabras y segundos en vivo. El teleprompter lee lo guardado. La primera edición guarda la versión importada en `meta.original` («Restaurar original») y marca `editedAt`: **reimportar el HTML ya no pisa un guion editado** (sólo refresca sector, categoría, formato, prioridad y público).
+- **Etapa «Descartada»** (`IdeaStage.DESCARTADO`, rojo): sale de la lista activa y del anterior/siguiente, como las archivadas.
+- **Cambio rápido de etapa** en cada tarjeta (el badge es un selector); título de la tarjeta más grande y gancho más legible.
+- Las funciones puras del guion pasan a `lib/marketing/idea-script.ts`: el teleprompter y el editor ya no cargan `acorn` en el navegador.
+- Bug: `AreaNav className="mb-0"` dentro de `space-y-*` anulaba el espacio (Tailwind v4 aplica `space-y` con especificidad 0); quedaba pegado al filtro en Campañas.

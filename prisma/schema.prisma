@@ -599,8 +599,141 @@ model MetaAdAccount {
   usageCpuTime   Int?
   usageResetMin  Int?
   accessTier     String?
+  // F8: el cron sincroniza solo. Rápida (estructura + hoy/ayer) cada hora;
+  // completa (28 días, alcance mensual, desgloses) una vez al día.
+  lastQuickSyncAt  DateTime?
+  lastFullSyncAt   DateTime?
+  lastBackfillAt   DateTime?
+  lastSyncError    String?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
+}
+
+/// Estructura de la cuenta (F8.2). El id es el de Meta.
+model MetaCampaign {
+  id              String    @id
+  accountId       String
+  name            String
+  status          String
+  effectiveStatus String
+  objective       String?
+  buyingType      String?
+  bidStrategy     String?
+  // En la moneda de la cuenta (Meta los manda en centavos; aquí ya divididos).
+  dailyBudget     Decimal?  @db.Decimal(12, 2)
+  lifetimeBudget  Decimal?  @db.Decimal(12, 2)
+  startTime       DateTime?
+  stopTime        DateTime?
+  createdTime     DateTime?
+  updatedTime     DateTime?
+  issues          Json?
+  syncedAt        DateTime  @default(now())
+  adSets          MetaAdSet[]
+  ads             MetaAd[]
+
+  @@index([effectiveStatus])
+}
+
+model MetaAdSet {
+  id               String       @id
+  campaignId       String
+  campaign         MetaCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  name             String
+  status           String
+  effectiveStatus  String
+  optimizationGoal String?
+  destinationType  String?
+  billingEvent     String?
+  dailyBudget      Decimal?     @db.Decimal(12, 2)
+  lifetimeBudget   Decimal?     @db.Decimal(12, 2)
+  // «18-65 · EC», para leer sin abrir Meta.
+  audience         String?
+  learningStatus   String?
+  startTime        DateTime?
+  endTime          DateTime?
+  syncedAt         DateTime     @default(now())
+  ads              MetaAd[]
+
+  @@index([campaignId])
+}
+
+model MetaAd {
+  id              String       @id
+  campaignId      String
+  campaign        MetaCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  adSetId         String
+  adSet           MetaAdSet    @relation(fields: [adSetId], references: [id], onDelete: Cascade)
+  name            String
+  status          String
+  effectiveStatus String
+  // La URL de Meta caduca; se renueva en cada sincronización.
+  thumbnailUrl    String?
+  title           String?
+  body            String?
+  reviewFeedback  Json?
+  issues          Json?
+  createdTime     DateTime?
+  // Último estado avisado por push, para no repetir el aviso.
+  alertedStatus   String?
+  syncedAt        DateTime     @default(now())
+
+  @@index([campaignId])
+  @@index([adSetId])
+}
+
+/// Un día de un anuncio (F8.4). Suma a campaña/conjunto sin volver a Meta.
+model MetaAdInsight {
+  id            String   @id @default(cuid())
+  adId          String
+  adSetId       String
+  campaignId    String
+  date          DateTime @db.Date
+  spend         Decimal  @db.Decimal(12, 2)
+  impressions   Int      @default(0)
+  clicks        Int      @default(0)
+  linkClicks    Int      @default(0)
+  metaLeads     Int      @default(0)
+  conversations Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([adId, date])
+  @@index([campaignId, date])
+  @@index([date])
+}
+
+/// Alcance y frecuencia de un período completo. No se pueden sumar días:
+/// la misma persona contaría varias veces (F8.3).
+model MetaPeriodStat {
+  id          String   @id @default(cuid())
+  // "month" (since = día 1) o "rolling7".
+  kind        String
+  // "" = toda la cuenta.
+  campaignId  String   @default("")
+  since       DateTime @db.Date
+  until       DateTime @db.Date
+  spend       Decimal  @db.Decimal(12, 2)
+  impressions Int      @default(0)
+  reach       Int      @default(0)
+  frequency   Float    @default(0)
+  updatedAt   DateTime @updatedAt
+
+  @@unique([kind, campaignId, since])
+}
+
+/// Dónde rinde: plataforma, edad/sexo, región, por mes.
+model MetaBreakdown {
+  id          String   @id @default(cuid())
+  month       DateTime @db.Date
+  dimension   String
+  key         String
+  spend       Decimal  @db.Decimal(12, 2)
+  impressions Int      @default(0)
+  clicks      Int      @default(0)
+  metaLeads   Int      @default(0)
+  updatedAt   DateTime @updatedAt
+
+  @@unique([month, dimension, key])
 }
 
 model MetaCampaignInsight {
@@ -614,6 +747,10 @@ model MetaCampaignInsight {
   impressions  Int      @default(0)
   clicks       Int      @default(0)
   reach        Int      @default(0)
+  // F8.3: lo que Meta cuenta, junto a lo que llegó al CRM.
+  linkClicks    Int     @default(0)
+  metaLeads     Int     @default(0)
+  conversations Int     @default(0)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -798,6 +935,7 @@ enum IdeaStage {
   EDITADO
   PUBLICADO
   ARCHIVADO
+  DESCARTADO
 }
 
 enum AssetKind {
@@ -888,6 +1026,9 @@ model ContentIdea {
   seconds      Int?
   tags         String[]
   publishedUrl String?
+  /// Guion editado a mano en VeegHub: reimportar el HTML ya no pisa el contenido.
+  /// El original queda en meta.original para «Restaurar».
+  editedAt     DateTime?
   posts        ContentPost[]
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt

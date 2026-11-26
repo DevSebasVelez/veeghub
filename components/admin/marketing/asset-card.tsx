@@ -9,6 +9,7 @@ import { deleteAsset, updateAsset } from "@/lib/admin/actions/marketing/actions"
 import type { AssetDTO } from "@/lib/admin/queries/marketing";
 import { formatBytes } from "@/lib/admin/format";
 import { ASSET_KIND_LABELS, ASSET_KINDS } from "@/lib/marketing/constants";
+import { ImageViewer } from "@/components/admin/marketing/image-viewer";
 import { ConfirmationDialog } from "@/components/admin/confirmation-dialog";
 import { FormSelect } from "@/components/admin/form-select";
 import { Button } from "@/components/ui/button";
@@ -26,14 +27,16 @@ import { Input } from "@/components/ui/input";
 
 export function AssetCard({ asset }: { asset: AssetDTO }) {
   const router = useRouter();
+  const [viewing, setViewing] = useState<number | null>(null);
+  const isImage = asset.mime.startsWith("image/");
 
   return (
     <div className="group flex flex-col overflow-hidden rounded-2xl border bg-card">
-      <a
-        href={`/api/admin/marketing/assets/${asset.id}`}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="block aspect-[4/3] bg-muted"
+      <button
+        type="button"
+        onClick={() => (isImage ? setViewing(0) : window.open(`/api/admin/marketing/assets/${asset.id}`, "_blank", "noopener"))}
+        aria-label={`Ver ${asset.name}`}
+        className="block aspect-[4/3] w-full bg-muted outline-none focus-visible:ring-[3px] focus-visible:ring-inset focus-visible:ring-ring/50"
       >
         {asset.url ? (
           // eslint-disable-next-line @next/next/no-img-element -- signed R2 URL
@@ -43,7 +46,8 @@ export function AssetCard({ asset }: { asset: AssetDTO }) {
             <FileVideo className="size-8" />
           </div>
         )}
-      </a>
+      </button>
+      {isImage ? <ImageViewer images={[asset]} index={viewing} onIndexChange={setViewing} /> : null}
       <div className="flex flex-1 flex-col gap-1 p-3">
         <div className="truncate text-sm font-medium" title={asset.r2Key}>
           {asset.name}
@@ -65,7 +69,7 @@ export function AssetCard({ asset }: { asset: AssetDTO }) {
         ) : null}
         <div className="mt-auto flex gap-1 pt-1">
           <EditAssetDialog asset={asset} />
-          <Button asChild variant="ghost" size="icon-sm" aria-label="Descargar">
+          <Button asChild variant="ghost" size="icon-sm" className="max-sm:size-10" aria-label={`Descargar ${asset.name}`}>
             <a href={`/api/admin/marketing/assets/${asset.id}?descargar=1`}>
               <Download className="size-3.5" />
             </a>
@@ -76,7 +80,7 @@ export function AssetCard({ asset }: { asset: AssetDTO }) {
             confirmLabel="Eliminar"
             destructive
             trigger={
-              <Button variant="ghost" size="icon-sm" aria-label="Eliminar" className="text-destructive hover:text-destructive">
+              <Button variant="ghost" size="icon-sm" aria-label={`Eliminar ${asset.name}`} className="text-destructive hover:text-destructive max-sm:size-10">
                 <Trash2 className="size-3.5" />
               </Button>
             }
@@ -121,7 +125,7 @@ function EditAssetDialog({ asset }: { asset: AssetDTO }) {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="ghost" size="icon-sm" aria-label="Editar">
+        <Button variant="ghost" size="icon-sm" className="max-sm:size-10" aria-label={`Editar ${asset.name}`}>
           <Pencil className="size-3.5" />
         </Button>
       </DialogTrigger>

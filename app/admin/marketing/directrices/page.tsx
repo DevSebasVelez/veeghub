@@ -1,3 +1,6 @@
+import { BookOpenText } from "lucide-react";
+
+import { IconTile } from "@/components/admin/tone";
 import {
   GuidelineEditor,
   NewGuidelineDialog,
@@ -53,6 +56,7 @@ export default async function GuidelinesPage() {
         </>
       ) : (
         <div className="rounded-2xl border border-dashed px-6 py-12 text-center text-sm text-muted-foreground">
+          <IconTile icon={BookOpenText} tone="teal" size="lg" className="mx-auto mb-4" />
           Todavía no hay directrices. Carga las de base: salen de <code>veegsoft-web/CLAUDE.md</code>,
           la guía de LinkedIn y GBP y la guía de estilo de reels.
         </div>

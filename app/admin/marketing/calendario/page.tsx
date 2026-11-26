@@ -91,15 +91,15 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex items-center gap-2">
           <div className="flex items-center rounded-lg border">
-            <Button asChild variant="ghost" size="icon-sm" className="rounded-r-none">
+            <Button asChild variant="ghost" size="icon-sm" className="rounded-r-none max-sm:size-10">
               <Link href={hrefFor({ vista, fecha: step.prev, canal })} aria-label="Período anterior">
                 <ChevronLeft className="size-4" />
               </Link>
             </Button>
-            <Button asChild variant="ghost" size="sm" className="rounded-none border-x">
+            <Button asChild variant="ghost" size="sm" className="rounded-none border-x max-sm:h-10">
               <Link href={hrefFor({ vista, fecha: today, canal })}>Hoy</Link>
             </Button>
-            <Button asChild variant="ghost" size="icon-sm" className="rounded-l-none">
+            <Button asChild variant="ghost" size="icon-sm" className="rounded-l-none max-sm:size-10">
               <Link href={hrefFor({ vista, fecha: step.next, canal })} aria-label="Período siguiente">
                 <ChevronRight className="size-4" />
               </Link>
@@ -120,7 +120,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
           />
           <ChannelFilter current={canal ?? "all"} />
           <ImportPostsDialog />
-          <Button asChild size="sm">
+          <Button asChild size="sm" className="max-sm:h-10">
             <Link href={`/admin/marketing/calendario/nuevo?fecha=${fecha === today ? today : fecha}`}>
               <Plus className="size-3.5" />
               Nuevo post
@@ -161,61 +161,124 @@ async function MonthView({
   );
   const byDay = groupByDay(posts);
 
-  return (
-    <div className="overflow-hidden rounded-2xl border bg-card">
-      <div className="grid grid-cols-7 border-b bg-muted/40 text-center text-xs font-medium text-muted-foreground">
-        {WEEKDAY_HEADERS.map((day) => (
-          <div key={day} className="py-2">
-            {day}
-          </div>
-        ))}
-      </div>
-      <div className="grid grid-cols-7">
-        {weeks.flat().map((day) => {
-          const items = byDay.get(day) ?? [];
-          const outside = !sameMonth(day, fecha);
+  const selected = byDay.get(fecha) ?? [];
 
-          return (
-            <div
-              key={day}
-              className={cn(
-                "group relative min-h-20 min-w-0 border-b border-r p-1 [&:nth-child(7n)]:border-r-0 sm:min-h-28",
-                outside && "bg-muted/40 text-muted-foreground/60",
-              )}
-            >
-              <div className="mb-1 flex items-center justify-between">
-                <span
+  return (
+    <div className="space-y-4">
+      <div className="overflow-hidden rounded-2xl border bg-card">
+        <div className="grid grid-cols-7 border-b bg-muted/40 text-center text-xs font-medium text-muted-foreground">
+          {WEEKDAY_HEADERS.map((day) => (
+            <div key={day} className="py-2">
+              {day}
+            </div>
+          ))}
+        </div>
+        <div className="grid grid-cols-7">
+          {weeks.flat().map((day) => {
+            const items = byDay.get(day) ?? [];
+            const outside = !sameMonth(day, fecha);
+            const isSelected = day === fecha;
+
+            return (
+              <div
+                key={day}
+                className={cn(
+                  "group relative min-w-0 border-b border-r [&:nth-child(7n)]:border-r-0 sm:min-h-28 sm:p-1",
+                  outside && "bg-muted/40 text-muted-foreground/60",
+                )}
+              >
+                {/* Phone: the whole cell is a tap target that opens the day's agenda below. */}
+                <Link
+                  href={hrefFor({ vista: "mes", fecha: day, canal })}
+                  scroll={false}
+                  aria-label={`${longDayLabel(day)}: ${items.length ? `${items.length} publicación${items.length === 1 ? "" : "es"}` : "sin publicaciones"}`}
+                  aria-current={isSelected ? "date" : undefined}
                   className={cn(
-                    "flex size-6 items-center justify-center rounded-full text-xs tabular-nums",
-                    day === today && "bg-primary font-semibold text-primary-foreground",
+                    "flex min-h-14 flex-col items-center gap-1 py-1.5 sm:hidden",
+                    isSelected && "bg-accent",
                   )}
                 >
-                  {Number(day.slice(8))}
-                </span>
-                <Link
-                  href={`/admin/marketing/calendario/nuevo?fecha=${day}`}
-                  aria-label={`Nuevo post el ${longDayLabel(day)}`}
-                  className="rounded p-0.5 text-muted-foreground opacity-0 transition-opacity hover:bg-accent group-hover:opacity-100 focus-visible:opacity-100"
-                >
-                  <Plus className="size-3.5" />
-                </Link>
-              </div>
-              <div className="space-y-0.5">
-                {items.slice(0, 4).map((post) => (
-                  <PostChip key={post.id} post={post} />
-                ))}
-                {items.length > 4 ? (
-                  <Link
-                    href={hrefFor({ vista: "semana", fecha: day, canal })}
-                    className="block px-1.5 text-xs text-muted-foreground hover:underline"
+                  <span
+                    className={cn(
+                      "flex size-7 items-center justify-center rounded-full text-sm tabular-nums",
+                      day === today && "bg-primary font-semibold text-primary-foreground",
+                      isSelected && day !== today && "ring-2 ring-primary",
+                    )}
                   >
-                    +{items.length - 4} más
-                  </Link>
-                ) : null}
+                    {Number(day.slice(8))}
+                  </span>
+                  {items.length ? (
+                    <span className="flex flex-wrap justify-center gap-0.5 px-1">
+                      {items.slice(0, 4).map((post) => (
+                        <span key={post.id} className={cn("size-1.5 rounded-full", CHANNELS[post.channel].dot)} />
+                      ))}
+                    </span>
+                  ) : null}
+                </Link>
+
+                <div className="hidden sm:block">
+                  <div className="mb-1 flex items-center justify-between">
+                    <span
+                      className={cn(
+                        "flex size-6 items-center justify-center rounded-full text-xs tabular-nums",
+                        day === today && "bg-primary font-semibold text-primary-foreground",
+                      )}
+                    >
+                      {Number(day.slice(8))}
+                    </span>
+                    <Link
+                      href={`/admin/marketing/calendario/nuevo?fecha=${day}`}
+                      aria-label={`Nuevo post el ${longDayLabel(day)}`}
+                      className="rounded p-0.5 text-muted-foreground opacity-0 transition-opacity hover:bg-accent group-hover:opacity-100 focus-visible:opacity-100"
+                    >
+                      <Plus className="size-3.5" />
+                    </Link>
+                  </div>
+                  <div className="space-y-0.5">
+                    {items.slice(0, 4).map((post) => (
+                      <PostChip key={post.id} post={post} />
+                    ))}
+                    {items.length > 4 ? (
+                      <Link
+                        href={hrefFor({ vista: "semana", fecha: day, canal })}
+                        className="block px-1.5 text-xs text-muted-foreground hover:underline"
+                      >
+                        +{items.length - 4} más
+                      </Link>
+                    ) : null}
+                  </div>
+                </div>
               </div>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="overflow-hidden rounded-2xl border bg-card sm:hidden">
+        <div className="flex items-center justify-between gap-3 border-b px-4 py-3">
+          <div className="min-w-0">
+            <h3 className="text-sm font-semibold first-letter:uppercase">{longDayLabel(fecha)}</h3>
+            <p className="text-xs text-muted-foreground">
+              {selected.length
+                ? `${selected.length} publicación${selected.length === 1 ? "" : "es"}`
+                : "Toca un día para ver lo que sale."}
+            </p>
+          </div>
+          <Button asChild variant="outline" size="icon-lg" className="rounded-full">
+            <Link href={`/admin/marketing/calendario/nuevo?fecha=${fecha}`} aria-label={`Nuevo post el ${longDayLabel(fecha)}`}>
+              <Plus className="size-4" />
+            </Link>
+          </Button>
+        </div>
+        {selected.length ? (
+          <div className="divide-y">
+            {selected.map((post) => (
+              <PostRow key={post.id} post={post} timeOnly />
+            ))}
+          </div>
+        ) : (
+          <p className="px-4 py-6 text-sm text-muted-foreground">Nada programado este día.</p>
+        )}
       </div>
     </div>
   );
@@ -242,7 +305,35 @@ async function WeekView({
       );
 
   return (
-    <div className="overflow-x-auto rounded-2xl border bg-card">
+    <>
+    <div className="overflow-hidden rounded-2xl border bg-card sm:hidden">
+      {days.map((day) => {
+        const items = posts.filter((post) => post.dayKey === day);
+        return (
+          <div key={day} className="border-b last:border-b-0">
+            <div
+              className={cn(
+                "flex items-center justify-between bg-muted/40 px-4 py-1.5 text-xs font-medium text-muted-foreground",
+                day === today && "text-foreground",
+              )}
+            >
+              <span className="first-letter:uppercase">{longDayLabel(day)}</span>
+              {day === today ? <span>Hoy</span> : null}
+            </div>
+            {items.length ? (
+              <div className="divide-y">
+                {items.map((post) => (
+                  <PostRow key={post.id} post={post} timeOnly />
+                ))}
+              </div>
+            ) : (
+              <p className="px-4 py-2.5 text-xs text-muted-foreground">Sin publicaciones.</p>
+            )}
+          </div>
+        );
+      })}
+    </div>
+    <div className="hidden overflow-x-auto rounded-2xl border bg-card sm:block">
       <table className="w-full min-w-[760px] table-fixed border-collapse text-sm">
         <thead>
           <tr className="border-b bg-muted/40 text-xs text-muted-foreground">
@@ -282,6 +373,7 @@ async function WeekView({
         </tbody>
       </table>
     </div>
+    </>
   );
 }
 
@@ -303,15 +395,18 @@ async function ListView({ from, canal }: { from: string; canal?: ContentChannelV
               </div>
               <div className="divide-y">
                 {items.map((post) => (
-                  <PostRow key={post.id} post={post} />
+                  <PostRow key={post.id} post={post} timeOnly />
                 ))}
               </div>
             </div>
           ))
         ) : (
-          <p className="px-4 py-10 text-center text-sm text-muted-foreground">
-            No hay publicaciones en estos 14 días.
-          </p>
+          <div className="px-6 py-10 text-center">
+            <p className="text-sm font-medium">No hay publicaciones en estos 14 días.</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Crea un post o importa un cronograma con «Importar».
+            </p>
+          </div>
         )}
       </div>
 

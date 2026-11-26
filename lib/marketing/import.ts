@@ -1,9 +1,11 @@
 import prisma from "@/lib/db/prisma";
+import type { Prisma } from "@/app/generated/prisma/client";
 import { parseLocalDateTime } from "@/lib/admin/schemas";
 import { GUIDELINE_SEEDS } from "@/lib/marketing/guidelines-seed";
 import { parsePostsIndustrias } from "@/lib/marketing/import-industrias";
 import { imageDimensions, websiteSourceFor } from "@/lib/marketing/assets";
 import { uploadToR2 } from "@/lib/storage/r2";
+import type { ImportedIdea } from "@/lib/marketing/ideas-import";
 
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 
@@ -197,4 +199,54 @@ export async function importPostsIndustrias(
     fetchedAssets,
     missingAssets: [...missing],
   };
+}
+
+// ─── Banco de ideas (F2) ────────────────────────────────────────────────────
+
+export type IdeasImportResult = { created: number; updated: number; total: number };
+
+/**
+ * Upserts parsed ideas by (source, legacyId). Re-importing refreshes the
+ * script (beats, prompt, stats) but never the progress made in VeegHub:
+ * stage, notes, tags and published URL stay as they are, and a script
+ * edited in VeegHub (editedAt) keeps its text.
+ */
+export async function importIdeas(ideas: ImportedIdea[]): Promise<IdeasImportResult> {
+  const known = (
+    await prisma.contentIdea.findMany({
+      where: { source: { in: [...new Set(ideas.map((idea) => idea.source))] } },
+      select: { source: true, legacyId: true, editedAt: true },
+    })
+  ).map((row) => [`${row.source}#${row.legacyId}`, row.editedAt] as const);
+  const existing = new Set(known.map(([key]) => key));
+  // A script edited in VeegHub wins over the HTML: only the labels refresh.
+  const edited = new Set(known.filter(([, editedAt]) => editedAt).map(([key]) => key));
+
+  let created = 0;
+  for (const idea of ideas) {
+    const content = {
+      title: idea.title,
+      sector: idea.sector,
+      category: idea.category,
+      format: idea.format,
+      priority: idea.priority,
+      audience: idea.audience,
+      beats: idea.beats,
+      visualPrompt: idea.visualPrompt,
+      meta: (idea.meta ?? undefined) as Prisma.InputJsonValue | undefined,
+      words: idea.words,
+      seconds: idea.seconds,
+    };
+
+    await prisma.contentIdea.upsert({
+      where: { source_legacyId: { source: idea.source, legacyId: idea.legacyId } },
+      create: { ...content, source: idea.source, legacyId: idea.legacyId, notes: idea.notes },
+      update: edited.has(`${idea.source}#${idea.legacyId}`)
+        ? { sector: content.sector, category: content.category, format: content.format, priority: content.priority, audience: content.audience }
+        : content,
+    });
+    if (!existing.has(`${idea.source}#${idea.legacyId}`)) created += 1;
+  }
+
+  return { created, updated: ideas.length - created, total: ideas.length };
 }

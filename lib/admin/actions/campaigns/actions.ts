@@ -4,28 +4,23 @@ import { revalidatePath } from "next/cache";
 
 import { requireAdmin } from "@/lib/auth/require-admin";
 import { actionResult } from "@/lib/admin/actions/shared";
-import { syncCampaignInsights } from "@/lib/meta/insights";
+import { runMetaSync } from "@/lib/meta/sync";
 
-export async function refreshCampaignInsights({
-  since,
-  until,
-  force = false,
-}: {
-  since: string;
-  until: string;
-  force?: boolean;
-}) {
+/** «Actualizar»: the full sync, now. The cron keeps it fresh on its own. */
+export async function refreshCampaignInsights() {
   await requireAdmin();
 
   return actionResult(async () => {
-    const result = await syncCampaignInsights({
-      since: new Date(`${since}T00:00:00.000Z`),
-      until: new Date(`${until}T00:00:00.000Z`),
-      force,
-    });
+    const result = await runMetaSync({ mode: "full", force: true });
 
-    revalidatePath("/admin/campanas");
+    revalidatePath("/admin/campanas", "layout");
 
-    return result;
+    return {
+      status: result.status,
+      reason: result.reason ?? null,
+      campaigns: result.counts?.campaigns ?? 0,
+      days: result.counts?.campaignDays ?? 0,
+      recovered: result.counts?.recovered ?? 0,
+    };
   });
 }

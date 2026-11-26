@@ -11,7 +11,9 @@ import {
   leadSchema,
   parseForm,
 } from "@/lib/admin/schemas";
-import { actionState } from "@/lib/admin/actions/shared";
+import { actionResult, actionState } from "@/lib/admin/actions/shared";
+import { getPipelineColumnPage, PIPELINE_STAGES } from "@/lib/admin/queries/leads";
+import { forLeadCard } from "@/components/admin/leads/types";
 import { slugify } from "@/lib/admin/slug";
 import type { AdminFormState } from "@/lib/admin/actions/types";
 import type { LeadStage } from "@/app/generated/prisma/client";
@@ -298,4 +300,16 @@ export async function convertLeadToClientState(
   formData: FormData,
 ) {
   return convertLeadToClient(leadId, formData);
+}
+
+/** «Cargar más» in a pipeline column. Read-only; returns cards ready to render. */
+export async function loadMorePipelineLeads(stage: string, skip: number) {
+  await requireAdmin();
+
+  return actionResult(async () => {
+    const valid = PIPELINE_STAGES.find((value) => value === stage);
+    if (!valid) throw new Error("Etapa no válida.");
+    const leads = await getPipelineColumnPage(valid, Number(skip) || 0);
+    return leads.map(forLeadCard);
+  });
 }

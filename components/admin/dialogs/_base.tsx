@@ -2,6 +2,7 @@
 
 import { Loader2, Pencil, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { DialogClose, DialogFooter } from "@/components/ui/dialog";
 
 export type EntityOption = { id: string; name: string };
@@ -34,7 +35,8 @@ export function CreateTrigger({
   ...props
 }: React.ComponentProps<typeof Button> & { label?: string }) {
   return (
-    <Button type="button" size="sm" {...props}>
+    // 40 px on phones: it's the main action of most admin pages.
+    <Button type="button" size="sm" {...props} className={cn("max-sm:h-10 max-sm:px-4", props.className)}>
       <Plus className="size-3.5" />
       {label}
     </Button>
