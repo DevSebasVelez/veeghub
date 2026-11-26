@@ -14,6 +14,7 @@ import {
   type ContentStatusValue,
 } from "@/lib/marketing/constants";
 import { dayKeyStart, scheduleWindow } from "@/lib/marketing/schedule";
+import { readBeats, type Beat } from "@/lib/marketing/ideas-import";
 
 // ─── DTOs (plain, client-safe; dates already resolved in Ecuador) ───────────
 
@@ -337,5 +338,186 @@ export async function getMarketingSummary(now = new Date()) {
     waiting,
     publishedThisMonth,
     next: next ? toCard(next) : null,
+  };
+}
+
+// ─── Banco de ideas (F2) ────────────────────────────────────────────────────
+
+export type IdeaStageValue = "IDEA" | "GUION" | "GRABADO" | "EDITADO" | "PUBLICADO" | "ARCHIVADO";
+
+export type IdeaFilters = {
+  q?: string;
+  sector?: string;
+  category?: string;
+  stage?: IdeaStageValue;
+  priority?: number;
+};
+
+export type IdeaCardDTO = {
+  id: string;
+  legacyId: number | null;
+  title: string;
+  sector: string | null;
+  category: string | null;
+  format: string | null;
+  stage: IdeaStageValue;
+  priority: number | null;
+  seconds: number | null;
+  /** First beat, the hook, as the card's teaser. */
+  hook: string;
+  postCount: number;
+};
+
+export type IdeaDetailDTO = IdeaCardDTO & {
+  source: string | null;
+  audience: string | null;
+  beats: Beat[];
+  visualPrompt: string | null;
+  notes: string | null;
+  words: number | null;
+  publishedUrl: string | null;
+  alternativeHook: string | null;
+  /** File 5: the motion-graphics sequence. */
+  visual: string[];
+  offer: string | null;
+  benefit: string | null;
+  posts: { id: string; title: string; status: ContentStatusValue }[];
+};
+
+const IDEA_ORDER = [{ source: "asc" }, { legacyId: "asc" }] satisfies Prisma.ContentIdeaOrderByWithRelationInput[];
+
+function normalize(text: string) {
+  return text.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
+}
+
+/**
+ * The whole bank is ~200 rows: filtering in memory lets the text search look
+ * inside the beats (JSON) without a full-text index.
+ */
+export async function getIdeas(filters: IdeaFilters = {}): Promise<IdeaCardDTO[]> {
+  const rows = await prisma.contentIdea.findMany({
+    where: {
+      ...(filters.sector ? { sector: filters.sector } : {}),
+      ...(filters.category ? { category: filters.category } : {}),
+      ...(filters.stage ? { stage: filters.stage } : { stage: { not: "ARCHIVADO" } }),
+      ...(filters.priority ? { priority: filters.priority } : {}),
+    },
+    select: {
+      id: true,
+      legacyId: true,
+      title: true,
+      sector: true,
+      category: true,
+      format: true,
+      stage: true,
+      priority: true,
+      seconds: true,
+      audience: true,
+      beats: true,
+      _count: { select: { posts: true } },
+    },
+    orderBy: IDEA_ORDER,
+  });
+
+  const terms = filters.q ? normalize(filters.q).split(/\s+/).filter(Boolean) : [];
+
+  return rows.flatMap((row) => {
+    const beats = readBeats(row.beats);
+    if (terms.length) {
+      const haystack = normalize(
+        [row.title, row.sector, row.category, row.audience, row.legacyId, ...beats.map((b) => `${b.voz} ${b.motion ?? ""}`)].join(" "),
+      );
+      if (!terms.every((term) => haystack.includes(term))) return [];
+    }
+    return [
+      {
+        id: row.id,
+        legacyId: row.legacyId,
+        title: row.title,
+        sector: row.sector,
+        category: row.category,
+        format: row.format,
+        stage: row.stage,
+        priority: row.priority,
+        seconds: row.seconds,
+        hook: beats[0]?.voz ?? "",
+        postCount: row._count.posts,
+      },
+    ];
+  });
+}
+
+export async function getIdeaFacets() {
+  const [sectors, categories, stages] = await Promise.all([
+    prisma.contentIdea.groupBy({ by: ["sector"], _count: true, where: { sector: { not: null } }, orderBy: { sector: "asc" } }),
+    prisma.contentIdea.groupBy({ by: ["category"], _count: true, where: { category: { not: null } }, orderBy: { category: "asc" } }),
+    prisma.contentIdea.groupBy({ by: ["stage"], _count: true }),
+  ]);
+
+  return {
+    sectors: sectors.map((row) => ({ value: row.sector!, count: row._count })),
+    categories: categories.map((row) => ({ value: row.category!, count: row._count })),
+    stages: Object.fromEntries(stages.map((row) => [row.stage, row._count])) as Partial<Record<IdeaStageValue, number>>,
+  };
+}
+
+function metaText(meta: unknown, key: string) {
+  const value = (meta as Record<string, unknown> | null)?.[key];
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+export async function getIdeaDetail(id: string): Promise<IdeaDetailDTO | null> {
+  const row = await prisma.contentIdea.findUnique({
+    where: { id },
+    include: {
+      posts: { select: { id: true, title: true, status: true }, orderBy: { createdAt: "desc" } },
+      _count: { select: { posts: true } },
+    },
+  });
+  if (!row) return null;
+
+  const beats = readBeats(row.beats);
+  const visual = (row.meta as Record<string, unknown> | null)?.visual;
+
+  return {
+    id: row.id,
+    legacyId: row.legacyId,
+    title: row.title,
+    sector: row.sector,
+    category: row.category,
+    format: row.format,
+    stage: row.stage,
+    priority: row.priority,
+    seconds: row.seconds,
+    hook: beats[0]?.voz ?? "",
+    postCount: row._count.posts,
+    source: row.source,
+    audience: row.audience,
+    beats,
+    visualPrompt: row.visualPrompt,
+    notes: row.notes,
+    words: row.words,
+    publishedUrl: row.publishedUrl,
+    alternativeHook: metaText(row.meta, "alternative"),
+    visual: Array.isArray(visual) ? visual.filter((item): item is string => typeof item === "string") : [],
+    offer: metaText(row.meta, "offer"),
+    benefit: metaText(row.meta, "benefit"),
+    posts: row.posts,
+  };
+}
+
+/** Previous and next idea in the bank's order, for the teleprompter and the ficha. */
+export async function getIdeaNeighbors(id: string) {
+  const ids = await prisma.contentIdea.findMany({
+    where: { stage: { not: "ARCHIVADO" } },
+    select: { id: true },
+    orderBy: IDEA_ORDER,
+  });
+  const index = ids.findIndex((row) => row.id === id);
+  return {
+    prev: index > 0 ? ids[index - 1].id : null,
+    next: index >= 0 && index < ids.length - 1 ? ids[index + 1].id : null,
+    position: index + 1,
+    total: ids.length,
   };
 }

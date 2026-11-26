@@ -16,7 +16,8 @@ import {
   CONTENT_CHANNELS,
   type ContentStatusValue,
 } from "@/lib/marketing/constants";
-import { importPostsIndustrias, seedBrandGuidelines } from "@/lib/marketing/import";
+import { importIdeas, importPostsIndustrias, seedBrandGuidelines } from "@/lib/marketing/import";
+import { parseIdeasHtml, readBeats, voiceText } from "@/lib/marketing/ideas-import";
 import { stripUtm } from "@/lib/marketing/utm";
 
 function revalidateMarketing(postId?: string) {
@@ -427,5 +428,101 @@ export async function deleteAsset(id: string): Promise<AdminFormState> {
     }
 
     revalidatePath("/admin/marketing/biblioteca");
+  });
+}
+
+// ─── Banco de ideas (F2) ────────────────────────────────────────────────────
+
+const IDEA_STAGES = ["IDEA", "GUION", "GRABADO", "EDITADO", "PUBLICADO", "ARCHIVADO"] as const;
+
+function revalidateIdeas(id?: string) {
+  revalidatePath("/admin/marketing/ideas");
+  if (id) revalidatePath(`/admin/marketing/ideas/${id}`);
+}
+
+/** Uploads of the five HTML files (production has no access to the local folder). */
+export async function importIdeasFiles(formData: FormData) {
+  await requireAdmin();
+
+  return actionResult(async () => {
+    const files = formData.getAll("files").filter((file): file is File => file instanceof File && file.size > 0);
+    if (!files.length) throw new Error("Elige los archivos HTML del banco de ideas.");
+
+    let created = 0;
+    let updated = 0;
+    for (const file of files) {
+      if (file.size > 2 * 1024 * 1024) throw new Error(`${file.name} pesa más de 2 MB.`);
+      // Parse every file before writing anything: a bad file aborts the import.
+      const ideas = parseIdeasHtml(file.name, await file.text());
+      const result = await importIdeas(ideas);
+      created += result.created;
+      updated += result.updated;
+    }
+
+    revalidateIdeas();
+    return { created, updated, files: files.length };
+  });
+}
+
+const stageSchema = z.object({
+  stage: z.enum(IDEA_STAGES),
+  publishedUrl: optionalUrl,
+});
+
+export async function setIdeaStage(id: string, stage: string, publishedUrl?: string) {
+  await requireAdmin();
+
+  return actionResult(async () => {
+    const data = stageSchema.parse({ stage, publishedUrl: publishedUrl ?? "" });
+    await prisma.contentIdea.update({
+      where: { id },
+      data: {
+        stage: data.stage,
+        ...(data.stage === "PUBLICADO" && data.publishedUrl ? { publishedUrl: data.publishedUrl } : {}),
+      },
+    });
+    revalidateIdeas(id);
+  });
+}
+
+export async function updateIdeaNotes(id: string, notes: string) {
+  await requireAdmin();
+
+  return actionResult(async () => {
+    const value = formText(notes).trim();
+    if (value.length > 10_000) throw new Error("Las notas pasan de 10.000 caracteres.");
+    await prisma.contentIdea.update({ where: { id }, data: { notes: value || null } });
+    revalidateIdeas(id);
+  });
+}
+
+/**
+ * Starts a LinkedIn draft from an idea: the spoken text as a base to rewrite
+ * as a post, linked back to the idea. Nothing gets scheduled or approved.
+ */
+export async function createPostFromIdea(id: string) {
+  await requireAdmin();
+
+  return actionResult(async () => {
+    const idea = await prisma.contentIdea.findUnique({
+      where: { id },
+      select: { title: true, beats: true, meta: true },
+    });
+    if (!idea) throw new Error("La idea ya no existe.");
+
+    const post = await prisma.contentPost.create({
+      data: {
+        ideaId: id,
+        channel: "LINKEDIN_PERSONAL",
+        status: "BORRADOR",
+        title: `${idea.title} · LinkedIn`,
+        body: voiceText(readBeats(idea.beats)),
+      },
+      select: { id: true },
+    });
+
+    revalidateMarketing();
+    revalidateIdeas(id);
+    return { id: post.id };
   });
 }
