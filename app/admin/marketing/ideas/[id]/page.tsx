@@ -8,12 +8,15 @@ import {
   FileText,
   Mic,
   NotebookPen,
+  PencilLine,
   Shuffle,
   Sparkles,
   Wand2,
 } from "lucide-react";
 
+import { AreaNav } from "@/components/admin/area-nav";
 import { CopyButton } from "@/components/admin/marketing/copy-button";
+import { IdeaScriptEditor } from "@/components/admin/marketing/idea-script-editor";
 import { IdeaCategoryTag, IdeaStageBadge } from "@/components/admin/marketing/idea-badge";
 import { IconTile, TONE_TEXT, type Tone } from "@/components/admin/tone";
 import {
@@ -64,8 +67,15 @@ function SectionTitle({ icon, tone, title, hint }: { icon: React.ElementType; to
   );
 }
 
-export default async function IdeaPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
+export default async function IdeaPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ vista?: string }>;
+}) {
+  const [{ id }, { vista }] = await Promise.all([params, searchParams]);
+  const editing = vista === "editar";
   const [idea, neighbors] = await Promise.all([getIdeaDetail(id), getIdeaNeighbors(id)]);
   if (!idea) notFound();
 
@@ -110,6 +120,11 @@ export default async function IdeaPage({ params }: { params: Promise<{ id: strin
         <div className="flex flex-wrap items-center gap-2">
           <h2 className="text-xl font-semibold tracking-tight">{idea.title}</h2>
           <IdeaStageBadge stage={idea.stage} />
+          {idea.editedAt ? (
+            <span className="inline-flex items-center gap-1 rounded-full bg-violet-100 px-2 py-0.5 text-xs font-medium text-violet-700 dark:bg-violet-500/15 dark:text-violet-300">
+              <PencilLine className="size-3" /> Editado
+            </span>
+          ) : null}
         </div>
         <div className="mt-1.5 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
           <IdeaCategoryTag category={idea.category} />
@@ -184,11 +199,38 @@ export default async function IdeaPage({ params }: { params: Promise<{ id: strin
           </section>
         </aside>
 
-        <div className="min-w-0 space-y-4 max-lg:order-2 lg:order-1">
+        <div className={cn("min-w-0 space-y-4 lg:order-1", editing ? "max-lg:-order-1" : "max-lg:order-2")}>
+          <AreaNav
+            active={editing ? "editar" : "guion"}
+            items={[
+              { key: "guion", label: "Guion", href: `${base}/${idea.id}` },
+              { key: "editar", label: "Editar guion", href: `${base}/${idea.id}?vista=editar` },
+            ]}
+          />
+          {editing ? (
+            <section className="rounded-2xl border bg-card">
+              <IdeaScriptEditor
+                id={idea.id}
+                title={idea.title}
+                beats={idea.beats}
+                alternativeHook={idea.alternativeHook}
+                visualPrompt={idea.visualPrompt}
+                hasOriginal={idea.hasOriginal}
+                backHref={`${base}/${idea.id}`}
+              />
+            </section>
+          ) : (
+          <>
           <section className="rounded-2xl border bg-card">
             <div className="flex flex-wrap items-center justify-between gap-3 border-b px-5 py-4">
               <SectionTitle icon={Mic} tone="violet" title="Texto para cámara" hint="Lo que se dice, en orden. Debajo, lo que se ve." />
               <div className="flex flex-wrap gap-2">
+                <Button asChild variant="outline" size="sm" className="max-sm:h-9">
+                  <Link href={`${base}/${idea.id}?vista=editar`}>
+                    <PencilLine className="size-4" />
+                    Editar
+                  </Link>
+                </Button>
                 <CopyButton text={voiceText(idea.beats)} label="Copiar texto" />
                 <CopyButton text={scriptText(idea)} label="Guion completo" />
               </div>
@@ -248,6 +290,8 @@ export default async function IdeaPage({ params }: { params: Promise<{ id: strin
               </details>
             </section>
           ) : null}
+          </>
+          )}
         </div>
       </div>
     </div>

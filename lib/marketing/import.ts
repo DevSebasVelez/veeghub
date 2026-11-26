@@ -208,17 +208,19 @@ export type IdeasImportResult = { created: number; updated: number; total: numbe
 /**
  * Upserts parsed ideas by (source, legacyId). Re-importing refreshes the
  * script (beats, prompt, stats) but never the progress made in VeegHub:
- * stage, notes, tags and published URL stay as they are.
+ * stage, notes, tags and published URL stay as they are, and a script
+ * edited in VeegHub (editedAt) keeps its text.
  */
 export async function importIdeas(ideas: ImportedIdea[]): Promise<IdeasImportResult> {
-  const existing = new Set(
-    (
-      await prisma.contentIdea.findMany({
-        where: { source: { in: [...new Set(ideas.map((idea) => idea.source))] } },
-        select: { source: true, legacyId: true },
-      })
-    ).map((row) => `${row.source}#${row.legacyId}`),
-  );
+  const known = (
+    await prisma.contentIdea.findMany({
+      where: { source: { in: [...new Set(ideas.map((idea) => idea.source))] } },
+      select: { source: true, legacyId: true, editedAt: true },
+    })
+  ).map((row) => [`${row.source}#${row.legacyId}`, row.editedAt] as const);
+  const existing = new Set(known.map(([key]) => key));
+  // A script edited in VeegHub wins over the HTML: only the labels refresh.
+  const edited = new Set(known.filter(([, editedAt]) => editedAt).map(([key]) => key));
 
   let created = 0;
   for (const idea of ideas) {
@@ -239,7 +241,9 @@ export async function importIdeas(ideas: ImportedIdea[]): Promise<IdeasImportRes
     await prisma.contentIdea.upsert({
       where: { source_legacyId: { source: idea.source, legacyId: idea.legacyId } },
       create: { ...content, source: idea.source, legacyId: idea.legacyId, notes: idea.notes },
-      update: content,
+      update: edited.has(`${idea.source}#${idea.legacyId}`)
+        ? { sector: content.sector, category: content.category, format: content.format, priority: content.priority, audience: content.audience }
+        : content,
     });
     if (!existing.has(`${idea.source}#${idea.legacyId}`)) created += 1;
   }

@@ -470,3 +470,11 @@ Sebastián pidió adelantar F8 completa y quitarle lo «plano, blanco y negro» 
 - **Color:** `components/admin/tone.tsx` (tonos por tema) y §2.1 en `docs/ui/convenciones-de-diseno.md`. Aplicado a Campañas y a todo Marketing (nav con íconos, KPIs, ideas con franja de categoría, fichas).
 - **Para cerrar F8:** desplegar (la migración corre en el build) y esperar una pasada del cron o tocar «Actualizar». Revisar que «Leads que no llegaron al CRM» no se dispare en producción; si se dispara, comparar contra Leads.
 - **Pendiente (fuera de alcance, necesita `ads_management`):** pausar/activar y presupuesto desde el panel, públicos lookalike. Sigue en `2026-10-21-gestor-campanas-ads.md`.
+
+### 2026-11-26 — Ajustes al banco de ideas tras revisión (rama `fix/mkt-ideas-edit`)
+
+- **Editar el guion** (`?vista=editar` en la ficha): título, cada parte (voz y «en pantalla»), gancho alternativo y prompt visual, con palabras y segundos en vivo. El teleprompter lee lo guardado. La primera edición guarda la versión importada en `meta.original` («Restaurar original») y marca `editedAt`: **reimportar el HTML ya no pisa un guion editado** (sólo refresca sector, categoría, formato, prioridad y público).
+- **Etapa «Descartada»** (`IdeaStage.DESCARTADO`, rojo): sale de la lista activa y del anterior/siguiente, como las archivadas.
+- **Cambio rápido de etapa** en cada tarjeta (el badge es un selector); título de la tarjeta más grande y gancho más legible.
+- Las funciones puras del guion pasan a `lib/marketing/idea-script.ts`: el teleprompter y el editor ya no cargan `acorn` en el navegador.
+- Bug: `AreaNav className="mb-0"` dentro de `space-y-*` anulaba el espacio (Tailwind v4 aplica `space-y` con especificidad 0); quedaba pegado al filtro en Campañas.

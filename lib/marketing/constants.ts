@@ -213,7 +213,7 @@ export function isAssetKind(value: unknown): value is AssetKindValue {
 
 // ─── Banco de ideas (F2) ────────────────────────────────────────────────────
 
-export const IDEA_STAGES = ["IDEA", "GUION", "GRABADO", "EDITADO", "PUBLICADO", "ARCHIVADO"] as const;
+export const IDEA_STAGES = ["IDEA", "GUION", "GRABADO", "EDITADO", "PUBLICADO", "DESCARTADO", "ARCHIVADO"] as const;
 export type IdeaStage = (typeof IDEA_STAGES)[number];
 
 export function isIdeaStage(value: unknown): value is IdeaStage {
@@ -226,8 +226,12 @@ export const IDEA_STAGE_LABELS: Record<IdeaStage, string> = {
   GRABADO: "Grabado",
   EDITADO: "Editado",
   PUBLICADO: "Publicado",
+  DESCARTADO: "Descartada",
   ARCHIVADO: "Archivado",
 };
+
+/** Out of the active list: only shown when filtered by that stage. */
+export const IDEA_HIDDEN_STAGES = ["DESCARTADO", "ARCHIVADO"] as const satisfies readonly IdeaStage[];
 
 /** What comes next, for the one-tap «advance» button. */
 export const IDEA_NEXT_STAGE: Partial<Record<IdeaStage, IdeaStage>> = {
@@ -244,6 +248,7 @@ export const IDEA_STAGE_BADGES: Record<IdeaStage, string> = {
   GRABADO: STATUS_BADGES.EN_REVISION,
   EDITADO: STATUS_BADGES.PROGRAMADO,
   PUBLICADO: STATUS_BADGES.PUBLICADO,
+  DESCARTADO: STATUS_BADGES.FALLIDO,
   ARCHIVADO: STATUS_BADGES.DESCARTADO,
 };
 
@@ -253,5 +258,6 @@ export const IDEA_STAGE_DOTS: Record<IdeaStage, string> = {
   GRABADO: "bg-amber-500",
   EDITADO: "bg-orange-500",
   PUBLICADO: "bg-emerald-500",
+  DESCARTADO: "bg-red-500",
   ARCHIVADO: "bg-zinc-300",
 };

@@ -27,7 +27,6 @@ export function CampaignsNav({ alerts }: { alerts: number }) {
 
   return (
     <AreaNav
-      className="mb-0"
       active={section?.key ?? "resumen"}
       items={SECTIONS.map((item) => ({
         ...item,

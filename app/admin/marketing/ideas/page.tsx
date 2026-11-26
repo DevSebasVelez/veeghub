@@ -3,7 +3,8 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { Clapperboard, Clock, Flame, Lightbulb, Search, Send, Video } from "lucide-react";
 
-import { IdeaCategoryTag, IdeaStageBadge, categoryTone } from "@/components/admin/marketing/idea-badge";
+import { IdeaCategoryTag, categoryTone } from "@/components/admin/marketing/idea-badge";
+import { IdeaStageQuick } from "@/components/admin/marketing/idea-actions";
 import { KpiCard, IconTile, TONE_SOLID, ToneTag } from "@/components/admin/tone";
 import { ImportIdeasDialog } from "@/components/admin/marketing/import-ideas-dialog";
 import { Button } from "@/components/ui/button";
@@ -41,11 +42,11 @@ export default async function IdeasPage({ searchParams }: { searchParams: Promis
   const filterKey = JSON.stringify(filters);
   const filtered = Object.values(filters).some(Boolean);
   const total = Object.entries(facets.stages).reduce(
-    (sum, [stage, count]) => (stage === "ARCHIVADO" ? sum : sum + (count ?? 0)),
+    (sum, [stage, count]) => (stage === "ARCHIVADO" || stage === "DESCARTADO" ? sum : sum + (count ?? 0)),
     0,
   );
 
-  if (!total && !facets.stages.ARCHIVADO) {
+  if (!total && !facets.stages.ARCHIVADO && !facets.stages.DESCARTADO) {
     return (
       <div className="rounded-2xl border border-dashed px-6 py-14 text-center">
         <IconTile icon={Lightbulb} tone="amber" size="lg" className="mx-auto" />
@@ -62,7 +63,7 @@ export default async function IdeasPage({ searchParams }: { searchParams: Promis
   }
 
   const tiles = [
-    { stage: undefined, icon: Lightbulb, tone: "amber" as const, label: "Ideas activas", value: total, helper: "Sin contar archivadas" },
+    { stage: undefined, icon: Lightbulb, tone: "amber" as const, label: "Ideas activas", value: total, helper: "Sin descartadas ni archivadas" },
     { stage: "GUION" as const, icon: Clapperboard, tone: "blue" as const, label: "Listas para grabar", value: facets.stages.GUION ?? 0, helper: "Abre el teleprompter" },
     { stage: "GRABADO" as const, icon: Video, tone: "rose" as const, label: "Por editar", value: facets.stages.GRABADO ?? 0, helper: "Grabadas, sin editar" },
     { stage: "PUBLICADO" as const, icon: Send, tone: "emerald" as const, label: "Publicadas", value: facets.stages.PUBLICADO ?? 0, helper: "Con su URL" },
@@ -109,7 +110,7 @@ export default async function IdeasPage({ searchParams }: { searchParams: Promis
               ))}
             </select>
             <select name="etapa" defaultValue={filters.stage ?? ""} className={selectClass} aria-label="Etapa">
-              <option value="">Etapa: activas</option>
+              <option value="">Etapa: activas (sin descartadas)</option>
               {IDEA_STAGES.map((stage) => (
                 <option key={stage} value={stage}>
                   {IDEA_STAGE_LABELS[stage]} ({facets.stages[stage] ?? 0})
@@ -195,16 +196,16 @@ function IdeaCard({ idea }: { idea: IdeaCardDTO }) {
             </ToneTag>
           ) : null}
         </div>
-        <IdeaStageBadge stage={idea.stage} />
+        <IdeaStageQuick id={idea.id} stage={idea.stage} title={idea.title} />
       </div>
 
-      <h3 className="mt-3 text-sm font-semibold leading-snug">
+      <h3 className="mt-3 text-base font-semibold leading-snug sm:text-[17px]">
         <Link href={href} className="outline-none after:absolute after:inset-0 after:rounded-2xl focus-visible:after:ring-[3px] focus-visible:after:ring-ring/50">
           {idea.title}
         </Link>
       </h3>
       {idea.hook ? (
-        <p className="mt-2 line-clamp-3 text-sm leading-6 text-muted-foreground">«{idea.hook}»</p>
+        <p className="mt-2 line-clamp-3 text-[15px] leading-6 text-foreground/75">«{idea.hook}»</p>
       ) : null}
 
       <div className="mt-auto flex items-center justify-between gap-3 pt-4">
