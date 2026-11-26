@@ -13,6 +13,9 @@ import { CashFlowChart, MonthlyBillingChart } from "@/components/admin/charts";
 import { StatusBadge } from "@/components/admin/status-badge";
 import { ReportFilter } from "@/app/admin/reportes/report-month-filter";
 import { getReportsData } from "@/lib/admin/queries/reports";
+import { getMarketingMonth } from "@/lib/admin/queries/campaigns";
+import { MarketingMonthCard } from "@/components/admin/campaigns/marketing-month-card";
+import { dayKeyInAppZone } from "@/lib/admin/format";
 import {
   dateOnlyParts,
   formatCurrency,
@@ -176,6 +179,14 @@ export default async function ReportsPage({
           accent="text-red-500"
         />
       </div>
+
+      <MarketingMonthCard
+        month={`${selectedYear}-${String(selectedMonth).padStart(2, "0")}`}
+        data={await getMarketingMonth(
+          `${selectedYear}-${String(selectedMonth).padStart(2, "0")}`,
+          dayKeyInAppZone(now),
+        )}
+      />
 
       <div className="grid gap-4 xl:grid-cols-2">
         <ChartPanel
