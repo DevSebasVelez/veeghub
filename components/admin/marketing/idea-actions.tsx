@@ -8,6 +8,8 @@ import { ArrowRight, Check, FilePlus2, Loader2 } from "lucide-react";
 import { createPostFromIdea, setIdeaStage, updateIdeaNotes } from "@/lib/admin/actions/marketing/actions";
 import {
   IDEA_NEXT_STAGE,
+  IDEA_STAGE_BADGES,
+  IDEA_STAGE_DOTS,
   IDEA_STAGES,
   IDEA_STAGE_LABELS,
   type IdeaStage,
@@ -30,14 +32,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { cn } from "@/lib/utils";
 
-/** Stage picker plus a one-tap «advance» to the next stage. PUBLICADO asks for the URL. */
-export function IdeaStageControl({ id, stage }: { id: string; stage: IdeaStage }) {
+/** Shared by the ficha's control and the card's quick select: PUBLICADO asks for the URL first. */
+function useIdeaStage(id: string) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
   const [askUrl, setAskUrl] = useState(false);
   const [url, setUrl] = useState("");
-  const next = IDEA_NEXT_STAGE[stage];
 
   async function change(target: IdeaStage, publishedUrl?: string) {
     if (target === "PUBLICADO" && publishedUrl === undefined) {
@@ -58,6 +60,40 @@ export function IdeaStageControl({ id, stage }: { id: string; stage: IdeaStage }
       setPending(false);
     }
   }
+
+  const dialog = (
+    <Dialog open={askUrl} onOpenChange={setAskUrl}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Marcar publicado</DialogTitle>
+          <DialogDescription>Pega la URL del reel publicado (opcional), para encontrarlo después.</DialogDescription>
+        </DialogHeader>
+        <Input
+          type="url"
+          value={url}
+          onChange={(event) => setUrl(event.target.value)}
+          placeholder="https://www.instagram.com/reel/…"
+        />
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setAskUrl(false)} disabled={pending}>
+            Cancelar
+          </Button>
+          <Button onClick={() => change("PUBLICADO", url)} disabled={pending}>
+            {pending ? <Loader2 className="size-4 animate-spin" /> : null}
+            Guardar
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+
+  return { change, pending, dialog };
+}
+
+/** Stage picker plus a one-tap «advance» to the next stage. */
+export function IdeaStageControl({ id, stage }: { id: string; stage: IdeaStage }) {
+  const { change, pending, dialog } = useIdeaStage(id);
+  const next = IDEA_NEXT_STAGE[stage];
 
   return (
     <div className="space-y-2">
@@ -82,31 +118,41 @@ export function IdeaStageControl({ id, stage }: { id: string; stage: IdeaStage }
           <ArrowRight className="size-4" />
         </Button>
       ) : null}
-
-      <Dialog open={askUrl} onOpenChange={setAskUrl}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Marcar publicado</DialogTitle>
-            <DialogDescription>Pega la URL del reel publicado (opcional), para encontrarlo después.</DialogDescription>
-          </DialogHeader>
-          <Input
-            type="url"
-            value={url}
-            onChange={(event) => setUrl(event.target.value)}
-            placeholder="https://www.instagram.com/reel/…"
-          />
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setAskUrl(false)} disabled={pending}>
-              Cancelar
-            </Button>
-            <Button onClick={() => change("PUBLICADO", url)} disabled={pending}>
-              {pending ? <Loader2 className="size-4 animate-spin" /> : null}
-              Guardar
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {dialog}
     </div>
+  );
+}
+
+/** The card's badge is the select: change the stage without opening the idea. */
+export function IdeaStageQuick({ id, stage, title }: { id: string; stage: IdeaStage; title: string }) {
+  const { change, pending, dialog } = useIdeaStage(id);
+
+  return (
+    <>
+      <Select value={stage} onValueChange={(value) => change(value as IdeaStage)} disabled={pending}>
+        <SelectTrigger
+          size="sm"
+          aria-label={`Etapa de «${title}»`}
+          className={cn(
+            "relative z-10 h-8 gap-1.5 rounded-full border px-2.5 text-xs font-medium shadow-none max-sm:h-9 [&_svg]:opacity-70",
+            IDEA_STAGE_BADGES[stage],
+          )}
+        >
+          {/* The selected item's own dot shows through SelectValue. */}
+          {pending ? <Loader2 className="size-3 animate-spin" /> : null}
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent align="end">
+          {IDEA_STAGES.map((value) => (
+            <SelectItem key={value} value={value}>
+              <span className={cn("size-1.5 rounded-full", IDEA_STAGE_DOTS[value])} />
+              {IDEA_STAGE_LABELS[value]}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      {dialog}
+    </>
   );
 }
 

@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 
 import { setIdeaStage } from "@/lib/admin/actions/marketing/actions";
-import { BEAT_LABELS, type Beat } from "@/lib/marketing/ideas-import";
+import { BEAT_LABELS, type Beat } from "@/lib/marketing/idea-script";
 import { cn } from "@/lib/utils";
 
 type Settings = { font: number; speed: number; mirror: boolean; countdown: number };

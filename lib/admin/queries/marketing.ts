@@ -343,7 +343,9 @@ export async function getMarketingSummary(now = new Date()) {
 
 // ─── Banco de ideas (F2) ────────────────────────────────────────────────────
 
-export type IdeaStageValue = "IDEA" | "GUION" | "GRABADO" | "EDITADO" | "PUBLICADO" | "ARCHIVADO";
+export type IdeaStageValue = "IDEA" | "GUION" | "GRABADO" | "EDITADO" | "PUBLICADO" | "DESCARTADO" | "ARCHIVADO";
+
+const HIDDEN_STAGES: IdeaStageValue[] = ["DESCARTADO", "ARCHIVADO"];
 
 export type IdeaFilters = {
   q?: string;
@@ -377,6 +379,9 @@ export type IdeaDetailDTO = IdeaCardDTO & {
   words: number | null;
   publishedUrl: string | null;
   alternativeHook: string | null;
+  /** Edited in VeegHub; the imported version is kept for «Restaurar». */
+  editedAt: string | null;
+  hasOriginal: boolean;
   /** File 5: the motion-graphics sequence. */
   visual: string[];
   offer: string | null;
@@ -399,7 +404,7 @@ export async function getIdeas(filters: IdeaFilters = {}): Promise<IdeaCardDTO[]
     where: {
       ...(filters.sector ? { sector: filters.sector } : {}),
       ...(filters.category ? { category: filters.category } : {}),
-      ...(filters.stage ? { stage: filters.stage } : { stage: { not: "ARCHIVADO" } }),
+      ...(filters.stage ? { stage: filters.stage } : { stage: { notIn: HIDDEN_STAGES } }),
       ...(filters.priority ? { priority: filters.priority } : {}),
     },
     select: {
@@ -499,6 +504,8 @@ export async function getIdeaDetail(id: string): Promise<IdeaDetailDTO | null> {
     words: row.words,
     publishedUrl: row.publishedUrl,
     alternativeHook: metaText(row.meta, "alternative"),
+    editedAt: row.editedAt?.toISOString() ?? null,
+    hasOriginal: Boolean((row.meta as Record<string, unknown> | null)?.original),
     visual: Array.isArray(visual) ? visual.filter((item): item is string => typeof item === "string") : [],
     offer: metaText(row.meta, "offer"),
     benefit: metaText(row.meta, "benefit"),
@@ -509,7 +516,7 @@ export async function getIdeaDetail(id: string): Promise<IdeaDetailDTO | null> {
 /** Previous and next idea in the bank's order, for the teleprompter and the ficha. */
 export async function getIdeaNeighbors(id: string) {
   const ids = await prisma.contentIdea.findMany({
-    where: { stage: { not: "ARCHIVADO" } },
+    where: { stage: { notIn: HIDDEN_STAGES } },
     select: { id: true },
     orderBy: IDEA_ORDER,
   });

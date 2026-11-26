@@ -11,7 +11,7 @@ export type AreaNavItem = {
   /** Shown next to the label; hidden when zero. */
   count?: number;
   href?: string;
-  /** Small icon before the label; tinted by `iconClassName`. */
+  /** Small icon before the label; tinted by `iconClassName`. Client callers only: a component can't cross from a server component. */
   icon?: React.ElementType;
   iconClassName?: string;
 };

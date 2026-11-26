@@ -935,6 +935,7 @@ enum IdeaStage {
   EDITADO
   PUBLICADO
   ARCHIVADO
+  DESCARTADO
 }
 
 enum AssetKind {
@@ -1025,6 +1026,9 @@ model ContentIdea {
   seconds      Int?
   tags         String[]
   publishedUrl String?
+  /// Guion editado a mano en VeegHub: reimportar el HTML ya no pisa el contenido.
+  /// El original queda en meta.original para «Restaurar».
+  editedAt     DateTime?
   posts        ContentPost[]
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
