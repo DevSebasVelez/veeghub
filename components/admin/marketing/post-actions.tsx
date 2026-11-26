@@ -5,9 +5,6 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
   Check,
-  Copy,
-  Download,
-  ExternalLink,
   Loader2,
   RotateCcw,
   Send,
@@ -21,8 +18,6 @@ import {
   setPostStatus,
 } from "@/lib/admin/actions/marketing/actions";
 import type { PostDetailDTO } from "@/lib/admin/queries/marketing";
-import { CHANNELS } from "@/lib/marketing/constants";
-import { buildUtmUrl, renderFirstComment } from "@/lib/marketing/utm";
 import { ConfirmationDialog } from "@/components/admin/confirmation-dialog";
 import { Button } from "@/components/ui/button";
 import {
@@ -69,7 +64,7 @@ export function PostStatusActions({ post }: { post: PostDetailDTO }) {
     pending === target ? <Loader2 className="size-3.5 animate-spin" /> : null;
 
   return (
-    <div className="flex flex-wrap gap-2">
+    <div className="flex flex-wrap gap-2 [&_[data-slot=button]]:max-sm:h-10 [&_[data-slot=button]]:max-sm:px-3.5">
       {canApprove ? (
         <Button size="sm" disabled={!!pending} onClick={() => go("APROBADO", "Aprobado. Se avisará a la hora programada.")}>
           {spinner("APROBADO") ?? <Check className="size-3.5" />}
@@ -101,7 +96,7 @@ export function PostStatusActions({ post }: { post: PostDetailDTO }) {
         confirmLabel="Eliminar"
         destructive
         trigger={
-          <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive">
+          <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive max-sm:h-10 max-sm:px-3.5">
             <Trash2 className="size-3.5" />
             Eliminar
           </Button>
@@ -174,83 +169,5 @@ function MarkPublishedDialog({ postId }: { postId: string }) {
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  );
-}
-
-async function copy(text: string, label: string) {
-  try {
-    await navigator.clipboard.writeText(text);
-    toast.success(`${label} copiado.`);
-  } catch {
-    toast.error("El navegador no dejó copiar. Selecciona el texto a mano.");
-  }
-}
-
-/**
- * Manual publishing kit (decision 7): what the alert points to while there is
- * no API for the channel. Downloads go through /api/admin/marketing/assets so
- * the link never expires on a page left open.
- */
-export function PublishKit({ post }: { post: PostDetailDTO }) {
-  const channel = CHANNELS[post.channel];
-  const utmUrl = buildUtmUrl({
-    linkUrl: post.linkUrl,
-    channel: post.channel,
-    campaignSlug: post.campaignSlug,
-    postId: post.id,
-  });
-  const comment = channel.linkInComment ? renderFirstComment(post.firstComment, utmUrl) : null;
-
-  function downloadAll() {
-    // Staggered: browsers drop simultaneous downloads started by one click.
-    post.assets.forEach((asset, index) => {
-      setTimeout(() => {
-        const link = document.createElement("a");
-        link.href = `/api/admin/marketing/assets/${asset.id}?descargar=1`;
-        link.rel = "noopener";
-        document.body.appendChild(link);
-        link.click();
-        link.remove();
-      }, index * 400);
-    });
-  }
-
-  return (
-    <div className="space-y-3">
-      <div className="grid gap-2">
-        <Button size="sm" variant="outline" className="justify-start" onClick={() => copy(post.body, "Texto")}>
-          <Copy className="size-3.5" />
-          Copiar texto
-        </Button>
-        {comment ? (
-          <Button size="sm" variant="outline" className="justify-start" onClick={() => copy(comment, "Comentario")}>
-            <Copy className="size-3.5" />
-            Copiar comentario
-          </Button>
-        ) : utmUrl ? (
-          <Button size="sm" variant="outline" className="justify-start" onClick={() => copy(utmUrl, "Enlace")}>
-            <Copy className="size-3.5" />
-            Copiar enlace
-          </Button>
-        ) : null}
-        {post.assets.length ? (
-          <Button size="sm" variant="outline" className="justify-start" onClick={downloadAll}>
-            <Download className="size-3.5" />
-            Descargar {post.assets.length} imagen{post.assets.length === 1 ? "" : "es"}
-          </Button>
-        ) : null}
-        <Button size="sm" asChild className="justify-start">
-          <a href={channel.openUrl} target="_blank" rel="noopener noreferrer">
-            <ExternalLink className="size-3.5" />
-            Abrir {channel.short}
-          </a>
-        </Button>
-      </div>
-      {channel.linkInComment ? (
-        <p className="text-xs text-muted-foreground">
-          Publica el post y, de inmediato, pega el comentario con el enlace.
-        </p>
-      ) : null}
-    </div>
   );
 }

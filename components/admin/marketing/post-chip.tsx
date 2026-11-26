@@ -65,38 +65,68 @@ export function StatusBadge({ status }: { status: PostCardDTO["status"] }) {
   );
 }
 
+/** Thumbnail of the first image, or a channel-colored tile when there is none. */
+function PostThumb({ post }: { post: PostCardDTO }) {
+  const channel = CHANNELS[post.channel];
+
+  if (post.coverAssetId) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element -- redirects to a signed R2 URL
+      <img
+        src={`/api/admin/marketing/assets/${post.coverAssetId}`}
+        alt=""
+        loading="lazy"
+        className="size-12 shrink-0 rounded-xl border bg-muted object-cover"
+      />
+    );
+  }
+
+  return (
+    <span className={cn("flex size-12 shrink-0 items-center justify-center rounded-xl", channel.chip)}>
+      <ImageIcon className="size-4 opacity-60" />
+    </span>
+  );
+}
+
 /** Full row for lists: «Próximos 14 días», borradores sin fecha, dashboard. */
-export function PostRow({ post }: { post: PostCardDTO }) {
+/** `timeOnly` when the list already groups by day. */
+export function PostRow({ post, timeOnly = false }: { post: PostCardDTO; timeOnly?: boolean }) {
   const channel = CHANNELS[post.channel];
 
   return (
     <Link
       href={postHref(post.id)}
-      className="flex items-center justify-between gap-3 px-5 py-3.5 transition-colors hover:bg-accent/40"
+      className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-accent/40 sm:px-5 sm:py-3.5"
     >
+      <PostThumb post={post} />
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
           <span className={cn("size-2 shrink-0 rounded-full", channel.dot)} />
           <span className="truncate text-sm font-medium">{post.title}</span>
         </div>
         <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-xs text-muted-foreground">
-          <span>{channel.label}</span>
-          <span>·</span>
-          <span>{post.whenLabel}</span>
+          <span>{channel.short}</span>
+          <span aria-hidden>·</span>
+          <span>{timeOnly && post.time ? post.time : post.whenLabel}</span>
           {post.campaignName ? (
             <>
-              <span>·</span>
-              <span className="truncate">{post.campaignName}</span>
+              <span aria-hidden className="max-sm:hidden">·</span>
+              <span className="truncate max-sm:hidden">{post.campaignName}</span>
             </>
           ) : null}
           {post.assetCount ? (
-            <span className="inline-flex items-center gap-0.5">
-              · <ImageIcon className="size-3" /> {post.assetCount}
+            <span className="inline-flex items-center gap-0.5" aria-label={`${post.assetCount} imágenes`}>
+              <span aria-hidden>·</span> <ImageIcon className="size-3" aria-hidden /> {post.assetCount}
             </span>
           ) : null}
         </div>
+        <div className="mt-1.5 sm:hidden">
+          <StatusBadge status={post.status} />
+        </div>
       </div>
-      <StatusBadge status={post.status} />
+      <span className="max-sm:hidden">
+        <StatusBadge status={post.status} />
+      </span>
     </Link>
   );
 }

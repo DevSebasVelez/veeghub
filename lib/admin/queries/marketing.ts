@@ -29,6 +29,8 @@ export type PostCardDTO = {
   time: string | null;
   whenLabel: string;
   assetCount: number;
+  /** First image, for the row thumbnail. */
+  coverAssetId: string | null;
 };
 
 export type AssetDTO = {
@@ -75,6 +77,12 @@ const CARD_SELECT = {
   scheduledAt: true,
   campaign: { select: { name: true } },
   _count: { select: { assets: true } },
+  assets: {
+    where: { asset: { mime: { startsWith: "image/" } } },
+    orderBy: { position: "asc" },
+    take: 1,
+    select: { assetId: true },
+  },
 } satisfies Prisma.ContentPostSelect;
 
 type CardRow = Prisma.ContentPostGetPayload<{ select: typeof CARD_SELECT }>;
@@ -90,6 +98,7 @@ function toCard(row: CardRow): PostCardDTO {
     time: row.scheduledAt ? timeInAppZone(row.scheduledAt) : null,
     whenLabel: row.scheduledAt ? formatDate(row.scheduledAt) : "Sin fecha",
     assetCount: row._count.assets,
+    coverAssetId: row.assets[0]?.assetId ?? null,
   };
 }
 
