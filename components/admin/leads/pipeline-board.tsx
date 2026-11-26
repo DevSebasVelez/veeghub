@@ -1,7 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { useEffect, useState, useTransition } from "react";
+import { toast } from "sonner";
+import { ChevronDown, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
+
+import { loadMorePipelineLeads } from "@/lib/admin/actions/leads/actions";
+import { Button } from "@/components/ui/button";
 
 import { LeadCard } from "@/components/admin/leads/lead-card";
 import { STAGE_LABELS } from "@/components/admin/leads/constants";
@@ -15,11 +19,8 @@ import {
 } from "@/components/ui/carousel";
 import type { LeadCardData } from "@/components/admin/leads/types";
 
-type Column = { stage: string; leads: LeadCardData[] };
-
-function columnTotal(leads: LeadCardData[]) {
-  return leads.reduce((sum, lead) => sum + Number(lead.estimatedValue ?? 0), 0);
-}
+/** `total` and `value` cover the whole stage; `leads` is the loaded slice. */
+type Column = { stage: string; leads: LeadCardData[]; total: number; value: number };
 
 function ColumnHeader({
   column,
@@ -34,7 +35,7 @@ function ColumnHeader({
   canPrev?: boolean;
   canNext?: boolean;
 }) {
-  const total = columnTotal(column.leads);
+  const total = column.value;
   const navigable = Boolean(onPrev || onNext);
 
   return (
@@ -45,7 +46,7 @@ function ColumnHeader({
           onClick={onPrev}
           disabled={!canPrev}
           aria-label="Etapa anterior"
-          className="flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground disabled:opacity-30 active:bg-muted"
+          className="flex size-9 shrink-0 items-center justify-center rounded-md text-muted-foreground disabled:opacity-30 active:bg-muted"
         >
           <ChevronLeft className="size-4" />
         </button>
@@ -56,7 +57,7 @@ function ColumnHeader({
           {STAGE_LABELS[column.stage]}
         </h2>
         <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
-          {column.leads.length}
+          {column.total}
           {total > 0 ? ` · ${formatCurrency(total)}` : ""}
         </span>
       </div>
@@ -67,7 +68,7 @@ function ColumnHeader({
           onClick={onNext}
           disabled={!canNext}
           aria-label="Etapa siguiente"
-          className="flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground disabled:opacity-30 active:bg-muted"
+          className="flex size-9 shrink-0 items-center justify-center rounded-md text-muted-foreground disabled:opacity-30 active:bg-muted"
         >
           <ChevronRight className="size-4" />
         </button>
@@ -76,8 +77,16 @@ function ColumnHeader({
   );
 }
 
-function LeadList({ leads }: { leads: LeadCardData[] }) {
-  if (leads.length === 0) {
+function LeadList({
+  column,
+  onMore,
+  loading,
+}: {
+  column: Column;
+  onMore: () => void;
+  loading: boolean;
+}) {
+  if (column.leads.length === 0) {
     return (
       <p className="px-1 py-6 text-center text-xs text-muted-foreground">
         Sin leads
@@ -85,16 +94,67 @@ function LeadList({ leads }: { leads: LeadCardData[] }) {
     );
   }
 
+  const remaining = column.total - column.leads.length;
+
   return (
     <>
-      {leads.map((lead) => (
+      {column.leads.map((lead) => (
         <LeadCard key={lead.id} lead={lead} />
       ))}
+      {remaining > 0 ? (
+        <Button
+          type="button"
+          variant="ghost"
+          onClick={onMore}
+          disabled={loading}
+          className="h-10 w-full text-muted-foreground"
+        >
+          {loading ? <Loader2 className="size-4 animate-spin" /> : <ChevronDown className="size-4" />}
+          Cargar más ({remaining})
+        </Button>
+      ) : null}
     </>
   );
 }
 
-export function PipelineBoard({ columns }: { columns: Column[] }) {
+/**
+ * Extra batches per stage. Tied to the server's first batches: after a
+ * refresh (a card changed stage) they are dropped, so a moved lead never
+ * shows in two columns.
+ */
+function usePagedColumns(columns: Column[]) {
+  const signature = columns.map((column) => column.leads.map((lead) => lead.id).join(",")).join("|");
+  const [state, setState] = useState<{ signature: string; extra: Record<string, LeadCardData[]> }>({ signature, extra: {} });
+  const [loadingStage, setLoadingStage] = useState<string | null>(null);
+  const [, startTransition] = useTransition();
+  const extra = state.signature === signature ? state.extra : {};
+
+  const merged = columns.map((column) => {
+    const seen = new Set(column.leads.map((lead) => lead.id));
+    const more = (extra[column.stage] ?? []).filter((lead) => !seen.has(lead.id));
+    return { ...column, leads: [...column.leads, ...more] };
+  });
+
+  function loadMore(stage: string) {
+    const column = merged.find((item) => item.stage === stage);
+    if (!column) return;
+    setLoadingStage(stage);
+    startTransition(async () => {
+      const result = await loadMorePipelineLeads(stage, column.leads.length);
+      setLoadingStage(null);
+      if (!result.ok) {
+        toast.error(result.error ?? "No se pudieron cargar más leads.");
+        return;
+      }
+      setState({ signature, extra: { ...extra, [stage]: [...(extra[stage] ?? []), ...result.data] } });
+    });
+  }
+
+  return { columns: merged, loadMore, loadingStage };
+}
+
+export function PipelineBoard({ columns: initial }: { columns: Column[] }) {
+  const { columns, loadMore, loadingStage } = usePagedColumns(initial);
   const [api, setApi] = useState<CarouselApi>();
   const [current, setCurrent] = useState(0);
 
@@ -132,7 +192,7 @@ export function PipelineBoard({ columns }: { columns: Column[] }) {
                     canNext={index < columns.length - 1}
                   />
                   <div className="flex flex-col gap-2 px-2 pb-2">
-                    <LeadList leads={column.leads} />
+                    <LeadList column={column} onMore={() => loadMore(column.stage)} loading={loadingStage === column.stage} />
                   </div>
                 </div>
               </CarouselItem>
@@ -167,7 +227,7 @@ export function PipelineBoard({ columns }: { columns: Column[] }) {
           >
             <ColumnHeader column={column} />
             <div className="flex flex-col gap-2 px-2 pb-2">
-              <LeadList leads={column.leads} />
+              <LeadList column={column} onMore={() => loadMore(column.stage)} loading={loadingStage === column.stage} />
             </div>
           </section>
         ))}

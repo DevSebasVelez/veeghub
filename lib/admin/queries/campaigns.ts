@@ -1,3 +1,5 @@
+import { cache } from "react";
+
 import prisma from "@/lib/db/prisma";
 import { dayKeyInAppZone, dayStartInstant } from "@/lib/admin/format";
 import {
@@ -164,14 +166,15 @@ function insightTotals(row: {
   };
 }
 
-async function loadStructure() {
+// Layout, page and recommendations all need it: one query per request.
+const loadStructure = cache(async () => {
   return prisma.metaCampaign.findMany({
     include: {
       adSets: { select: { id: true, name: true, effectiveStatus: true, optimizationGoal: true, destinationType: true, learningStatus: true, dailyBudget: true, lifetimeBudget: true, startTime: true, endTime: true, campaignId: true, audience: true, billingEvent: true } },
       ads: { select: { id: true, name: true, effectiveStatus: true, thumbnailUrl: true, adSetId: true, title: true, body: true, reviewFeedback: true, createdTime: true } },
     },
   });
-}
+});
 
 type Structure = Awaited<ReturnType<typeof loadStructure>>[number];
 
@@ -215,7 +218,7 @@ export type SyncInfo = {
   tier: string | null;
 };
 
-export async function getSyncInfo(): Promise<SyncInfo | null> {
+export const getSyncInfo = cache(async (): Promise<SyncInfo | null> => {
   const account = await prisma.metaAdAccount.findFirst();
   if (!account) return null;
   return {
@@ -228,7 +231,7 @@ export async function getSyncInfo(): Promise<SyncInfo | null> {
     usage: account.usageCallCount,
     tier: account.accessTier,
   };
-}
+});
 
 // ---------------------------------------------------------------- overview
 
@@ -701,7 +704,8 @@ export async function getCampaignDetail(id: string, period: Period) {
 
 // ---------------------------------------------------------------- recommendations
 
-export async function getRecommendations(today: string): Promise<Recommendation[]> {
+/** Cached per request: the layout (nav badge) and the page both ask. */
+export const getRecommendations = cache(async (today: string): Promise<Recommendation[]> => {
   const since30 = shiftKey(today, -29);
   const since7 = shiftKey(today, -6);
   const since2 = shiftKey(today, -1);
@@ -792,7 +796,7 @@ export async function getRecommendations(today: string): Promise<Recommendation[
       return campaign ? campaignKind(campaign.objective, campaign.adSets) === "FORMULARIO" : true;
     }).length,
   });
-}
+});
 
 // ---------------------------------------------------------------- reportes card
 

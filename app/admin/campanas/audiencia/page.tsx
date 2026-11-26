@@ -24,7 +24,7 @@ function rows(list: BreakdownRow[], toneOf?: (row: BreakdownRow) => Tone) {
 
 function Card({ icon, tone, title, hint, children, className }: { icon: React.ElementType; tone: Tone; title: string; hint: string; children: React.ReactNode; className?: string }) {
   return (
-    <section className={cn("rounded-2xl border bg-card", className)}>
+    <section className={cn("min-w-0 rounded-2xl border bg-card", className)}>
       <div className="flex items-center gap-3 border-b px-5 py-4">
         <IconTile icon={icon} tone={tone} size="sm" />
         <div>

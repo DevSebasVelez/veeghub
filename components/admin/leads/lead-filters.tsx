@@ -43,6 +43,7 @@ export function LeadFilters() {
         <Search className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
         <Input
           name="q"
+          aria-label="Buscar leads"
           placeholder="Buscar por nombre, teléfono o email..."
           defaultValue={params.get("q") ?? ""}
           className="pl-8"
