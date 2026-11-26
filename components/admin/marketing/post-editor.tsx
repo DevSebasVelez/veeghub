@@ -14,6 +14,7 @@ import {
 } from "@/lib/marketing/constants";
 import { buildUtmUrl, renderFirstComment } from "@/lib/marketing/utm";
 import { AssetPicker } from "@/components/admin/marketing/asset-picker";
+import { ImageViewer } from "@/components/admin/marketing/image-viewer";
 import { DatePickerField } from "@/components/admin/date-picker-field";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -56,6 +57,7 @@ export function PostEditor({
   const [unscheduled, setUnscheduled] = useState(post ? !post.scheduledLocal : !defaultDate);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [viewing, setViewing] = useState<number | null>(null);
 
   const info = CHANNELS[channel];
   const campaignSlug = campaigns.find((c) => c.id === campaignId)?.slug ?? null;
@@ -262,7 +264,12 @@ export function PostEditor({
               <ol className="grid grid-cols-2 gap-2 xl:grid-cols-4">
                 {assets.map((asset, index) => (
                   <li key={asset.id} className="overflow-hidden rounded-xl border bg-card">
-                    <div className="relative aspect-[3/2] bg-muted">
+                    <button
+                      type="button"
+                      onClick={() => setViewing(index)}
+                      aria-label={`Ver ${asset.name}`}
+                      className="relative block aspect-[3/2] w-full bg-muted outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                    >
                       {asset.url ? (
                         // eslint-disable-next-line @next/next/no-img-element -- signed R2 URL, not optimizable
                         <img src={asset.url} alt={asset.alt ?? asset.name} className="size-full object-cover" />
@@ -270,19 +277,19 @@ export function PostEditor({
                       <span className="absolute left-1.5 top-1.5 rounded bg-background/90 px-1.5 text-xs font-medium tabular-nums">
                         {index + 1}
                       </span>
-                    </div>
-                    <div className="flex items-center justify-between gap-1 p-1.5">
-                      <span className="truncate text-xs" title={asset.name}>
+                    </button>
+                    <div className="flex items-center justify-between gap-1 p-1.5 max-sm:justify-center">
+                      <span className="min-w-0 truncate text-xs max-sm:hidden" title={asset.name}>
                         {asset.name}
                       </span>
                       <div className="flex shrink-0">
-                        <Button type="button" variant="ghost" size="icon-xs" disabled={index === 0} onClick={() => move(index, -1)} aria-label="Subir">
+                        <Button type="button" variant="ghost" size="icon-xs" className="max-sm:size-9" disabled={index === 0} onClick={() => move(index, -1)} aria-label={`Mover ${asset.name} antes`}>
                           <ArrowUp className="size-3" />
                         </Button>
-                        <Button type="button" variant="ghost" size="icon-xs" disabled={index === assets.length - 1} onClick={() => move(index, 1)} aria-label="Bajar">
+                        <Button type="button" variant="ghost" size="icon-xs" className="max-sm:size-9" disabled={index === assets.length - 1} onClick={() => move(index, 1)} aria-label={`Mover ${asset.name} después`}>
                           <ArrowDown className="size-3" />
                         </Button>
-                        <Button type="button" variant="ghost" size="icon-xs" onClick={() => setAssets((current) => current.filter((a) => a.id !== asset.id))} aria-label="Quitar">
+                        <Button type="button" variant="ghost" size="icon-xs" className="max-sm:size-9" onClick={() => setAssets((current) => current.filter((a) => a.id !== asset.id))} aria-label={`Quitar ${asset.name}`}>
                           <X className="size-3" />
                         </Button>
                       </div>
@@ -315,9 +322,12 @@ export function PostEditor({
         </FieldGroup>
       </fieldset>
 
+      <ImageViewer images={assets} index={viewing} onIndexChange={setViewing} />
+
       {readOnly ? null : (
-        <div className="flex justify-end gap-2">
-          <Button type="submit" disabled={saving || over}>
+        // Sticky on phones: the form is long and the bottom bar covers the page end.
+        <div className="sticky bottom-24 z-10 -mx-2 flex justify-end gap-2 rounded-2xl bg-card/95 p-2 backdrop-blur max-lg:shadow-lg max-lg:ring-1 max-lg:ring-foreground/10 lg:static lg:mx-0 lg:bg-transparent lg:p-0">
+          <Button type="submit" disabled={saving || over} className="max-lg:h-11 max-lg:w-full">
             {saving ? <Loader2 className="size-4 animate-spin" /> : null}
             {post ? "Guardar cambios" : "Crear borrador"}
           </Button>

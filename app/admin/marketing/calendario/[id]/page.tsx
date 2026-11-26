@@ -2,9 +2,11 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AlertTriangle, ChevronLeft, ExternalLink } from "lucide-react";
 
+import { AreaNav } from "@/components/admin/area-nav";
 import { StatusBadge } from "@/components/admin/marketing/post-chip";
 import { PostEditor } from "@/components/admin/marketing/post-editor";
-import { PostStatusActions, PublishKit } from "@/components/admin/marketing/post-actions";
+import { PostPreview } from "@/components/admin/marketing/post-preview";
+import { PostStatusActions } from "@/components/admin/marketing/post-actions";
 import { getAssets, getCampaignOptions, getPostDetail } from "@/lib/admin/queries/marketing";
 import { CHANNELS } from "@/lib/marketing/constants";
 import { cn } from "@/lib/utils";
@@ -18,8 +20,14 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
   );
 }
 
-export default async function PostPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
+export default async function PostPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ vista?: string }>;
+}) {
+  const [{ id }, { vista }] = await Promise.all([params, searchParams]);
   const [post, campaigns, library] = await Promise.all([
     getPostDetail(id),
     getCampaignOptions(),
@@ -30,27 +38,34 @@ export default async function PostPage({ params }: { params: Promise<{ id: strin
 
   const channel = CHANNELS[post.channel];
   const campaign = campaigns.find((c) => c.id === post.campaignId);
-  const showKit = ["APROBADO", "PROGRAMADO", "FALLIDO", "PUBLICADO"].includes(post.status);
+  // A published post is history: nothing to edit.
+  const editing = vista === "editar" && post.status !== "PUBLICADO";
+  const base = `/admin/marketing/calendario/${post.id}`;
 
   return (
     <div className="space-y-4">
       <div>
         <Link
           href="/admin/marketing/calendario"
-          className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+          className="-ml-1 inline-flex min-h-10 items-center gap-1 px-1 text-sm text-muted-foreground hover:text-foreground"
         >
           <ChevronLeft className="size-4" />
           Calendario
         </Link>
-        <div className="mt-2 flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <h2 className="text-xl font-semibold tracking-tight">{post.title}</h2>
           <StatusBadge status={post.status} />
         </div>
+        <p className="mt-1 flex items-center gap-1.5 text-sm text-muted-foreground">
+          <span className={cn("size-2 rounded-full", channel.dot)} />
+          {channel.label} · {post.scheduledLabel ?? "Sin fecha"}
+        </p>
       </div>
 
+      {/* Phone order: estado → contenido → datos. From lg the aside is a sticky column. */}
       <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_20rem]">
-        <aside className="space-y-4 lg:sticky lg:top-20 lg:order-2">
-          <section className="rounded-2xl border bg-card p-5">
+        <aside className="max-lg:contents lg:sticky lg:top-20 lg:order-2 lg:space-y-4">
+          <section className="rounded-2xl border bg-card p-5 max-lg:order-1">
             <h3 className="text-sm font-semibold">Estado</h3>
             <p className="mt-0.5 text-xs text-muted-foreground">
               Nada sale sin «Aprobar». Aprobar usa la última versión guardada.
@@ -69,19 +84,7 @@ export default async function PostPage({ params }: { params: Promise<{ id: strin
             ) : null}
           </section>
 
-          {showKit ? (
-            <section className="rounded-2xl border bg-card p-5">
-              <h3 className="text-sm font-semibold">Publicar a mano</h3>
-              <p className="mt-0.5 text-xs text-muted-foreground">
-                {channel.short} aún no tiene API: copia, descarga y abre.
-              </p>
-              <div className="mt-4">
-                <PublishKit post={post} />
-              </div>
-            </section>
-          ) : null}
-
-          <section className="rounded-2xl border bg-card px-5 py-3">
+          <section className="rounded-2xl border bg-card px-5 py-3 max-lg:order-3">
             <div className="divide-y">
               <Row label="Canal">
                 <span className="inline-flex items-center gap-1.5">
@@ -110,13 +113,35 @@ export default async function PostPage({ params }: { params: Promise<{ id: strin
           </section>
         </aside>
 
-        <section className="rounded-2xl border bg-card p-5 sm:p-6 lg:order-1">
-          <PostEditor
-            key={post.status + post.scheduledLocal}
-            post={post}
-            campaigns={campaigns}
-            library={library}
-          />
+        <section className="min-w-0 rounded-2xl border bg-card max-lg:order-2 lg:order-1">
+          {post.status === "PUBLICADO" ? (
+            <div className="border-b px-5 py-4">
+              <h3 className="text-sm font-semibold">Contenido publicado</h3>
+              <p className="mt-0.5 text-xs text-muted-foreground">Ya salió: queda como referencia.</p>
+            </div>
+          ) : (
+            <div className="px-5 pt-3">
+              <AreaNav
+                active={editing ? "editar" : "publicar"}
+                items={[
+                  { key: "publicar", label: "Listo para publicar", href: base },
+                  { key: "editar", label: "Editar", href: `${base}?vista=editar` },
+                ]}
+              />
+            </div>
+          )}
+          <div className="p-5 sm:p-6">
+            {editing ? (
+              <PostEditor
+                key={post.status + post.scheduledLocal}
+                post={post}
+                campaigns={campaigns}
+                library={library}
+              />
+            ) : (
+              <PostPreview post={post} />
+            )}
+          </div>
         </section>
       </div>
     </div>
