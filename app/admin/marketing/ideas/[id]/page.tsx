@@ -1,9 +1,21 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ChevronLeft, ChevronRight, Clapperboard, ExternalLink } from "lucide-react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  Clapperboard,
+  ExternalLink,
+  FileText,
+  Mic,
+  NotebookPen,
+  Shuffle,
+  Sparkles,
+  Wand2,
+} from "lucide-react";
 
 import { CopyButton } from "@/components/admin/marketing/copy-button";
-import { IdeaStageBadge } from "@/components/admin/marketing/idea-badge";
+import { IdeaCategoryTag, IdeaStageBadge } from "@/components/admin/marketing/idea-badge";
+import { IconTile, TONE_TEXT, type Tone } from "@/components/admin/tone";
 import {
   CreatePostFromIdeaButton,
   IdeaNotes,
@@ -24,13 +36,33 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
   );
 }
 
+const BEAT_TONES: Record<string, Tone> = {
+  hook: "rose",
+  caso: "sky",
+  giro: "amber",
+  pantalla: "emerald",
+  cierre: "violet",
+};
+
 const BEAT_ACCENTS: Record<string, string> = {
-  hook: "bg-foreground",
+  hook: "bg-rose-500",
   caso: "bg-sky-500",
   giro: "bg-amber-500",
   pantalla: "bg-emerald-500",
-  cierre: "bg-zinc-400",
+  cierre: "bg-violet-500",
 };
+
+function SectionTitle({ icon, tone, title, hint }: { icon: React.ElementType; tone: Tone; title: string; hint?: string }) {
+  return (
+    <div className="flex min-w-0 items-center gap-2.5">
+      <IconTile icon={icon} tone={tone} size="sm" />
+      <div className="min-w-0">
+        <h3 className="text-sm font-semibold">{title}</h3>
+        {hint ? <p className="mt-0.5 text-xs text-muted-foreground">{hint}</p> : null}
+      </div>
+    </div>
+  );
+}
 
 export default async function IdeaPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -79,19 +111,17 @@ export default async function IdeaPage({ params }: { params: Promise<{ id: strin
           <h2 className="text-xl font-semibold tracking-tight">{idea.title}</h2>
           <IdeaStageBadge stage={idea.stage} />
         </div>
-        <p className="mt-1 text-sm text-muted-foreground">
-          {[idea.category, idea.sector, idea.seconds ? `~${idea.seconds} s` : null].filter(Boolean).join(" · ")}
-        </p>
+        <div className="mt-1.5 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+          <IdeaCategoryTag category={idea.category} />
+          <span>{[idea.sector, idea.seconds ? `~${idea.seconds} s` : null].filter(Boolean).join(" · ")}</span>
+        </div>
       </div>
 
       <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_20rem]">
         <aside className="max-lg:contents lg:sticky lg:top-20 lg:order-2 lg:space-y-4">
-          <section className="space-y-2 rounded-2xl border bg-card p-5 max-lg:order-1">
-            <h3 className="text-sm font-semibold">Grabar</h3>
-            <p className="text-xs text-muted-foreground">
-              Teleprompter a pantalla completa: velocidad, tamaño, espejo y pausa con un toque.
-            </p>
-            <Button asChild className="mt-2 h-11 w-full">
+          <section className="space-y-2 rounded-2xl border bg-linear-to-br from-rose-50 to-card p-5 max-lg:order-1 dark:from-rose-500/10">
+            <SectionTitle icon={Clapperboard} tone="rose" title="Grabar" hint="Teleprompter a pantalla completa: velocidad, tamaño, espejo y pausa con un toque." />
+            <Button asChild className="mt-2 h-11 w-full bg-rose-500 text-white shadow-sm shadow-rose-500/30 hover:bg-rose-600 dark:bg-rose-500 dark:hover:bg-rose-400">
               <Link href={`${base}/${idea.id}/grabar`}>
                 <Clapperboard className="size-4" />
                 Abrir teleprompter
@@ -135,7 +165,7 @@ export default async function IdeaPage({ params }: { params: Promise<{ id: strin
           {idea.posts.length ? (
             <section className="overflow-hidden rounded-2xl border bg-card max-lg:order-4">
               <div className="border-b px-5 py-3">
-                <h3 className="text-sm font-semibold">Posts de esta idea</h3>
+                <SectionTitle icon={FileText} tone="blue" title="Posts de esta idea" />
               </div>
               <div className="divide-y">
                 {idea.posts.map((post) => (
@@ -148,8 +178,8 @@ export default async function IdeaPage({ params }: { params: Promise<{ id: strin
             </section>
           ) : null}
 
-          <section className="space-y-2 rounded-2xl border bg-card p-5 max-lg:order-5">
-            <h3 className="text-sm font-semibold">Notas</h3>
+          <section className="space-y-3 rounded-2xl border bg-card p-5 max-lg:order-5">
+            <SectionTitle icon={NotebookPen} tone="amber" title="Notas" />
             <IdeaNotes id={idea.id} notes={idea.notes} />
           </section>
         </aside>
@@ -157,10 +187,7 @@ export default async function IdeaPage({ params }: { params: Promise<{ id: strin
         <div className="min-w-0 space-y-4 max-lg:order-2 lg:order-1">
           <section className="rounded-2xl border bg-card">
             <div className="flex flex-wrap items-center justify-between gap-3 border-b px-5 py-4">
-              <div>
-                <h3 className="text-sm font-semibold">Texto para cámara</h3>
-                <p className="mt-0.5 text-xs text-muted-foreground">Lo que se dice, en orden. Debajo, lo que se ve.</p>
-              </div>
+              <SectionTitle icon={Mic} tone="violet" title="Texto para cámara" hint="Lo que se dice, en orden. Debajo, lo que se ve." />
               <div className="flex flex-wrap gap-2">
                 <CopyButton text={voiceText(idea.beats)} label="Copiar texto" />
                 <CopyButton text={scriptText(idea)} label="Guion completo" />
@@ -169,9 +196,9 @@ export default async function IdeaPage({ params }: { params: Promise<{ id: strin
             <ol className="divide-y">
               {idea.beats.map((beat, index) => (
                 <li key={index} className="flex gap-3 px-5 py-4">
-                  <span className={cn("mt-1.5 w-1 shrink-0 self-stretch rounded-full", BEAT_ACCENTS[beat.tipo])} aria-hidden />
+                  <span className={cn("mt-1.5 w-1 shrink-0 self-stretch rounded-full", BEAT_ACCENTS[beat.tipo] ?? "bg-zinc-400")} aria-hidden />
                   <div className="min-w-0 space-y-1.5">
-                    <p className="text-xs font-medium text-muted-foreground">{BEAT_LABELS[beat.tipo]}</p>
+                    <p className={cn("text-xs font-semibold", TONE_TEXT[BEAT_TONES[beat.tipo] ?? "zinc"])}>{BEAT_LABELS[beat.tipo]}</p>
                     <p className="text-[15px] leading-7">{beat.voz}</p>
                     {beat.motion ? (
                       <p className="whitespace-pre-line rounded-lg bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
@@ -188,23 +215,20 @@ export default async function IdeaPage({ params }: { params: Promise<{ id: strin
           {idea.alternativeHook ? (
             <section className="rounded-2xl border bg-card p-5">
               <div className="flex items-start justify-between gap-3">
-                <div>
-                  <h3 className="text-sm font-semibold">Gancho alternativo</h3>
-                  <p className="mt-0.5 text-xs text-muted-foreground">Para probar otra entrada; el teleprompter te deja elegirlo.</p>
-                </div>
+                <SectionTitle icon={Shuffle} tone="orange" title="Gancho alternativo" hint="Para probar otra entrada; el teleprompter te deja elegirlo." />
                 <CopyButton text={idea.alternativeHook} label="Copiar" />
               </div>
-              <p className="mt-3 rounded-xl bg-muted/40 p-4 text-[15px] leading-7">{idea.alternativeHook}</p>
+              <p className="mt-3 rounded-xl bg-orange-50 p-4 text-[15px] leading-7 dark:bg-orange-500/10">{idea.alternativeHook}</p>
             </section>
           ) : null}
 
           {idea.visual.length ? (
             <section className="rounded-2xl border bg-card p-5">
-              <h3 className="text-sm font-semibold">Secuencia de motion graphics</h3>
+              <SectionTitle icon={Sparkles} tone="pink" title="Secuencia de motion graphics" />
               <ol className="mt-3 space-y-2">
                 {idea.visual.map((step, index) => (
                   <li key={index} className="flex gap-3 text-sm">
-                    <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-muted text-xs tabular-nums">{index + 1}</span>
+                    <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-pink-100 text-xs font-medium tabular-nums text-pink-700 dark:bg-pink-500/15 dark:text-pink-300">{index + 1}</span>
                     <span className="pt-0.5">{step}</span>
                   </li>
                 ))}
@@ -215,10 +239,7 @@ export default async function IdeaPage({ params }: { params: Promise<{ id: strin
           {idea.visualPrompt ? (
             <section className="rounded-2xl border bg-card p-5">
               <div className="flex items-start justify-between gap-3">
-                <div>
-                  <h3 className="text-sm font-semibold">Prompt visual</h3>
-                  <p className="mt-0.5 text-xs text-muted-foreground">Para generar la pantalla o el motion con IA.</p>
-                </div>
+                <SectionTitle icon={Wand2} tone="teal" title="Prompt visual" hint="Para generar la pantalla o el motion con IA." />
                 <CopyButton text={idea.visualPrompt} label="Copiar prompt" />
               </div>
               <details className="group mt-3">

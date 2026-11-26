@@ -1,9 +1,10 @@
 import Form from "next/form";
 import Link from "next/link";
 import { Suspense } from "react";
-import { Clapperboard, Clock, Lightbulb, Search, Send, Video } from "lucide-react";
+import { Clapperboard, Clock, Flame, Lightbulb, Search, Send, Video } from "lucide-react";
 
-import { IdeaStageBadge } from "@/components/admin/marketing/idea-badge";
+import { IdeaCategoryTag, IdeaStageBadge, categoryTone } from "@/components/admin/marketing/idea-badge";
+import { KpiCard, IconTile, TONE_SOLID, ToneTag } from "@/components/admin/tone";
 import { ImportIdeasDialog } from "@/components/admin/marketing/import-ideas-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -47,9 +48,7 @@ export default async function IdeasPage({ searchParams }: { searchParams: Promis
   if (!total && !facets.stages.ARCHIVADO) {
     return (
       <div className="rounded-2xl border border-dashed px-6 py-14 text-center">
-        <span className="mx-auto flex size-12 items-center justify-center rounded-full bg-muted">
-          <Lightbulb className="size-5" />
-        </span>
+        <IconTile icon={Lightbulb} tone="amber" size="lg" className="mx-auto" />
         <h2 className="mt-4 text-base font-semibold">El banco de ideas está vacío</h2>
         <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
           Importa los 5 HTML de <code>MARKETING/Banco de Ideas</code> para traer los ~199 guiones de
@@ -63,34 +62,26 @@ export default async function IdeasPage({ searchParams }: { searchParams: Promis
   }
 
   const tiles = [
-    { stage: undefined, icon: Lightbulb, label: "Ideas activas", value: total, helper: "Sin contar archivadas" },
-    { stage: "GUION" as const, icon: Clapperboard, label: "Listas para grabar", value: facets.stages.GUION ?? 0, helper: "Abre el teleprompter" },
-    { stage: "GRABADO" as const, icon: Video, label: "Por editar", value: facets.stages.GRABADO ?? 0, helper: "Grabadas, sin editar" },
-    { stage: "PUBLICADO" as const, icon: Send, label: "Publicadas", value: facets.stages.PUBLICADO ?? 0, helper: "Con su URL" },
+    { stage: undefined, icon: Lightbulb, tone: "amber" as const, label: "Ideas activas", value: total, helper: "Sin contar archivadas" },
+    { stage: "GUION" as const, icon: Clapperboard, tone: "blue" as const, label: "Listas para grabar", value: facets.stages.GUION ?? 0, helper: "Abre el teleprompter" },
+    { stage: "GRABADO" as const, icon: Video, tone: "rose" as const, label: "Por editar", value: facets.stages.GRABADO ?? 0, helper: "Grabadas, sin editar" },
+    { stage: "PUBLICADO" as const, icon: Send, tone: "emerald" as const, label: "Publicadas", value: facets.stages.PUBLICADO ?? 0, helper: "Con su URL" },
   ];
 
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
-        {tiles.map(({ stage, icon: Icon, label, value, helper }) => (
-          <Link
+        {tiles.map(({ stage, icon, tone, label, value, helper }) => (
+          <KpiCard
             key={label}
             href={stage ? stageHref(stage) : "/admin/marketing/ideas"}
-            aria-current={filters.stage === stage && (stage || !filtered) ? "page" : undefined}
-            className={cn(
-              "flex items-center gap-4 rounded-2xl border bg-card p-3 transition-colors hover:bg-accent/40 sm:p-4",
-              filters.stage === stage && (stage || !filtered) && "ring-2 ring-primary/20",
-            )}
-          >
-            <span className="hidden size-10 shrink-0 items-center justify-center rounded-full bg-muted sm:flex">
-              <Icon className="size-[18px]" />
-            </span>
-            <div className="min-w-0">
-              <p className="text-xs text-muted-foreground">{label}</p>
-              <p className="text-2xl font-semibold leading-tight tabular-nums">{value}</p>
-              <p className="hidden truncate text-xs text-muted-foreground sm:block">{helper}</p>
-            </div>
-          </Link>
+            active={Boolean(filters.stage === stage && (stage || !filtered))}
+            icon={icon}
+            tone={tone}
+            label={label}
+            value={String(value)}
+            helper={helper}
+          />
         ))}
       </div>
 
@@ -192,14 +183,16 @@ function IdeaCard({ idea }: { idea: IdeaCardDTO }) {
   const href = `/admin/marketing/ideas/${idea.id}`;
 
   return (
-    <li className="group relative flex flex-col rounded-2xl border bg-card p-5 transition-colors hover:bg-accent/30">
+    <li className="group relative flex flex-col overflow-hidden rounded-2xl border bg-card p-5 pt-6 transition-colors hover:bg-accent/30">
+      {/* Category stripe: the bank's five categories read at a glance. */}
+      <span aria-hidden className={cn("absolute inset-x-0 top-0 h-1", TONE_SOLID[categoryTone(idea.category)])} />
       <div className="flex items-start justify-between gap-3">
         <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-          {idea.category ? (
-            <span className="rounded-md bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground">{idea.category}</span>
-          ) : null}
+          <IdeaCategoryTag category={idea.category} />
           {idea.priority === 1 ? (
-            <span className="rounded-md bg-muted px-1.5 py-0.5 text-[11px] font-medium text-foreground">Prioridad 1</span>
+            <ToneTag tone="orange" icon={Flame}>
+              Prioridad 1
+            </ToneTag>
           ) : null}
         </div>
         <IdeaStageBadge stage={idea.stage} />
@@ -225,7 +218,11 @@ function IdeaCard({ idea }: { idea: IdeaCardDTO }) {
           ) : null}
           {idea.legacyId ? <span className="tabular-nums">· #{idea.legacyId}</span> : null}
         </p>
-        <Button asChild variant="outline" size="icon-lg" className="relative z-10 shrink-0 rounded-full">
+        <Button
+          asChild
+          size="icon-lg"
+          className="relative z-10 shrink-0 rounded-full bg-rose-500 text-white shadow-sm shadow-rose-500/30 hover:bg-rose-600 dark:bg-rose-500 dark:hover:bg-rose-400"
+        >
           <Link href={`${href}/grabar`} aria-label={`Grabar «${idea.title}» con el teleprompter`}>
             <Clapperboard className="size-4" />
           </Link>

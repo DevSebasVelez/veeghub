@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { AlertTriangle, ChevronLeft, ExternalLink } from "lucide-react";
+import { AlertTriangle, ChevronLeft, ExternalLink, ListChecks } from "lucide-react";
 
 import { AreaNav } from "@/components/admin/area-nav";
+import { IconTile } from "@/components/admin/tone";
 import { StatusBadge } from "@/components/admin/marketing/post-chip";
 import { PostEditor } from "@/components/admin/marketing/post-editor";
 import { PostPreview } from "@/components/admin/marketing/post-preview";
@@ -66,10 +67,15 @@ export default async function PostPage({
       <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_20rem]">
         <aside className="max-lg:contents lg:sticky lg:top-20 lg:order-2 lg:space-y-4">
           <section className="rounded-2xl border bg-card p-5 max-lg:order-1">
-            <h3 className="text-sm font-semibold">Estado</h3>
-            <p className="mt-0.5 text-xs text-muted-foreground">
-              Nada sale sin «Aprobar». Aprobar usa la última versión guardada.
-            </p>
+            <div className="flex items-center gap-2.5">
+              <IconTile icon={ListChecks} tone="blue" size="sm" />
+              <div>
+                <h3 className="text-sm font-semibold">Estado</h3>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  Nada sale sin «Aprobar». Aprobar usa la última versión guardada.
+                </p>
+              </div>
+            </div>
             <div className="mt-4">
               <PostStatusActions post={post} />
             </div>

@@ -1,7 +1,8 @@
 import Form from "next/form";
 import Link from "next/link";
 import { Suspense } from "react";
-import { Search } from "lucide-react";
+import { Images, Search } from "lucide-react";
+import { IconTile } from "@/components/admin/tone";
 
 import { AssetCard } from "@/components/admin/marketing/asset-card";
 import { AssetUploader } from "@/components/admin/marketing/asset-uploader";
@@ -77,6 +78,7 @@ async function AssetGrid({ filters, filtered }: { filters: AssetFilters; filtere
   if (!assets.length) {
     return (
       <div className="rounded-2xl border border-dashed px-6 py-12 text-center text-sm text-muted-foreground">
+        <IconTile icon={Images} tone="pink" size="lg" className="mx-auto mb-4" />
         {filtered ? (
           "Nada coincide con el filtro."
         ) : (
