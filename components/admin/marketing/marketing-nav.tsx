@@ -4,10 +4,11 @@ import { usePathname } from "next/navigation";
 
 import { AreaNav } from "@/components/admin/area-nav";
 
-// Only the sections that exist. Ideas, generador, creativos and métricas join
-// as their phases land (F2, F4, F5, F7).
+// Only the sections that exist. Generador, creativos and métricas join as
+// their phases land (F4, F5, F7).
 const SECTIONS = [
   { key: "calendario", label: "Calendario", href: "/admin/marketing/calendario" },
+  { key: "ideas", label: "Ideas", href: "/admin/marketing/ideas" },
   { key: "biblioteca", label: "Biblioteca", href: "/admin/marketing/biblioteca" },
   { key: "directrices", label: "Directrices", href: "/admin/marketing/directrices" },
 ];
