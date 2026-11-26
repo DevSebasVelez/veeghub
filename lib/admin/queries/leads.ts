@@ -34,27 +34,55 @@ export const leadListSelect = {
   createdAt: true,
 } as const;
 
+/** Cards per column on first paint; «Cargar más» brings the next batch. */
+export const PIPELINE_COLUMN_SIZE = 20;
+
+const PIPELINE_ORDER = [{ createdAt: "desc" }, { id: "desc" }] as const;
+
+/**
+ * The first batch of every column plus each column's real count and value,
+ * so the header stays right however many cards are loaded. Before this the
+ * board fetched every open lead at once, which grows with every campaign.
+ */
 export async function getPipelineLeads() {
-  const leads = await prisma.lead.findMany({
-    where: { stage: { in: PIPELINE_STAGES } },
-    select: leadListSelect,
-    orderBy: [{ stage: "asc" }, { createdAt: "desc" }],
-  });
+  const [batches, totals] = await Promise.all([
+    Promise.all(
+      PIPELINE_STAGES.map((stage) =>
+        prisma.lead.findMany({
+          where: { stage },
+          select: leadListSelect,
+          orderBy: [...PIPELINE_ORDER],
+          take: PIPELINE_COLUMN_SIZE,
+        }),
+      ),
+    ),
+    prisma.lead.groupBy({
+      by: ["stage"],
+      where: { stage: { in: PIPELINE_STAGES } },
+      _count: { _all: true },
+      _sum: { estimatedValue: true },
+    }),
+  ]);
 
-  const byStage = new Map<LeadStage, typeof leads>();
+  const byStage = new Map(totals.map((row) => [row.stage, row]));
 
-  for (const stage of PIPELINE_STAGES) {
-    byStage.set(stage, []);
-  }
-
-  for (const lead of leads) {
-    byStage.get(lead.stage)?.push(lead);
-  }
-
-  return PIPELINE_STAGES.map((stage) => ({
+  return PIPELINE_STAGES.map((stage, index) => ({
     stage,
-    leads: byStage.get(stage) ?? [],
+    leads: batches[index],
+    total: byStage.get(stage)?._count._all ?? 0,
+    value: Number(byStage.get(stage)?._sum.estimatedValue ?? 0),
   }));
+}
+
+/** The next batch of one column, for «Cargar más». */
+export async function getPipelineColumnPage(stage: LeadStage, skip: number) {
+  return prisma.lead.findMany({
+    where: { stage },
+    select: leadListSelect,
+    orderBy: [...PIPELINE_ORDER],
+    skip: Math.max(0, Math.floor(skip)),
+    take: PIPELINE_COLUMN_SIZE,
+  });
 }
 
 export type LeadFilters = {

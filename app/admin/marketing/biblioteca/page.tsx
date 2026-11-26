@@ -6,13 +6,14 @@ import { IconTile } from "@/components/admin/tone";
 
 import { AssetCard } from "@/components/admin/marketing/asset-card";
 import { AssetUploader } from "@/components/admin/marketing/asset-uploader";
+import { ShowMoreLink, readShowCount } from "@/components/admin/show-more";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getAssetTags, getAssets, type AssetFilters } from "@/lib/admin/queries/marketing";
 import { ASSET_KIND_LABELS, ASSET_KINDS, isAssetKind } from "@/lib/marketing/constants";
 
-type Params = { q?: string; tipo?: string; etiqueta?: string };
+type Params = { q?: string; tipo?: string; etiqueta?: string; mostrar?: string };
 
 const selectClass =
   "h-9 rounded-md border border-input bg-transparent px-2.5 text-sm shadow-xs outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 dark:bg-input/30";
@@ -35,7 +36,7 @@ export default async function LibraryPage({ searchParams }: { searchParams: Prom
         <Form key={filterKey} action="/admin/marketing/biblioteca" className="flex flex-wrap items-center gap-2">
           <div className="relative">
             <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input name="q" defaultValue={filters.q} placeholder="Buscar" className="h-9 w-48 pl-8" />
+            <Input name="q" defaultValue={filters.q} placeholder="Buscar" aria-label="Buscar en la biblioteca" className="h-10 w-48 pl-8 sm:h-9" />
           </div>
           <select name="tipo" defaultValue={filters.kind ?? ""} className={selectClass} aria-label="Tipo">
             <option value="">Todos los tipos</option>
@@ -66,14 +67,28 @@ export default async function LibraryPage({ searchParams }: { searchParams: Prom
       </div>
 
       <Suspense key={filterKey} fallback={<Skeleton className="h-96 w-full rounded-xl" />}>
-        <AssetGrid filters={filters} filtered={filtered} />
+        <AssetGrid filters={filters} filtered={filtered} limit={readShowCount(params.mostrar)} params={params} />
       </Suspense>
     </div>
   );
 }
 
-async function AssetGrid({ filters, filtered }: { filters: AssetFilters; filtered: boolean }) {
-  const assets = await getAssets(filters, 240);
+async function AssetGrid({
+  filters,
+  filtered,
+  limit,
+  params,
+}: {
+  filters: AssetFilters;
+  filtered: boolean;
+  limit: number;
+  params: Params;
+}) {
+  // One extra row tells whether there is more, without a count query; each
+  // row also signs a preview URL, so fewer rows is a faster page.
+  const rows = await getAssets(filters, limit + 1);
+  const hasMore = rows.length > limit;
+  const assets = rows.slice(0, limit);
 
   if (!assets.length) {
     return (
@@ -94,14 +109,15 @@ async function AssetGrid({ filters, filtered }: { filters: AssetFilters; filtere
   return (
     <div className="space-y-2">
       <p className="text-xs text-muted-foreground">
-        {assets.length} recurso{assets.length === 1 ? "" : "s"}
-        {assets.length === 240 ? " (los 240 más recientes; filtra para ver otros)" : ""}
+        {assets.length}
+        {hasMore ? "+" : ""} recurso{assets.length === 1 ? "" : "s"}
       </p>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-6">
         {assets.map((asset) => (
           <AssetCard key={asset.id} asset={asset} />
         ))}
       </div>
+      {hasMore ? <ShowMoreLink basePath="/admin/marketing/biblioteca" params={params} shown={assets.length} total={null} /> : null}
     </div>
   );
 }

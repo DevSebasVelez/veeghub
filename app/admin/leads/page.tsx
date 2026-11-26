@@ -79,6 +79,8 @@ export default async function LeadsPage({
     columns?.map((column) => ({
       stage: column.stage as string,
       leads: column.leads.map(forLeadCard),
+      total: column.total,
+      value: column.value,
     })) ?? [];
 
   const listLeads = listData?.leads.map(forLeadCard) ?? [];
@@ -106,7 +108,7 @@ export default async function LeadsPage({
         <div className="flex items-center gap-2">
           <Link
             href="/admin/leads/configuracion"
-            className="inline-flex h-8 items-center gap-1.5 rounded-md border px-3 text-sm hover:bg-muted"
+            className="inline-flex h-10 items-center gap-1.5 rounded-md border px-3 text-sm hover:bg-muted sm:h-8"
           >
             <Plug className="size-3.5" />
             Integración Meta

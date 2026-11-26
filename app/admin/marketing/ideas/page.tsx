@@ -7,6 +7,7 @@ import { IdeaCategoryTag, categoryTone } from "@/components/admin/marketing/idea
 import { IdeaStageQuick } from "@/components/admin/marketing/idea-actions";
 import { KpiCard, IconTile, TONE_SOLID, ToneTag } from "@/components/admin/tone";
 import { ImportIdeasDialog } from "@/components/admin/marketing/import-ideas-dialog";
+import { ShowMoreLink, readShowCount } from "@/components/admin/show-more";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -19,7 +20,7 @@ import {
 import { IDEA_STAGES, IDEA_STAGE_LABELS, isIdeaStage, type IdeaStage } from "@/lib/marketing/constants";
 import { cn } from "@/lib/utils";
 
-type Params = { q?: string; sector?: string; categoria?: string; etapa?: string; prioridad?: string };
+type Params = { q?: string; sector?: string; categoria?: string; etapa?: string; prioridad?: string; mostrar?: string };
 
 const selectClass =
   "h-10 min-w-0 rounded-md border border-input bg-transparent px-2.5 text-sm shadow-xs outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 sm:h-9 dark:bg-input/30";
@@ -146,14 +147,25 @@ export default async function IdeasPage({ searchParams }: { searchParams: Promis
       </div>
 
       <Suspense key={filterKey} fallback={<Skeleton className="h-96 w-full rounded-2xl" />}>
-        <IdeaGrid filters={filters} filtered={filtered} />
+        <IdeaGrid filters={filters} filtered={filtered} limit={readShowCount(params.mostrar)} params={params} />
       </Suspense>
     </div>
   );
 }
 
-async function IdeaGrid({ filters, filtered }: { filters: IdeaFilters; filtered: boolean }) {
+async function IdeaGrid({
+  filters,
+  filtered,
+  limit,
+  params,
+}: {
+  filters: IdeaFilters;
+  filtered: boolean;
+  limit: number;
+  params: Params;
+}) {
   const ideas = await getIdeas(filters);
+  const shown = ideas.slice(0, limit);
 
   if (!ideas.length) {
     return (
@@ -172,10 +184,13 @@ async function IdeaGrid({ filters, filtered }: { filters: IdeaFilters; filtered:
         {ideas.length} idea{ideas.length === 1 ? "" : "s"}
       </p>
       <ul className="grid gap-3 md:grid-cols-2 2xl:grid-cols-3">
-        {ideas.map((idea) => (
+        {shown.map((idea) => (
           <IdeaCard key={idea.id} idea={idea} />
         ))}
       </ul>
+      {ideas.length > shown.length ? (
+        <ShowMoreLink basePath="/admin/marketing/ideas" params={params} shown={shown.length} total={ideas.length} />
+      ) : null}
     </div>
   );
 }
