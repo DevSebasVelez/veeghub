@@ -20,8 +20,14 @@ Tres reglas que salen de ahí:
    dos encabezados, son dos tarjetas.
 2. **El dato manda.** La cifra o el contenido principal es lo más grande de la tarjeta; la
    etiqueta va arriba, pequeña y en gris.
-3. **Color con significado, nunca decorativo.** Estados (aprobado, vencido), canales y una serie
-   destacada en un gráfico. Todo lo demás es neutro.
+3. **Color con significado, nunca al azar.** Estados (aprobado, vencido), canales, una serie
+   destacada en un gráfico y el **tono de cada tema** (§2.1): el ícono de una cifra o de una
+   sección lleva siempre el mismo color, para reconocerla sin leer. El texto y las superficies
+   siguen neutros.
+
+> Ajuste del 2026-11-26: Sebastián encontró el panel «plano, blanco y negro». Las referencias
+> sí usan acentos (Saledash: baldosas suaves; Zentra: series de color; Ecomora: chips de
+> variación). Se agregan los tonos de §2.1; lo demás no cambia.
 
 ---
 
@@ -36,6 +42,30 @@ Tres reglas que salen de ahí:
 | Separación entre tarjetas | `gap-4` | `gap-3` sólo en franjas de KPI. |
 
 Sin sombras duras. Si una tarjeta tiene que flotar (popover, tooltip), sombra difusa (`shadow-lg`).
+
+### 2.1 Tonos (`components/admin/tone.tsx`)
+
+- `IconTile` (baldosa redonda: fondo `-100` / ícono `-600`; oscuro `-500/15` / `-300`), `KpiCard`,
+  `ToneTag`, `Delta` y los mapas `TONE_*`. No escribir clases de color sueltas para esto.
+- Un tono por tema, el mismo en todo el panel:
+
+| Tema | Tono |
+|---|---|
+| Gasto, dinero, calendario | blue |
+| Leads, formularios, texto | violet |
+| Costo por lead, ideas, notas | amber |
+| Clientes ganados, publicado | emerald |
+| Grabar, video | rose |
+| Alcance, comentarios | sky |
+| Conversaciones, directrices | teal |
+| Imágenes, biblioteca, Instagram | pink |
+| CTR, conjuntos | indigo |
+
+- `KpiCard active` agrega anillo + lavado del tono: para la cifra seleccionada o la que pide acción.
+- `Delta`: verde si mejora, rojo si empeora, azul (`neutral`) si subir no es ni bueno ni malo (gasto).
+- Lavado (`TONE_WASH`) sólo para una tarjeta héroe por pantalla (la acción principal o el insight).
+- Lo activo sigue siendo negro/blanco (§6); el botón principal puede llevar el tono de su tema
+  (p. ej. «Abrir teleprompter» en rose) si es la única acción llena.
 
 ## 3. Cabecera de tarjeta
 
@@ -57,8 +87,7 @@ La acción secundaria de una tarjeta es un **botón redondo** con ícono (`round
 ## 4. Cifras (KPI)
 
 - Franja de 3-4 tarjetas al inicio de un módulo, `grid gap-3 sm:grid-cols-2 xl:grid-cols-4`.
-- Dentro: **baldosa de ícono** redonda (`size-10 rounded-full bg-muted` con el ícono en
-  `text-foreground`), etiqueta pequeña en gris, cifra `text-2xl font-semibold tabular-nums`
+- Dentro: **baldosa de ícono** con el tono del tema (`KpiCard`, §2.1), etiqueta pequeña en gris, cifra `text-2xl font-semibold tabular-nums`
   y una línea de contexto en `text-xs`.
 - Una tarjeta KPI es un enlace a la lista que explica la cifra.
 - Variación: verde con flecha arriba, rojo con flecha abajo, siempre con el signo.
@@ -135,6 +164,6 @@ Ver `docs/runbooks/fechas-y-zona-horaria.md`. Las etiquetas de fecha se calculan
 - [ ] Se ve bien en **claro y oscuro** (el panel se usa en oscuro).
 - [ ] Se ve bien en móvil (390 px): nada se sale, el panel lateral sube.
 - [ ] Una sola acción llena.
-- [ ] Ningún color sin significado.
+- [ ] Ningún color sin significado; íconos de cifras y secciones con su tono (§2.1).
 - [ ] Vacíos con texto útil («qué hacer para que aparezca algo»), no sólo «Sin datos».
 - [ ] Probada en el navegador con sesión real.

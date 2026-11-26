@@ -2,12 +2,13 @@
 
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { toast } from "sonner";
-import { Download, ExternalLink, ImageIcon, Loader2, Share2 } from "lucide-react";
+import { Download, ExternalLink, ImageIcon, Images, Link2, Loader2, MessageSquareText, Share2, Type } from "lucide-react";
 
 import type { PostDetailDTO } from "@/lib/admin/queries/marketing";
 import { CHANNELS } from "@/lib/marketing/constants";
 import { buildUtmUrl, renderFirstComment } from "@/lib/marketing/utm";
 import { CopyButton } from "@/components/admin/marketing/copy-button";
+import { IconTile, type Tone } from "@/components/admin/tone";
 import { ImageViewer, assetSrc } from "@/components/admin/marketing/image-viewer";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -31,7 +32,11 @@ function Block({
   text,
   copyLabel,
   mono,
+  icon,
+  tone,
 }: {
+  icon: React.ElementType;
+  tone: Tone;
   label: string;
   helper?: string;
   text: string;
@@ -40,10 +45,13 @@ function Block({
 }) {
   return (
     <div className="space-y-2">
-      <div className="flex items-end justify-between gap-3">
-        <div className="min-w-0">
-          <h3 className="text-sm font-semibold">{label}</h3>
-          {helper ? <p className="text-xs text-muted-foreground">{helper}</p> : null}
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-2.5">
+          <IconTile icon={icon} tone={tone} size="sm" />
+          <div className="min-w-0">
+            <h3 className="text-sm font-semibold">{label}</h3>
+            {helper ? <p className="text-xs text-muted-foreground">{helper}</p> : null}
+          </div>
         </div>
         <CopyButton text={text} label={copyLabel} className="shrink-0" />
       </div>
@@ -143,6 +151,8 @@ export function PostPreview({ post }: { post: PostDetailDTO }) {
   return (
     <div className="space-y-6">
       <Block
+        icon={Type}
+        tone="violet"
         label="Texto"
         helper={`${post.body.length.toLocaleString("es-EC")}${channel.maxChars ? ` / ${channel.maxChars.toLocaleString("es-EC")}` : ""} caracteres`}
         text={post.body}
@@ -151,6 +161,8 @@ export function PostPreview({ post }: { post: PostDetailDTO }) {
 
       {comment ? (
         <Block
+          icon={MessageSquareText}
+          tone="sky"
           label="Primer comentario"
           helper="Pégalo apenas publiques: el enlace va aquí, no en el post."
           text={comment}
@@ -158,18 +170,21 @@ export function PostPreview({ post }: { post: PostDetailDTO }) {
           mono
         />
       ) : utmUrl ? (
-        <Block label="Enlace" helper="Con su UTM." text={utmUrl} copyLabel="Copiar enlace" mono />
+        <Block icon={Link2} tone="teal" label="Enlace" helper="Con su UTM." text={utmUrl} copyLabel="Copiar enlace" mono />
       ) : null}
 
       <div className="space-y-2">
-        <div className="flex items-end justify-between gap-3">
-          <div>
-            <h3 className="text-sm font-semibold">Imágenes</h3>
-            <p className="text-xs text-muted-foreground">
-              {post.assets.length
-                ? "En este orden. Toca una para verla completa."
-                : "Este post sale sólo con texto."}
-            </p>
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-2.5">
+            <IconTile icon={Images} tone="pink" size="sm" />
+            <div className="min-w-0">
+              <h3 className="text-sm font-semibold">Imágenes</h3>
+              <p className="text-xs text-muted-foreground">
+                {post.assets.length
+                  ? "En este orden. Toca una para verla completa."
+                  : "Este post sale sólo con texto."}
+              </p>
+            </div>
           </div>
           {post.assets.length ? (
             <Button type="button" variant="outline" size="sm" className="h-9 shrink-0 px-3 sm:h-8" onClick={downloadAll}>

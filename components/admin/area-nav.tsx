@@ -11,6 +11,9 @@ export type AreaNavItem = {
   /** Shown next to the label; hidden when zero. */
   count?: number;
   href?: string;
+  /** Small icon before the label; tinted by `iconClassName`. */
+  icon?: React.ElementType;
+  iconClassName?: string;
 };
 
 function itemClasses(active: boolean) {
@@ -76,6 +79,7 @@ export function AreaNav({
             aria-current={isActive ? "page" : undefined}
             className={itemClasses(isActive)}
           >
+            {item.icon ? <item.icon aria-hidden className={cn("size-4", item.iconClassName)} /> : null}
             {item.label}
             <Count value={item.count ?? 0} active={isActive} />
           </Link>
