@@ -130,7 +130,7 @@ export default async function CampaignPage({
           <section className="overflow-hidden rounded-2xl border bg-card max-lg:order-4">
             <div className="flex items-center justify-between border-b px-5 py-3">
               <h3 className="text-sm font-semibold">Últimos leads</h3>
-              <Link href="/admin/leads" className="text-xs text-muted-foreground hover:text-foreground">
+              <Link href="/admin/leads" className="-my-2 inline-flex min-h-10 items-center px-1 text-xs text-muted-foreground hover:text-foreground">
                 Ver todos
               </Link>
             </div>

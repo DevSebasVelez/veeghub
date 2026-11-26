@@ -20,9 +20,9 @@ export function BarList({
         <li key={row.key} className="space-y-1">
           <div className="flex items-baseline justify-between gap-3 text-sm">
             <span className="min-w-0 truncate">{row.label}</span>
-            <span className="shrink-0 font-medium tabular-nums">
+            <span className="shrink-0 text-right font-medium tabular-nums">
               {row.value}
-              {row.helper ? <span className="ml-1.5 text-xs font-normal text-muted-foreground">{row.helper}</span> : null}
+              {row.helper ? <span className="ml-1.5 text-xs font-normal text-muted-foreground max-sm:block">{row.helper}</span> : null}
             </span>
           </div>
           <div className="h-2 overflow-hidden rounded-full bg-muted">

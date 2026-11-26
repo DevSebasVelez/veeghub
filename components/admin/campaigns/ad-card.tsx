@@ -43,7 +43,7 @@ export function AdCard({ ad, rank, showCampaign = true }: { ad: AdRow; rank?: nu
             <KindTag kind={ad.kind} />
           </div>
           {showCampaign ? (
-            <Link href={`/admin/campanas/${ad.campaignId}`} className="block truncate text-xs text-muted-foreground hover:text-foreground hover:underline">
+            <Link href={`/admin/campanas/${ad.campaignId}`} className="-my-1.5 block truncate py-1.5 text-xs text-muted-foreground hover:text-foreground hover:underline">
               {ad.campaignName}
             </Link>
           ) : (

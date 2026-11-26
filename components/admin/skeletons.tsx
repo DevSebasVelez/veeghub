@@ -180,3 +180,66 @@ export function ListGroupSkeleton({
     </div>
   );
 }
+
+/** KpiCard tiles (components/admin/tone): same height as the real cards. */
+export function KpiTilesSkeleton({
+  count = 4,
+  className = "grid grid-cols-2 gap-3 xl:grid-cols-4",
+}: {
+  count?: number;
+  className?: string;
+}) {
+  return (
+    <div className={className}>
+      {Array.from({ length: count }).map((_, i) => (
+        <Skeleton key={i} className="h-[76px] rounded-2xl sm:h-[92px]" />
+      ))}
+    </div>
+  );
+}
+
+/** A "label … value" facts card, like the asides of the detail pages. */
+export function FactsCardSkeleton({
+  rows = 5,
+  className = "",
+}: {
+  rows?: number;
+  className?: string;
+}) {
+  return (
+    <div className={`rounded-2xl border bg-card px-5 py-3 ${className}`}>
+      <div className="divide-y">
+        {Array.from({ length: rows }).map((_, i) => (
+          <div key={i} className="flex items-center justify-between gap-3 py-2.5">
+            <Skeleton className="h-4 w-20" />
+            <Skeleton className="h-4 w-28" />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** A card with an icon-tile title row and a few text lines. */
+export function SectionCardSkeleton({
+  lines = 3,
+  className = "",
+}: {
+  lines?: number;
+  className?: string;
+}) {
+  return (
+    <div className={`space-y-4 rounded-2xl border bg-card p-5 ${className}`}>
+      <div className="flex items-center gap-2.5">
+        <Skeleton className="size-8 shrink-0 rounded-lg" />
+        <div className="flex-1 space-y-1.5">
+          <Skeleton className="h-4 w-28" />
+          <Skeleton className="h-3 w-3/4" />
+        </div>
+      </div>
+      {Array.from({ length: lines }).map((_, i) => (
+        <Skeleton key={i} className={i === lines - 1 ? "h-4 w-2/3" : "h-4 w-full"} />
+      ))}
+    </div>
+  );
+}

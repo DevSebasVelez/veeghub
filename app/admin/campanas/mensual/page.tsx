@@ -61,7 +61,7 @@ export default async function MonthlyPage() {
           {newest.map((row) => (
             <li key={row.month} className="px-4 py-3.5">
               <div className="flex items-center justify-between gap-3">
-                <a href={`/admin/campanas?mes=${row.month}`} className="font-medium hover:underline">{row.label}</a>
+                <a href={`/admin/campanas?mes=${row.month}`} className="-my-2 inline-flex min-h-10 items-center font-medium hover:underline">{row.label}</a>
                 <span className="flex items-center gap-1.5 font-semibold tabular-nums">
                   {money(row.spend)} <Delta value={row.spendChange} goodWhen="neutral" />
                 </span>

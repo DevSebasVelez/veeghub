@@ -58,7 +58,7 @@ export function ImportPostsDialog() {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button type="button" variant="outline" size="sm">
+        <Button type="button" variant="outline" size="sm" className="max-sm:h-10">
           <FileUp className="size-3.5" />
           Importar
         </Button>

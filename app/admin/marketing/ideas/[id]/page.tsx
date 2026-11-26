@@ -95,7 +95,7 @@ export default async function IdeaPage({
           <span className="mr-1 text-xs tabular-nums text-muted-foreground">
             {neighbors.position} de {neighbors.total}
           </span>
-          <Button asChild={!!neighbors.prev} variant="outline" size="icon-lg" className="rounded-full" disabled={!neighbors.prev}>
+          <Button asChild={!!neighbors.prev} variant="outline" size="icon-lg" className="rounded-full" disabled={!neighbors.prev} aria-label={neighbors.prev ? undefined : "No hay idea anterior"}>
             {neighbors.prev ? (
               <Link href={`${base}/${neighbors.prev}`} aria-label="Idea anterior">
                 <ChevronLeft className="size-4" />
@@ -104,7 +104,7 @@ export default async function IdeaPage({
               <span aria-hidden><ChevronLeft className="size-4" /></span>
             )}
           </Button>
-          <Button asChild={!!neighbors.next} variant="outline" size="icon-lg" className="rounded-full" disabled={!neighbors.next}>
+          <Button asChild={!!neighbors.next} variant="outline" size="icon-lg" className="rounded-full" disabled={!neighbors.next} aria-label={neighbors.next ? undefined : "No hay idea siguiente"}>
             {neighbors.next ? (
               <Link href={`${base}/${neighbors.next}`} aria-label="Idea siguiente">
                 <ChevronRight className="size-4" />
