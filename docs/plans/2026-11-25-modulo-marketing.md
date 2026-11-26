@@ -1,7 +1,7 @@
 # Plan: Módulo de Marketing — centro de contenido de VeegSoft
 
 **Creado:** 2026-11-25
-**Estado:** 🟢 F1 y F3 en producción con datos cargados (2026-11-25) y cron activo vía Worker de Cloudflare (2026-11-26); sigue F2
+**Estado:** 🟢 F1 y F3 en producción con datos cargados (2026-11-25) y cron activo vía Worker de Cloudflare (2026-11-26). F2 y el pulido móvil están hechos en `develop`, sin desplegar.
 **Rama sugerida:** `feat/marketing`, con una sub-rama por fase (`feat/mkt-f1-fundaciones`, etc.)
 **Origen:** sesión de `veegsoft-web` del 2026-11-25 (lanzamiento de las 9 páginas de industria y primer post de LinkedIn publicado a mano desde Claude Code)
 
@@ -18,7 +18,7 @@
 | Fase | Qué entrega | Depende de | Estado |
 |---|---|---|---|
 | **F1** | Fundaciones: modelos, navegación, directrices de marca y biblioteca de recursos | — | ✅ en producción, con directrices y biblioteca |
-| **F2** | Banco de ideas: importar los ~199 reels, CRUD, estados y teleprompter | F1 | ⬜ |
+| **F2** | Banco de ideas: importar los ~199 reels, CRUD, estados y teleprompter | F1 | 🟡 hecha en `develop` (2026-11-26); falta desplegar, importar en producción y grabar una prueba en el celular |
 | **F3** | Calendario y planificador: publicaciones por canal, cronograma, «hoy toca» y recordatorios push y email | F1 | 🟢 en producción; cron activo (Worker, 2026-11-26); falta confirmar el push del 1-dic |
 | **F4** | Generador con IA (Anthropic): ideas, guiones, copys por canal y plan semanal, siempre con las directrices | F1 (+F2/F3 para usar sus datos) | ⬜ |
 | **F5** | Creativos: plantillas de imagen (carrusel 4:5, GBP, OG) renderizadas en el servidor | F1, F4 | ⬜ |
@@ -364,7 +364,7 @@ Los tokens se cifran con la misma utilidad que usa `Credential` (`lib/security`)
 
 ## 7. Para arrancar la próxima sesión (prompt sugerido)
 
-> Lee `docs/plans/2026-11-25-modulo-marketing.md` (empieza por el §8) y `docs/ui/convenciones-de-diseno.md`. El cron ya corre (Worker de Cloudflare, §8 punto 1) y el pulido de UI móvil está hecho (§8, 2026-11-26). Sigamos con F2: banco de ideas y teleprompter. Rama `feat/mkt-f2-banco-ideas` desde `develop`. Sin push hasta que lo pida.
+> Lee `docs/plans/2026-11-25-modulo-marketing.md` (empieza por el §8) y `docs/ui/convenciones-de-diseno.md`. F2 está hecha en `develop` (§8, 2026-11-26): falta desplegarla e importar las ideas en producción. Lo siguiente es F4 (generador con IA) o adelantar F8 (centro de Meta Ads), según lo que decida Sebastián. Sin push hasta que lo pida.
 
 ## 8. Bitácora
 
@@ -413,4 +413,41 @@ Probado en el navegador a 390 px y en escritorio, en claro y oscuro:
 - **Biblioteca:** tocar una imagen abre el visor (antes abría la URL cruda en otra pestaña); los botones de cada tarjeta son de 40 px en el celular.
 
 **Falta probar en un teléfono real:** «Compartir con imágenes» (el navegador del escritorio no lo ofrece).
+
+### 2026-11-26 — F2: banco de ideas y teleprompter (rama `feat/mkt-f2-banco-ideas`)
+
+Probado en el navegador, en escritorio y en móvil, en claro y oscuro:
+- **Parser** (`lib/marketing/ideas-import.ts`):
+  - Archivos 1-4: lee el literal `rawScripts` desde el árbol sintáctico de `acorn`. Sólo acepta arreglos, objetos, textos y números; cualquier otra cosa (funciones, llamadas, plantillas con expresiones) se rechaza. **Nunca `eval`.**
+  - Archivo 5: lee el JSON de `#reel-data`. El sector sale de la audiencia (lo que va después del «·»). El gancho alternativo, la secuencia visual, la oferta, el beneficio y los demás campos van a `meta`.
+  - Tests: 6, incluido uno que lee los 5 archivos reales: 199 reels, ids únicos y 5 beats cada uno.
+- **Importar:**
+  - `npm run mkt:ideas` en local.
+  - En producción, «Importar» en Marketing › Ideas, con los 5 HTML a la vez (574 KB, por debajo del límite de 1 MB de las server actions).
+  - Es idempotente por `(source, legacyId)`: reimportar actualiza el guion y **conserva la etapa, las notas y la URL**.
+  - Probado desde la UI: 199 ideas en ~1 s.
+- **Lista** `/admin/marketing/ideas`:
+  - KPIs por etapa (activas, listas para grabar, por editar, publicadas).
+  - Búsqueda sin tildes en el título, el sector y el texto de los beats.
+  - Filtros de categoría, etapa, sector y prioridad, en la URL.
+  - Tarjetas con el gancho y un botón directo al teleprompter.
+- **Ficha** `/admin/marketing/ideas/[id]` (patrón «Plan»):
+  - Beats con lo que se dice y lo que se ve en pantalla. «Copiar texto» y «Guion completo».
+  - Gancho alternativo, secuencia de motion y prompt visual, cada uno con «Copiar».
+  - Etapa: un selector más «Marcar siguiente». Al pasar a PUBLICADO pide la URL.
+  - «Crear post a partir de esta idea»: crea un borrador de LinkedIn vinculado a la idea y abre el editor.
+  - Notas, posts vinculados, y anterior/siguiente.
+- **Teleprompter** `/admin/marketing/ideas/[id]/grabar`, a pantalla completa:
+  - Cuenta regresiva de 3 o 5 s, o sin cuenta.
+  - Velocidad en px/s, tamaño de letra y espejo, guardados en `localStorage` como en el HTML.
+  - Línea de lectura. Gancho principal o alternativo.
+  - Pausa al tocar el texto o con la barra espaciadora; se detiene si arrastras o cambias de pestaña.
+  - Mantiene la pantalla encendida mientras lee (Wake Lock).
+  - «Marcar grabado», y anterior/siguiente.
+  - Atajos: ↑↓ velocidad, +/− letra, M espejo, R inicio, ←→ otra idea, Esc salir.
+
+**Para cerrar F2:**
+1. Desplegar (`develop` → `main`).
+2. En producción, Marketing › Ideas › «Importar» con los 5 HTML.
+3. Grabar un reel desde el teleprompter en el celular y en el portátil. Cuando ya no hagan falta los HTML, F2 queda cerrada.
 
