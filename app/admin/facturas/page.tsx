@@ -1,7 +1,6 @@
 import Link from "next/link";
-import { ExternalLink } from "lucide-react";
+import { CircleCheck, FileText, Hourglass, Receipt, Send } from "lucide-react";
 
-import { QuickSendInvoiceForm } from "@/components/admin/send-invoice-form";
 import { InvoiceStatusFilter } from "@/app/admin/facturas/invoice-status-filter";
 import {
   CreateInvoiceDialog,
@@ -9,11 +8,32 @@ import {
 } from "@/components/admin/dialogs/invoice-dialog";
 import { Pagination } from "@/components/admin/pagination";
 import { StatusBadge } from "@/components/admin/status-badge";
+import { IconTile, KpiCard } from "@/components/admin/tone";
 import { forInvoiceDialog } from "@/lib/admin/serialize";
-import { getInvoicesPageData } from "@/lib/admin/queries/invoices";
-import { formatCurrency, formatDate, formatDateOnly } from "@/lib/admin/format";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { getInvoiceStats, getInvoicesPageData } from "@/lib/admin/queries/invoices";
+import { dayKeyInAppZone, formatCurrency, formatDateOnly } from "@/lib/admin/format";
+import { cn } from "@/lib/utils";
+
+function DocChip({ label, present }: { label: string; present: boolean }) {
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-medium",
+        present
+          ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300"
+          : "bg-muted text-muted-foreground",
+      )}
+    >
+      <span
+        className={cn(
+          "size-1.5 rounded-full",
+          present ? "bg-emerald-500" : "bg-muted-foreground/40",
+        )}
+      />
+      {label}
+    </span>
+  );
+}
 
 export default async function InvoicesPage({
   searchParams,
@@ -21,172 +41,168 @@ export default async function InvoicesPage({
   searchParams: Promise<{ page?: string; status?: string }>;
 }) {
   const { page: pageParam, status: statusFilter } = await searchParams;
-  const {
-    page,
-    pageSize,
-    clientsForCreate,
-    clientsForEdit,
-    invoices,
-    total,
-    serializeRecv,
-  } = await getInvoicesPageData({ pageParam, statusFilter });
+  const year = Number(dayKeyInAppZone(new Date()).slice(0, 4));
+
+  const [
+    { page, pageSize, clientsForCreate, clientsForEdit, invoices, total, serializeRecv },
+    stats,
+  ] = await Promise.all([
+    getInvoicesPageData({ pageParam, statusFilter }),
+    getInvoiceStats(year),
+  ]);
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div className="min-w-0">
-          <h1 className="text-2xl font-semibold tracking-tight">
-            Facturas SRI
-          </h1>
+          <h1 className="text-2xl font-semibold tracking-tight">Facturas</h1>
           <p className="text-sm text-muted-foreground">
-            XML autorizado, RIDE PDF y envío por email con Resend.
+            Facturas electrónicas del SRI: XML autorizado, RIDE y envío al cliente.
           </p>
         </div>
         <CreateInvoiceDialog clientsWithContext={clientsForCreate} />
       </div>
 
-      <Card className="rounded-lg">
-        <CardHeader className="pb-3">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <CardTitle>Facturas</CardTitle>
-            <InvoiceStatusFilter value={statusFilter} />
+      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+        <KpiCard
+          icon={Receipt}
+          tone="blue"
+          label={`Facturado en ${year}`}
+          value={formatCurrency(stats.billedTotal)}
+          helper={`${stats.billedCount} ${stats.billedCount === 1 ? "factura emitida" : "facturas emitidas"}`}
+          href="/admin/facturas"
+          active={!statusFilter}
+        />
+        <KpiCard
+          icon={Send}
+          tone="orange"
+          label="Por enviar"
+          value={String(stats.toSendCount)}
+          helper={
+            stats.toSendCount
+              ? `${formatCurrency(stats.toSendTotal)} sin enviar al cliente`
+              : "Todo enviado"
+          }
+          href="/admin/facturas?status=READY_TO_SEND"
+          active={statusFilter === "READY_TO_SEND"}
+        />
+        <KpiCard
+          icon={Hourglass}
+          tone="amber"
+          label="Por cobrar"
+          value={formatCurrency(stats.toCollectTotal)}
+          helper={`${stats.toCollectCount} ${stats.toCollectCount === 1 ? "enviada sin pagar" : "enviadas sin pagar"}`}
+          href="/admin/facturas?status=SENT"
+          active={statusFilter === "SENT"}
+        />
+        <KpiCard
+          icon={CircleCheck}
+          tone="emerald"
+          label="Pagadas"
+          value={formatCurrency(stats.paidTotal)}
+          helper={`${stats.paidCount} ${stats.paidCount === 1 ? "factura cobrada" : "facturas cobradas"}`}
+          href="/admin/facturas?status=PAID"
+          active={statusFilter === "PAID"}
+        />
+      </div>
+
+      <section className="overflow-hidden rounded-2xl border bg-card">
+        <div className="flex flex-col gap-3 border-b px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="text-sm font-semibold">Todas las facturas</h2>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              {stats.missingDocs
+                ? `${stats.missingDocs} ${stats.missingDocs === 1 ? "factura no tiene" : "facturas no tienen"} XML o RIDE: súbelos para poder enviarlas.`
+                : "Las más recientes primero."}
+            </p>
           </div>
-        </CardHeader>
-        <CardContent className="p-0">
-          {invoices.length === 0 ? (
-            <div className="py-16 text-center text-sm text-muted-foreground">
-              No hay facturas{statusFilter ? " con ese estado" : ""}.
-            </div>
-          ) : (
-            <div className="divide-y">
-              {invoices.map((invoice) => {
-                const lastEmail = invoice.emailLogs[0];
-                const clientForEdit = clientsForEdit.find(
-                  (c) => c.id === invoice.clientId,
-                );
-                // Offer hitos that are free or already on THIS invoice.
-                const editCtx = clientForEdit
-                  ? [
-                      {
-                        ...clientForEdit,
-                        receivables: clientForEdit.receivables
-                          .filter(
-                            (r) =>
-                              r.invoiceId === null ||
-                              r.invoiceId === invoice.id,
-                          )
-                          .map(serializeRecv),
-                      },
-                    ]
-                  : [];
+          <InvoiceStatusFilter value={statusFilter} />
+        </div>
 
-                return (
-                  <div
-                    key={invoice.id}
-                    className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:px-6"
-                  >
-                    <div className="min-w-0 flex-1 space-y-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <StatusBadge value={invoice.status} />
-                        <Link
-                          href={`/admin/facturas/${invoice.id}`}
-                          className="font-medium underline-offset-4 hover:underline"
-                        >
-                          {invoice.invoiceNumber ?? "Sin número"}
-                        </Link>
-                        {invoice.project ? (
-                          <span className="min-w-0 truncate text-xs text-muted-foreground">
-                            {invoice.project.name}
-                          </span>
-                        ) : null}
-                      </div>
-                      <div className="flex flex-wrap gap-x-3 gap-y-1 text-sm text-muted-foreground">
-                        <span className="min-w-0 max-w-full truncate">
-                          {invoice.client.name}
-                        </span>
-                        <span className="font-medium text-foreground">
-                          {formatCurrency(invoice.total.toString())}
-                        </span>
-                        {invoice.issueDate ? (
-                          <span>{formatDateOnly(invoice.issueDate)}</span>
-                        ) : null}
-                      </div>
-                      <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs">
-                        <span
-                          className={
-                            invoice.xmlFile
-                              ? "font-medium text-emerald-600"
-                              : "text-muted-foreground"
-                          }
-                        >
-                          XML {invoice.xmlFile ? "✓" : "pendiente"}
-                        </span>
-                        <span
-                          className={
-                            invoice.rideFile
-                              ? "font-medium text-blue-600"
-                              : "text-muted-foreground"
-                          }
-                        >
-                          RIDE {invoice.rideFile ? "✓" : "pendiente"}
-                        </span>
-                        {lastEmail ? (
-                          <span className="min-w-0 max-w-full truncate text-muted-foreground">
-                            Enviado {formatDate(lastEmail.sentAt)} →{" "}
-                            {lastEmail.to}
-                          </span>
-                        ) : null}
-                      </div>
+        {invoices.length === 0 ? (
+          <div className="flex flex-col items-center gap-2 px-5 py-16 text-center">
+            <IconTile icon={FileText} tone="blue" size="lg" />
+            <p className="text-sm font-medium">
+              {statusFilter ? "No hay facturas con ese estado" : "Aún no hay facturas"}
+            </p>
+            <p className="max-w-sm text-xs text-muted-foreground">
+              Registra una con «Nueva factura»: sube el XML autorizado del SRI y el resto se llena solo.
+            </p>
+          </div>
+        ) : (
+          <ul className="divide-y">
+            {invoices.map((invoice) => {
+              const lastEmail = invoice.emailLogs[0];
+              const clientForEdit = clientsForEdit.find((c) => c.id === invoice.clientId);
+              // Offer hitos that are free or already on THIS invoice.
+              const editCtx = clientForEdit
+                ? [
+                    {
+                      ...clientForEdit,
+                      receivables: clientForEdit.receivables
+                        .filter((r) => r.invoiceId === null || r.invoiceId === invoice.id)
+                        .map(serializeRecv),
+                    },
+                  ]
+                : [];
+
+              return (
+                <li
+                  key={invoice.id}
+                  className="group relative flex items-center gap-3 px-5 py-3.5 transition-colors hover:bg-muted/40 sm:gap-4"
+                >
+                  <IconTile icon={FileText} tone="blue" size="sm" className="max-sm:hidden" />
+                  <div className="min-w-0 flex-1 space-y-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Link
+                        href={`/admin/facturas/${invoice.id}`}
+                        className="font-mono text-sm font-medium tabular-nums after:absolute after:inset-0"
+                      >
+                        {invoice.invoiceNumber ?? "Sin número"}
+                      </Link>
+                      <StatusBadge value={invoice.status} />
                     </div>
-
-                    <div className="flex w-full shrink-0 flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center">
-                      {invoice.xmlFile && invoice.rideFile ? (
-                        <QuickSendInvoiceForm
-                          invoiceId={invoice.id}
-                          defaultTo={
-                            invoice.client.billingEmail ??
-                            invoice.client.email ??
-                            ""
-                          }
-                        />
-                      ) : (
-                        <span className="text-xs text-muted-foreground">
-                          Sube XML y RIDE para enviar
+                    <p className="truncate text-xs text-muted-foreground">
+                      {[
+                        invoice.client.name,
+                        invoice.project?.name,
+                        invoice.issueDate ? formatDateOnly(invoice.issueDate) : null,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </p>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <DocChip label="XML" present={Boolean(invoice.xmlFile)} />
+                      <DocChip label="RIDE" present={Boolean(invoice.rideFile)} />
+                      {lastEmail ? (
+                        <span className="truncate text-[11px] text-muted-foreground">
+                          {lastEmail.status === "FAILED" ? "Falló el envío a" : "Enviada a"} {lastEmail.to}
                         </span>
-                      )}
-                      <div className="flex items-center justify-end gap-1">
-                        <Button
-                          asChild
-                          variant="ghost"
-                          size="icon"
-                          className="size-8"
-                        >
-                          <Link href={`/admin/facturas/${invoice.id}`}>
-                            <ExternalLink className="size-4" />
-                          </Link>
-                        </Button>
-                        <InvoiceEditDialog
-                          invoice={forInvoiceDialog(invoice)}
-                          clientsWithContext={editCtx}
-                        />
-                      </div>
+                      ) : null}
                     </div>
                   </div>
-                );
-              })}
-            </div>
-          )}
-          <div className="px-4 pb-4 sm:px-6">
-            <Pagination
-              page={page}
-              pageSize={pageSize}
-              total={total}
-              basePath="/admin/facturas"
-              searchParams={{ status: statusFilter ?? "" }}
-            />
-          </div>
-        </CardContent>
-      </Card>
+                  <p className="shrink-0 text-right text-sm font-semibold tabular-nums">
+                    {formatCurrency(invoice.total.toString())}
+                  </p>
+                  <div className="relative z-10 shrink-0">
+                    <InvoiceEditDialog invoice={forInvoiceDialog(invoice)} clientsWithContext={editCtx} />
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+
+        <div className="border-t px-5 py-3">
+          <Pagination
+            page={page}
+            pageSize={pageSize}
+            total={total}
+            basePath="/admin/facturas"
+            searchParams={{ status: statusFilter ?? "" }}
+          />
+        </div>
+      </section>
     </div>
   );
 }
