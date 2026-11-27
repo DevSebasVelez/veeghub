@@ -15,7 +15,7 @@ export async function getPaymentsSectionData(selectedYear: number) {
           select: {
             id: true,
             title: true,
-            client: { select: { name: true } },
+            client: { select: { name: true, email: true, billingEmail: true } },
             project: { select: { id: true, name: true } },
           },
         },

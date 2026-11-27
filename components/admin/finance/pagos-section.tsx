@@ -3,6 +3,10 @@ import Link from "next/link";
 import { deletePayment } from "@/lib/admin/actions/payments/actions";
 import { ConfirmActionButton } from "@/components/admin/finance/confirm-action-button";
 import { EditPaymentDialog } from "@/components/admin/dialogs/receivable-dialog";
+import {
+  PaymentReceiptMenu,
+  type ReceiptPayment,
+} from "@/components/admin/dialogs/receipt-dialogs";
 import { getPaymentsSectionData } from "@/lib/admin/queries/payments";
 import {
   dateOnlyParts,
@@ -34,6 +38,19 @@ const MONTH_NAMES = [
   "Noviembre",
   "Diciembre",
 ];
+
+type PaymentRow = Awaited<ReturnType<typeof getPaymentsSectionData>>[0][number];
+
+function receiptPayment(payment: PaymentRow): ReceiptPayment {
+  const { client } = payment.receivable;
+  return {
+    id: payment.id,
+    folio: payment.receiptFolio,
+    receivableTitle: payment.receivable.title,
+    clientName: client.name,
+    clientEmail: client.billingEmail ?? client.email,
+  };
+}
 
 export async function PagosSection({ yearParam }: { yearParam?: string }) {
   const currentYear = new Date().getFullYear();
@@ -149,6 +166,7 @@ export async function PagosSection({ yearParam }: { yearParam?: string }) {
                             receivableTitle: payment.receivable.title,
                           }}
                         />
+                        <PaymentReceiptMenu payment={receiptPayment(payment)} />
                         <DeletePaymentButton
                           id={payment.id}
                           amount={formatCurrency(payment.amount.toString())}
@@ -213,6 +231,7 @@ export async function PagosSection({ yearParam }: { yearParam?: string }) {
                                 receivableTitle: payment.receivable.title,
                               }}
                             />
+                            <PaymentReceiptMenu payment={receiptPayment(payment)} />
                             <DeletePaymentButton
                               id={payment.id}
                               amount={formatCurrency(payment.amount.toString())}

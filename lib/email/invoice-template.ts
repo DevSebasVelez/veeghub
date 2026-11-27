@@ -1,7 +1,7 @@
 import fs from "fs";
 import path from "path";
 
-function getLogoBase64(): string {
+export function getLogoBase64(): string {
   try {
     const logoPath = path.join(
       process.cwd(),
@@ -278,7 +278,7 @@ export function buildInvoiceEmailHtml(data: InvoiceEmailData): string {
 </html>`;
 }
 
-function escHtml(str: string): string {
+export function escHtml(str: string): string {
   return str
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
