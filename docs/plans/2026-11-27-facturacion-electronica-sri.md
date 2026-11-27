@@ -475,3 +475,13 @@ Migración aditiva: las facturas actuales quedan como `UPLOADED`.
   - `DatePickerField` (shadcn) ahora está en español, se cierra al elegir y se puede usar de forma controlada; aplica a todo el panel.
   - Probado en el navegador: la factura 020 ($21,75) se partió en 2 cuotas (10,87 + 10,88); al cobrar la primera siguió «Por enviar» y al cobrar la segunda pasó a **Pagada**. En la 021 ($2) se ligó un hito de $1,50, se planificó el resto ($0,50, vence el 4 dic) y se desligó un hito. Claro y oscuro.
   - **Datos de prueba que quedan en local:** hitos «Factura 001-002-000000020 · cuota 1/2 y 2/2» (cobrados), «Pago factura 001-002-000000021» y «Hito prueba B6 · …», todos del «Cliente de pruebas SRI».
+- **2026-11-27, auditoría antes de producción** (seguridad y rendimiento sobre `9414172..HEAD`, con dos revisores independientes):
+  - **Seguridad, sin hallazgos críticos ni altos.** Pasan: auth en todas las acciones y rutas, custodia del `.p12`, regla de oro (el ambiente sale del punto de emisión, producción bloqueada por `SRI_ALLOW_PRODUCTION`, el cron nunca empieza una emisión), escape del XML, URLs del SRI fijas y secretos fuera del repo.
+  - **Corregido:**
+    - «Emitir» idempotente: `Invoice.issueRequestId` único (migración `20261128020000_invoice_issue_request`). Probado: dos envíos simultáneos con el mismo id dan una sola factura y el reintento devuelve la misma.
+    - Hitos bloqueados (`FOR UPDATE`) dentro de la transacción que emite, del plan de pagos y del ligado.
+    - `advanceInvoice` con presupuesto de 45 s (lo que no cabe lo retoma el cron), `maxDuration = 60` en las páginas de emisión, `sriNextAttemptAt` al firmar (una ejecución cortada no queda huérfana), lease liberado solo por quien lo tiene y finalización del cron con lease.
+    - Sondeo del progreso: una consulta a la vez cada 1,2 s, sin respuestas tardías.
+    - `*.p12`/`*.pfx` en `.gitignore`.
+  - **Pendiente, menor:** los mensajes de error del firmador llegan crudos al admin (solo él los ve) y las consultas de lista cargan `sriXml` (optimización con `omit`).
+  - `next build` en verde. Emisión `001-002-000000023` AUTORIZADA en `celcer` después de las correcciones.
