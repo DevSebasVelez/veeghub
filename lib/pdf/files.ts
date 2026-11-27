@@ -15,7 +15,8 @@ export function receiptFilename(data: PaymentReceiptData) {
 
 export function statementFilename(data: AccountStatementData) {
   const day = data.cutoff.toISOString().slice(0, 10);
-  return `Estado-de-cuenta-${slug(data.client.name)}-${day}.pdf`;
+  const owner = data.project ? `${slug(data.client.name)}-${slug(data.project)}` : slug(data.client.name);
+  return `Estado-de-cuenta-${owner}-${day}.pdf`;
 }
 
 /** Inline by default so the browser previews it; `download` forces a save. */

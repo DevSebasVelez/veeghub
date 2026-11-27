@@ -210,19 +210,24 @@ function presetRange(preset: Preset): { desde?: string; hasta?: string; todo?: b
 }
 
 /**
- * Account statement of a client: pick the period (and optionally a project),
- * then preview, download or email the PDF. Pending milestones are always
- * included, at today's cutoff.
+ * Account statement: pick the period, then preview, download or email the
+ * PDF. Pending milestones are always included, at today's cutoff.
+ *
+ * - From a client: every project, or one picked in the form.
+ * - From a project (`project`): the whole project, every milestone paid or
+ *   not; the period only narrows the payments and starts at "Todo".
  */
 export function AccountStatementDialog({
   client,
-  projects,
+  projects = [],
+  project,
 }: {
   client: { id: string; name: string; email: string | null };
-  projects: Array<{ id: string; name: string }>;
+  projects?: Array<{ id: string; name: string }>;
+  project?: { id: string; name: string };
 }) {
   const [open, setOpen] = useState(false);
-  const [preset, setPreset] = useState<Preset>("year");
+  const [preset, setPreset] = useState<Preset>(project ? "all" : "year");
   const formRef = useRef<HTMLFormElement>(null);
   const { saving, submit } = useSend(sendAccountStatement, () => setOpen(false));
 
@@ -239,6 +244,10 @@ export function AccountStatementDialog({
       if (value && value !== "all") params.set(key, value);
     }
     if (download) params.set("download", "1");
+    if (project) {
+      params.delete("proyecto");
+      return `/admin/proyectos/${project.id}/estado-de-cuenta?${params}`;
+    }
     return `/admin/clientes/${client.id}/estado-de-cuenta?${params}`;
   }
 
@@ -252,13 +261,16 @@ export function AccountStatementDialog({
       </DialogTrigger>
       <DialogContent className="max-h-[90svh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Estado de cuenta</DialogTitle>
+          <DialogTitle>{project ? "Estado de cuenta del proyecto" : "Estado de cuenta"}</DialogTitle>
           <DialogDescription>
-            Pagos recibidos en el periodo y saldos pendientes al día de hoy de {client.name}.
+            {project
+              ? `Valor, hitos y saldo de ${project.name} al día de hoy, con los pagos recibidos en el periodo.`
+              : `Pagos recibidos en el periodo y saldos pendientes al día de hoy de ${client.name}.`}
           </DialogDescription>
         </DialogHeader>
         <form ref={formRef} onSubmit={submit} className="space-y-5">
           <input type="hidden" name="clientId" value={client.id} />
+          {project ? <input type="hidden" name="proyecto" value={project.id} /> : null}
           {preset !== "custom" ? (
             <>
               {range.desde ? <input type="hidden" name="desde" value={range.desde} /> : null}
@@ -301,7 +313,7 @@ export function AccountStatementDialog({
                 </Field>
               </div>
             ) : null}
-            {projects.length > 1 ? (
+            {!project && projects.length > 1 ? (
               <Field>
                 <FieldLabel>Proyecto</FieldLabel>
                 <FormSelect
@@ -348,7 +360,7 @@ export function AccountStatementDialog({
             <FieldGroup>
               <EmailFields
                 defaultTo={client.email ?? ""}
-                defaultSubject={`Estado de cuenta · ${client.name}`}
+                defaultSubject={`Estado de cuenta · ${project?.name ?? client.name}`}
               />
             </FieldGroup>
           </div>
