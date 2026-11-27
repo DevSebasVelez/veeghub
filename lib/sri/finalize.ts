@@ -10,7 +10,8 @@ import { uploadToR2 } from "@/lib/storage/r2";
 //    factura) and the RIDE are stored as the invoice's files, so it can be
 //    sent to the client and listed like any uploaded invoice.
 // 2. The milestones its lines bill are linked to it, and its paid status is
-//    synced as for any invoice.
+//    synced as for any invoice. Only in PRODUCCION: a test invoice has no tax
+//    value and never marks a real milestone as invoiced.
 //
 // Idempotent: each step checks what is already done, so the cron can call it
 // again after a failure (R2 down, for example).
@@ -49,6 +50,7 @@ export async function finalizeAuthorizedInvoice(invoiceId: string) {
       sriXml: true,
       sriAuthorizedXml: true,
       authorizedAt: true,
+      environment: true,
       invoiceNumber: true,
       clientId: true,
       projectId: true,
@@ -91,7 +93,7 @@ export async function finalizeAuthorizedInvoice(invoiceId: string) {
   }
 
   const wanted = [...new Set(invoice.items.map((i) => i.receivableId).filter((id): id is string => Boolean(id)))];
-  if (wanted.length) {
+  if (wanted.length && invoice.environment === "PRODUCCION") {
     await prisma.$transaction(async (tx) => {
       // Never take a milestone another invoice already covers.
       const free = await tx.receivable.findMany({

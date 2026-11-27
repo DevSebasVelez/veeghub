@@ -75,11 +75,15 @@ export async function getIssueInvoiceData({ hito, proyecto, cliente }: { hito?: 
       orderBy: [{ environment: "asc" }, { establishment: "asc" }, { emissionPoint: "asc" }],
     }),
     prisma.sriCertificate.findFirst({ where: { active: true }, select: { holder: true, validTo: true } }),
-    // Milestones already on an invoice still on its way to the SRI.
+    // Milestones already on a real invoice still on its way to the SRI.
     prisma.invoiceItem.findMany({
       where: {
         receivableId: { not: null },
-        invoice: { source: "ISSUED", sriStatus: { in: ["DRAFT", "SIGNED", "RECEIVED", "AUTHORIZED"] } },
+        invoice: {
+          source: "ISSUED",
+          environment: "PRODUCCION",
+          sriStatus: { in: ["DRAFT", "SIGNED", "RECEIVED", "AUTHORIZED"] },
+        },
       },
       select: { receivableId: true },
     }),

@@ -283,7 +283,9 @@ export default async function InvoiceDetailPage({
             {invoice.receivables.length === 0 ? (
               <p className="px-5 py-6 text-sm text-muted-foreground">
                 {invoice.source === "ISSUED"
-                  ? invoice.sriStatus === "AUTHORIZED"
+                  ? invoice.environment === "PRUEBAS"
+                    ? "Las facturas de pruebas no marcan hitos como facturados: no tienen validez tributaria."
+                    : invoice.sriStatus === "AUTHORIZED"
                     ? "Ningún ítem de esta factura se emitió desde un hito."
                     : "Los hitos de sus ítems se ligan cuando el SRI la autoriza."
                   : "No está ligada a ningún hito. Usa «Editar» para elegir los que cubre."}

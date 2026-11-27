@@ -1001,7 +1001,7 @@ export function QuickInvoiceDialog({
             Facturar
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
+        <DropdownMenuContent align="end" className="min-w-52">
           <DropdownMenuItem asChild>
             <Link href={`/admin/facturas/nueva?hito=${fixedReceivableId}`}>
               <Send className="size-4" />

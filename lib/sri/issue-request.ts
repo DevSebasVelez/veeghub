@@ -93,11 +93,16 @@ export async function resolveIssueRequest(raw: unknown) {
       if (hito.invoiceId) throw new SriEmissionError(`El hito «${hito.title}» ya tiene factura.`);
       if (hito.status === "CANCELLED") throw new SriEmissionError(`El hito «${hito.title}» está cancelado.`);
     }
-    // A milestone on an invoice still on its way to the SRI is taken too.
+    // A milestone on a real invoice still on its way to the SRI is taken
+    // too. Test invoices never link milestones, so they never hold one.
     const pending = await prisma.invoiceItem.findFirst({
       where: {
         receivableId: { in: receivableIds },
-        invoice: { source: "ISSUED", sriStatus: { in: ["DRAFT", "SIGNED", "RECEIVED", "AUTHORIZED"] } },
+        invoice: {
+          source: "ISSUED",
+          environment: "PRODUCCION",
+          sriStatus: { in: ["DRAFT", "SIGNED", "RECEIVED", "AUTHORIZED"] },
+        },
       },
       select: { receivable: { select: { title: true } }, invoice: { select: { invoiceNumber: true } } },
     });

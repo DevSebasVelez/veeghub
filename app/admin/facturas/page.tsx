@@ -133,7 +133,7 @@ export default async function InvoicesPage({
             <p className="mt-0.5 text-xs text-muted-foreground">
               {stats.missingDocs
                 ? `${stats.missingDocs} ${stats.missingDocs === 1 ? "factura no tiene" : "facturas no tienen"} XML o RIDE: súbelos para poder enviarlas.`
-                : "Las más recientes primero."}
+                : "Las más recientes primero. Las de pruebas se listan pero no suman en las cifras."}
             </p>
           </div>
           <InvoiceStatusFilter value={statusFilter} />
@@ -181,6 +181,11 @@ export default async function InvoicesPage({
                         {invoice.invoiceNumber ?? "Sin número"}
                       </Link>
                       <StatusBadge value={invoice.status} />
+                      {invoice.environment === "PRUEBAS" ? (
+                        <span className="rounded-md bg-amber-100 px-1.5 py-0.5 text-[11px] font-medium text-amber-700 dark:bg-amber-500/15 dark:text-amber-300">
+                          Pruebas
+                        </span>
+                      ) : null}
                     </div>
                     <p className="truncate text-xs text-muted-foreground">
                       {[
@@ -204,9 +209,11 @@ export default async function InvoicesPage({
                   <p className="shrink-0 text-right text-sm font-semibold tabular-nums">
                     {formatCurrency(invoice.total.toString())}
                   </p>
-                  <div className="relative z-10 shrink-0">
-                    <InvoiceEditDialog invoice={forInvoiceDialog(invoice)} clientsWithContext={editCtx} />
-                  </div>
+                  {invoice.source === "ISSUED" ? null : (
+                    <div className="relative z-10 shrink-0">
+                      <InvoiceEditDialog invoice={forInvoiceDialog(invoice)} clientsWithContext={editCtx} />
+                    </div>
+                  )}
                 </li>
               );
             })}

@@ -599,6 +599,11 @@ export function IssueInvoiceForm({ data, issueDayLabel }: { data: IssueInvoiceDa
                 ))}
               </div>
             )}
+            {point?.environment === "PRUEBAS" && items.some((i) => i.receivableId) ? (
+              <p className="text-xs text-muted-foreground">
+                En pruebas los hitos no se marcan como facturados: solo una factura de producción los liga.
+              </p>
+            ) : null}
             {data.regimeLegend ? (
               <p className="text-xs text-muted-foreground">Leyenda del RIDE: {data.regimeLegend}.</p>
             ) : null}

@@ -187,7 +187,7 @@ export function IssueReviewDialog({
           </DialogHeader>
 
           <div className="flex flex-col gap-4 lg:grid lg:grid-cols-[minmax(0,1fr)_18rem]">
-            <div className="overflow-hidden rounded-xl border bg-muted/40">
+            <div className="self-start overflow-hidden rounded-xl border bg-muted/40">
               {previewUrl ? (
                 <iframe
                   // Once authorized, the real RIDE replaces the preview.
