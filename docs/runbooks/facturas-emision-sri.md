@@ -18,6 +18,8 @@ Lo que VeegHub necesita para emitir facturas propias. Plan completo y bitácora:
 | `lib/sri/state.ts` | Reglas puras de la máquina de estados |
 | `lib/sri/self-check.ts` | Revisión interna del XML antes de firmar y de cada envío |
 | `lib/sri/issue.ts` | Crear la factura emitida, avanzarla ante el SRI y procesar las pendientes (cron) |
+| `lib/pdf/ride.tsx` | RIDE en PDF armado desde el XML; si no está autorizada, sale como vista previa sin valor tributario |
+| `app/admin/facturas/[id]/ride` | Ruta del RIDE (`?download=1` para descargar) |
 | `lib/sri/xsd/` | XSD oficial de la factura 1.1.0, con dos ajustes documentados en los archivos |
 | `scripts/sri-smoke.ts` | Prueba de punta a punta contra `celcer`, sin crear factura |
 | `scripts/sri-campaign.ts` | Campaña de B4 contra `celcer` con la máquina real (`SRI_CAMPAIGN_ONLY=1,3` para correr solo algunos casos) |

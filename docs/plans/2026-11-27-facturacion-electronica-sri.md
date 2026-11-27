@@ -1,8 +1,8 @@
 # Plan: Facturación electrónica SRI
 
 **Creado:** 2026-11-27
-**Estado:** 🟢 Fase A en producción. B1 a B4 hechos y probados en ramas sin desplegar (2026-11-27). La campaña de B4 contra `celcer` pasa 7/7. **Siguiente:** B5 (RIDE) y B6 (pantalla «Emitir factura»).
-**Ramas:** una por subfase (`feat/sri-a1-lector-xml`, `feat/sri-b2-xml`, …) → `develop` → `main`
+**Estado:** 🟢 Fase A en producción. B1 a B5 hechos y probados en ramas sin desplegar (2026-11-27). **Siguiente:** B6, la pantalla «Emitir factura»: un facturador normal con ítems editables, catálogo de productos y vista previa del RIDE (ver el diseño en la bitácora del 2026-11-27).
+**Ramas:** una por subfase (`feat/sri-a1-lector-xml`, `feat/sri-b2-xml`, …) → `develop` → `main`. Las de la Fase B van apiladas, cada una sobre la anterior, hasta que se despliegue el lote.
 
 ---
 
@@ -37,7 +37,7 @@ Antes de escribir código revisa:
 | **B2** | Generador de XML factura 1.1.0 + clave de acceso + cálculo de totales | B1 | ✅ rama `feat/sri-b2-xml` (sobre B1), validado contra el XSD oficial, sin desplegar |
 | **B3** | Firma XAdES-BES con el `.p12` (custodia cifrada) | B2 | ✅ rama `feat/sri-b3-firma` (sobre B2), AUTORIZADO en `celcer`, sin desplegar |
 | **B4** | Cliente SRI: recepción, autorización, reintentos y máquina de estados | B3 | ✅ rama `feat/sri-b4-envio` (sobre B3), campaña 7/7 en `celcer`, sin desplegar |
-| **B5** | RIDE en PDF (Anexo 2 de la ficha) con el estilo de `lib/pdf` | B2 | ⬜ |
+| **B5** | RIDE en PDF (Anexo 2 de la ficha) con el estilo de `lib/pdf` | B2 | ✅ rama `feat/sri-b5-ride` (sobre B4), sin desplegar |
 | **B6** | Pantalla «Emitir factura» desde hitos, detalle con línea de tiempo, envío XML+RIDE | B4, B5 | ⬜ |
 | **B7** | Campaña de pruebas en `celcer` y paso a producción | B6 + B0 | ⬜ |
 | **B8** | Nota de crédito (anulaciones después del día 7) | B7 | ⬜ |
@@ -396,4 +396,49 @@ Migración aditiva: las facturas actuales quedan como `UPLOADED`.
     - al autorizar, adjuntar el XML autorizado como archivo de la factura y ligar los hitos de los ítems;
     - cambiar los textos de la ficha que mencionan «Editar» en facturas emitidas;
     - validar la cédula o el RUC del comprador, porque producción puede exigirlo aunque `celcer` no lo haga.
+- **2026-11-27, B5 hecho** (rama `feat/sri-b5-ride`, sobre B4, 4 commits):
+  - **RIDE** en `lib/pdf/ride.tsx`, armado **desde el XML de la factura**, igual que el facturador del SRI. Tiene:
+    - caja del emisor (logo, razón social, nombre comercial, dirección matriz, obligado a contabilidad, leyenda RIMPE);
+    - caja del documento (RUC, número, autorización, fecha y hora, ambiente, emisión, clave en Code 128 y en texto);
+    - comprador, detalle, información adicional y forma de pago;
+    - subtotales por tarifa: 15 %, 0 %, no objeto, exento, sin impuestos, descuento, IVA, propina y total.
+  - **Vista previa:** si la factura no está autorizada, el RIDE lleva arriba «VISTA PREVIA · SIN AUTORIZACIÓN DEL SRI · SIN VALOR TRIBUTARIO». B6 la usará antes de «Emitir».
+  - **Código de barras:** `bwip-js` (JS puro, MIT), importado como `bwip-js/node`.
+  - El lector del XML ahora también lee la dirección del establecimiento, si lleva contabilidad y las formas de pago.
+  - **Ruta:** `/admin/facturas/[id]/ride` (`?download=1` para descargar). En la tarjeta SRI de la ficha están «Ver RIDE» o «Vista previa», y «Descargar».
+  - **Probado así:**
+    - se revisaron como imagen el RIDE de la factura real de mayo, uno de pruebas autorizado y uno de varios ítems al 15 % y 0 % con descuento;
+    - la ruta funciona en dev y en el **build de producción** (`next build` + `next start`);
+    - la tarjeta se revisó en claro y en oscuro.
+  - 162 tests en verde.
+- **2026-11-27, diseño acordado para B6** (con Sebastián): un facturador normal y sencillo, con las convenciones de diseño.
+  - **Entradas:** «Nueva factura» en Facturas, y «Facturar» en el hito o el proyecto, que precarga cliente, concepto y valor.
+  - **Una sola pantalla:**
+    - cliente y comprador editables;
+    - ítems con agregar y quitar, y código, concepto, cantidad, precio, descuento e IVA editables;
+    - forma de pago e información adicional;
+    - totales en vivo, calculados con el mismo código que firma.
+  - **Catálogo de productos y servicios** reutilizable.
+  - **Al emitir:** vista previa del RIDE → «Emitir» con confirmación (ambiente, número y total) → progreso en vivo → «Enviar al cliente» con el XML y el RIDE.
+- **2026-11-27, cierre de sesión. Para retomar B6:**
+  - **Ramas** (cada una sobre la anterior, ninguna fusionada ni desplegada): `feat/sri-b1-modelo` → `feat/sri-b2-xml` → `feat/sri-b3-firma` → `feat/sri-b4-envio` → `feat/sri-b5-ride`. Todas rebasadas sobre `develop` (9414172). B6 sale de `feat/sri-b5-ride`.
+  - **Entorno local:**
+    - `.env` tiene `SRI_CERT_KEY`.
+    - La firma real de Security Data (vigente hasta el 4 may 2027) está subida en la BD local.
+    - El TaxProfile local es «RIMPE Negocio Popular» desde el 2026-01-01, con IVA 0 %.
+    - El punto 001-002 de PRUEBAS va por el secuencial ~20.
+    - Las facturas de prueba están con el cliente «Cliente de pruebas SRI».
+  - **Migraciones nuevas** (aditivas, todavía sin aplicar en producción): `20261127230000_sri_emission_model`, `20261127240000_sri_certificate`, `20261127250000_sri_certificate_password` y `20261128000000_sri_issuing_state`.
+  - **Al agregar modelos de Prisma**, hay que reiniciar `next dev`.
+  - **Pendientes de B4 que se resuelven en B6:**
+    - al autorizar, adjuntar el XML autorizado y el RIDE como archivos de la factura (hoy la ficha dice «XML autorizado · pendiente de subir»);
+    - ligar los hitos de los ítems (`InvoiceItem.receivableId` → `Receivable.invoiceId` + `syncInvoicePaidStatus`);
+    - quitar o adaptar los textos «usa Editar» en las facturas emitidas;
+    - validar la cédula (módulo 10) y el RUC del comprador.
+  - **Antes de B7 (producción):**
+    - confirmar con el contador B0.2 (si 001-002 necesita registro) y B0.3 (NAC-DGERCGC26-00000027);
+    - crear `SRI_CERT_KEY` en Vercel y subir el `.p12` en producción;
+    - crear el `EmissionPoint` de PRODUCCION;
+    - definir `SRI_ALLOW_PRODUCTION=true` solo entonces.
+  - **También pendiente** (fuera del SRI): pasar el margen de Egresos a «margen cobrado». El análisis está hecho (calc.ts:287); falta implementarlo.
 
