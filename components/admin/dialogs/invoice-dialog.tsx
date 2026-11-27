@@ -3,7 +3,19 @@
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { AlertTriangle, FileCode2, Loader2, Plus, Receipt, Sparkles } from "lucide-react";
+import {
+  AlertTriangle,
+  BadgeCheck,
+  CloudOff,
+  FileCode2,
+  KeyRound,
+  Loader2,
+  Plus,
+  Receipt,
+  ShieldQuestion,
+  Sparkles,
+  XCircle,
+} from "lucide-react";
 
 import {
   createInvoiceWithKeys,
@@ -11,9 +23,13 @@ import {
 } from "@/lib/admin/actions/invoices/actions";
 import { unwrap } from "@/lib/admin/actions/types";
 import {
+  analyzeAccessKey,
+  analyzeInvoiceRide,
   analyzeInvoiceXml,
-  type InvoiceXmlAnalysis,
-} from "@/lib/admin/actions/invoices/xml";
+  verifyWithSri,
+  type InvoiceDocAnalysis,
+  type SriVerification,
+} from "@/lib/admin/actions/invoices/documents";
 import {
   DialogSubmitFooter,
   EditTrigger,
@@ -123,20 +139,25 @@ function InvoiceFormBody({
   const taxRef = useRef<HTMLInputElement>(null);
   const vatRateRef = useRef<HTMLInputElement>(null);
 
-  // What the SRI XML says. Its figures become the fields' defaults; the
-  // fields remount (prefillKey) so they show them, and stay editable.
-  const [analysis, setAnalysis] = useState<InvoiceXmlAnalysis | null>(null);
-  const [reading, setReading] = useState(false);
+  // What the SRI documents say. Their figures become the fields' defaults;
+  // the fields remount (prefillKey) so they show them, and stay editable.
+  // The XML wins over the RIDE or a pasted clave.
+  const [analysis, setAnalysis] = useState<InvoiceDocAnalysis | null>(null);
+  const [verification, setVerification] = useState<SriVerification | "checking" | null>(null);
+  const [reading, setReading] = useState<string | null>(null);
   const [prefillKey, setPrefillKey] = useState(0);
+  const [keyInput, setKeyInput] = useState("");
+  const hasXmlAnalysis = analysis?.source === "XML" || analysis?.source === "SRI";
 
-  async function readXml(file: File) {
-    setReading(true);
+  async function apply(
+    run: () => Promise<{ ok: true; data: InvoiceDocAnalysis } | { ok: false; error: string }>,
+    label: string,
+  ) {
+    setReading(label);
     try {
-      const result = await analyzeInvoiceXml(await file.text(), invoice?.id ?? null);
+      const result = await run();
       if (!result.ok) {
-        setAnalysis(null);
-        onBlockedChange?.(false);
-        toast.error("No se pudo leer el XML.", { description: result.error });
+        toast.error("No se pudo leer.", { description: result.error });
         return;
       }
       const data = result.data;
@@ -146,23 +167,61 @@ function InvoiceFormBody({
       if (data.client && !fixedClientId && data.client.id !== clientId) {
         handleClientChange(data.client.id);
       }
-      if (!data.duplicate) toast.success("Datos leídos del XML.");
+      // The SRI still served the XML: attach it as the invoice's XML.
+      if (data.attachedXml) onXmlUpload(data.attachedXml);
+      if (!data.duplicate) {
+        toast.success(
+          data.source === "SRI" ? "XML descargado del SRI y datos completados." : "Datos completados.",
+        );
+      }
+
+      setVerification("checking");
+      const check = await verifyWithSri(data.accessKey);
+      setVerification(check.ok ? check.data : { state: "SIN_CONEXION", detail: check.error });
     } finally {
-      setReading(false);
+      setReading(null);
     }
   }
 
-  function clearXml() {
+  async function readXml(file: File) {
+    const text = await file.text();
+    await apply(() => analyzeInvoiceXml(text, invoice?.id ?? null), "Leyendo el XML…");
+  }
+
+  async function readRide(file: File) {
+    if (hasXmlAnalysis) return; // the XML already said everything
+    const fd = new FormData();
+    fd.set("file", file);
+    if (invoice?.id) fd.set("currentInvoiceId", invoice.id);
+    await apply(() => analyzeInvoiceRide(fd), "Leyendo el RIDE y consultando al SRI…");
+  }
+
+  async function readKey() {
+    if (!keyInput.trim()) return;
+    await apply(() => analyzeAccessKey(keyInput, invoice?.id ?? null), "Consultando la clave en el SRI…");
+  }
+
+  function reset() {
     setAnalysis(null);
+    setVerification(null);
     onBlockedChange?.(false);
+  }
+
+  function clearXml() {
+    if (hasXmlAnalysis) reset();
     onXmlClear();
+  }
+
+  function clearRide() {
+    if (analysis?.source === "RIDE") reset();
+    onRideClear();
   }
 
   const defaults = {
     invoiceNumber: analysis?.number ?? invoice?.invoiceNumber ?? "",
     accessKey: analysis?.accessKey ?? invoice?.accessKey ?? "",
     issueDate: analysis?.issueDay ?? invoice?.issueDate,
-    vatRate: analysis ? (analysis.vatRate ?? "") : (invoice?.vatRate ?? ""),
+    vatRate: analysis?.vatRate ?? invoice?.vatRate ?? "",
     subtotal: analysis?.subtotal ?? invoice?.subtotal ?? "",
     taxAmount: analysis?.taxAmount ?? invoice?.taxAmount ?? "",
     total: analysis?.total ?? invoice?.total ?? "",
@@ -263,7 +322,7 @@ function InvoiceFormBody({
           <div>
             <p className="text-sm font-medium">Documentos del SRI</p>
             <p className="text-xs text-muted-foreground">
-              Sube el XML autorizado y se llenan solos el número, la fecha, la clave, los montos y el cliente.
+              Sube el XML autorizado (o el RIDE) y se llenan solos el número, la fecha, la clave, los montos y el cliente.
             </p>
           </div>
         </div>
@@ -282,17 +341,52 @@ function InvoiceFormBody({
             accept=".pdf,application/pdf"
             existingName={invoice?.rideFileName}
             onUpload={onRideUpload}
-            onClear={onRideClear}
+            onClear={clearRide}
             onBusy={onBusy}
+            onFile={readRide}
           />
         </div>
+        {!analysis ? (
+          <div className="space-y-1.5">
+            <p className="text-xs text-muted-foreground">
+              ¿Solo tienes el RIDE? Súbelo y se lee su clave. ¿Ni eso? Pega la clave de acceso:
+            </p>
+            <div className="flex gap-2">
+              <Input
+                value={keyInput}
+                onChange={(e) => setKeyInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    void readKey();
+                  }
+                }}
+                inputMode="numeric"
+                placeholder="49 dígitos"
+                aria-label="Clave de acceso"
+                className="h-9 font-mono text-xs"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-9 shrink-0"
+                onClick={readKey}
+                disabled={!keyInput.trim() || Boolean(reading)}
+              >
+                <KeyRound className="size-3.5" />
+                Leer clave
+              </Button>
+            </div>
+          </div>
+        ) : null}
         {reading ? (
           <p className="flex items-center gap-2 text-xs text-muted-foreground">
             <Loader2 className="size-3.5 animate-spin" />
-            Leyendo el XML…
+            {reading}
           </p>
         ) : null}
-        {analysis ? <XmlReadout analysis={analysis} /> : null}
+        {analysis ? <DocReadout analysis={analysis} verification={verification} /> : null}
       </div>
 
       {/* Client */}
@@ -505,7 +599,62 @@ function InvoiceFormBody({
 
 // ── What the XML says ──────────────────────────────────────────────────────
 
-function XmlReadout({ analysis }: { analysis: InvoiceXmlAnalysis }) {
+const SOURCE_LABEL: Record<InvoiceDocAnalysis["source"], string> = {
+  XML: "Leído del XML",
+  SRI: "XML descargado del SRI",
+  RIDE: "Leído del RIDE",
+  CLAVE: "Leído de la clave",
+};
+
+function VerificationBadge({ verification }: { verification: SriVerification | "checking" | null }) {
+  if (!verification) return null;
+  const base = "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium";
+  if (verification === "checking") {
+    return (
+      <span className={`${base} border-border text-muted-foreground`}>
+        <Loader2 className="size-3 animate-spin" />
+        Verificando en el SRI
+      </span>
+    );
+  }
+  const map = {
+    AUTORIZADO: {
+      icon: BadgeCheck,
+      text: "Autorizada en el SRI",
+      cls: "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-300",
+    },
+    NO_AUTORIZADO: {
+      icon: XCircle,
+      text: "No autorizada en el SRI",
+      cls: "border-red-200 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-950 dark:text-red-300",
+    },
+    NO_VERIFICABLE: {
+      icon: ShieldQuestion,
+      text: "Sin verificar en el SRI",
+      cls: "border-zinc-200 bg-zinc-50 text-zinc-600 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-400",
+    },
+    SIN_CONEXION: {
+      icon: CloudOff,
+      text: "SRI sin respuesta",
+      cls: "border-zinc-200 bg-zinc-50 text-zinc-600 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-400",
+    },
+  }[verification.state];
+  const Icon = map.icon;
+  return (
+    <span className={`${base} ${map.cls}`} title={verification.detail ?? undefined}>
+      <Icon className="size-3" />
+      {map.text}
+    </span>
+  );
+}
+
+function DocReadout({
+  analysis,
+  verification,
+}: {
+  analysis: InvoiceDocAnalysis;
+  verification: SriVerification | "checking" | null;
+}) {
   const rows: Array<[string, string]> = [
     ["Factura", analysis.number],
     ["Emisión", analysis.issueDay.split("-").reverse().join("/")],
@@ -513,24 +662,33 @@ function XmlReadout({ analysis }: { analysis: InvoiceXmlAnalysis }) {
     ["Cliente", analysis.client?.name ?? "Sin coincidencia"],
     [
       "Total",
-      `${formatCurrency(analysis.total)}${analysis.vatRate != null ? ` · IVA ${analysis.vatRate}%` : ""}`,
+      analysis.total
+        ? `${formatCurrency(analysis.total)}${analysis.vatRate != null ? ` · IVA ${analysis.vatRate}%` : ""}`
+        : "Complétalo a mano",
     ],
   ];
+  const note =
+    verification && verification !== "checking" && verification.state !== "AUTORIZADO" && verification.detail
+      ? verification.detail
+      : null;
 
   return (
     <div className="space-y-3 rounded-xl border bg-card p-3.5">
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <FileCode2 className="size-4 text-emerald-600 dark:text-emerald-300" />
-        <p className="text-sm font-medium">Leído del XML</p>
-        <span
-          className={
-            analysis.environment === "PRODUCCION"
-              ? "ml-auto rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
-              : "ml-auto rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-300"
-          }
-        >
-          {analysis.environment === "PRODUCCION" ? "Producción" : "Pruebas"}
-        </span>
+        <p className="text-sm font-medium">{SOURCE_LABEL[analysis.source]}</p>
+        <div className="ml-auto flex flex-wrap items-center gap-1.5">
+          <VerificationBadge verification={verification} />
+          <span
+            className={
+              analysis.environment === "PRODUCCION"
+                ? "rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
+                : "rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-300"
+            }
+          >
+            {analysis.environment === "PRODUCCION" ? "Producción" : "Pruebas"}
+          </span>
+        </div>
       </div>
       <dl className="grid gap-x-4 gap-y-1.5 text-xs sm:grid-cols-[auto_1fr]">
         {rows.map(([label, value]) => (
@@ -545,6 +703,12 @@ function XmlReadout({ analysis }: { analysis: InvoiceXmlAnalysis }) {
           {analysis.items.map((i) => i.description).join(" · ")}
         </p>
       ) : null}
+      {analysis.attachedXml ? (
+        <p className="text-xs text-emerald-700 dark:text-emerald-300">
+          ✓ XML autorizado adjuntado: {analysis.attachedXml.name}
+        </p>
+      ) : null}
+      {note ? <p className="text-xs text-muted-foreground">{note}</p> : null}
       {analysis.duplicate ? (
         <p className="flex items-start gap-1.5 rounded-lg bg-red-50 px-2.5 py-2 text-xs text-red-700 dark:bg-red-950/40 dark:text-red-300">
           <AlertTriangle className="mt-px size-3.5 shrink-0" />
