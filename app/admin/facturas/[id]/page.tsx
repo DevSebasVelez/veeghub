@@ -205,7 +205,11 @@ export default async function InvoiceDetailPage({
                 />
               ) : (
                 <p className="text-sm text-muted-foreground">
-                  Sube el XML y el RIDE (con «Editar») para poder enviarla.
+                  {invoice.source === "ISSUED"
+                    ? invoice.sriStatus === "AUTHORIZED"
+                      ? "VeegHub está guardando el XML autorizado y el RIDE; en unos minutos podrás enviarla."
+                      : "Se podrá enviar cuando el SRI la autorice: VeegHub adjunta el XML y el RIDE solo."
+                    : "Sube el XML y el RIDE (con «Editar») para poder enviarla."}
                 </p>
               )}
             </div>
@@ -278,7 +282,11 @@ export default async function InvoiceDetailPage({
             </div>
             {invoice.receivables.length === 0 ? (
               <p className="px-5 py-6 text-sm text-muted-foreground">
-                No está ligada a ningún hito. Usa «Editar» para elegir los que cubre.
+                {invoice.source === "ISSUED"
+                  ? invoice.sriStatus === "AUTHORIZED"
+                    ? "Ningún ítem de esta factura se emitió desde un hito."
+                    : "Los hitos de sus ítems se ligan cuando el SRI la autoriza."
+                  : "No está ligada a ningún hito. Usa «Editar» para elegir los que cubre."}
               </p>
             ) : (
               <ul className="divide-y">
@@ -323,7 +331,9 @@ export default async function InvoiceDetailPage({
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-medium">{doc.label}</p>
                     <p className="truncate text-xs text-muted-foreground">
-                      {doc.file ? doc.file.name : `${doc.hint} · pendiente de subir`}
+                      {doc.file
+                        ? doc.file.name
+                        : `${doc.hint} · ${invoice.source === "ISSUED" ? "se guarda al autorizarse" : "pendiente de subir"}`}
                     </p>
                   </div>
                   {doc.file ? (
