@@ -1,8 +1,9 @@
-import { Landmark } from "lucide-react";
+import { Download, ExternalLink, Landmark } from "lucide-react";
 
 import { formatDate } from "@/lib/admin/format";
 import { SriAdvanceButton } from "@/components/admin/finance/sri-advance-button";
 import { IconTile } from "@/components/admin/tone";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 type Status = "DRAFT" | "SIGNED" | "RECEIVED" | "RETURNED" | "AUTHORIZED" | "NOT_AUTHORIZED";
@@ -107,6 +108,21 @@ export function SriStatusCard({
         ) : null}
 
         {state.action ? <SriAdvanceButton invoiceId={invoiceId} label={state.action} /> : null}
+
+        <div className="flex gap-2">
+          <Button asChild variant="outline" size="sm" className="flex-1">
+            <a href={`/admin/facturas/${invoiceId}/ride`} target="_blank" rel="noopener">
+              <ExternalLink className="size-4" />
+              {status === "AUTHORIZED" ? "Ver RIDE" : "Vista previa"}
+            </a>
+          </Button>
+          <Button asChild variant="outline" size="sm" className="flex-1">
+            <a href={`/admin/facturas/${invoiceId}/ride?download=1`}>
+              <Download className="size-4" />
+              Descargar
+            </a>
+          </Button>
+        </div>
       </div>
 
       {submissions.length > 0 ? (
