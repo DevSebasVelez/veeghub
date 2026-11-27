@@ -21,6 +21,7 @@ import {
   ReceivableDialog,
   SinglePaymentDialog,
 } from "@/components/admin/dialogs/receivable-dialog";
+import { PaymentReceiptMenu } from "@/components/admin/dialogs/receipt-dialogs";
 import { TaskDialog } from "@/components/admin/dialogs/task-dialog";
 import { ConfirmActionButton } from "@/components/admin/finance/confirm-action-button";
 import { ProjectExpensesPanel } from "@/components/admin/finance/project-expenses-panel";
@@ -809,6 +810,20 @@ export default async function ProjectDetailPage({
                                 </TableCell>
                                 <TableCell className="pr-5 text-right">
                                   <div className="flex items-center justify-end gap-1">
+                                    {project.client ? (
+                                      <PaymentReceiptMenu
+                                        payment={{
+                                          id: payment.id,
+                                          folio: payment.receiptFolio,
+                                          receivableTitle:
+                                            payment.receivable.title,
+                                          clientName: project.client.name,
+                                          clientEmail:
+                                            project.client.billingEmail ??
+                                            project.client.email,
+                                        }}
+                                      />
+                                    ) : null}
                                     <EditPaymentDialog
                                       payment={{
                                         id: payment.id,

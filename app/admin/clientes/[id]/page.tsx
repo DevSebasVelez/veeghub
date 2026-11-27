@@ -21,6 +21,10 @@ import {
   QuickInvoiceDialog,
 } from "@/components/admin/dialogs/invoice-dialog";
 import { EditPaymentDialog } from "@/components/admin/dialogs/receivable-dialog";
+import {
+  AccountStatementDialog,
+  PaymentReceiptMenu,
+} from "@/components/admin/dialogs/receipt-dialogs";
 import { ProjectDialog } from "@/components/admin/dialogs/project-dialog";
 import { ReceivableDialog } from "@/components/admin/dialogs/receivable-dialog";
 import { ClientAvatar, ProjectAvatar } from "@/components/admin/entity-avatar";
@@ -350,7 +354,17 @@ export default async function ClientDetailPage({
                 <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
                   Cliente
                 </span>
-                <ClientEditDialog client={forClientDialog(client)} />
+                <div className="flex items-center gap-1.5">
+                  <AccountStatementDialog
+                    client={{
+                      id: client.id,
+                      name: client.name,
+                      email: client.billingEmail ?? client.email,
+                    }}
+                    projects={clientCtxCreate?.projects ?? []}
+                  />
+                  <ClientEditDialog client={forClientDialog(client)} />
+                </div>
               </div>
               {/* Nombre */}
               <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">
@@ -706,17 +720,28 @@ export default async function ClientDetailPage({
                                 {formatDateOnly(payment.paidAt)}
                               </TableCell>
                               <TableCell className="pr-5 text-right">
-                                <EditPaymentDialog
-                                  payment={{
-                                    id: payment.id,
-                                    amount: payment.amount.toString(),
-                                    paidAt: payment.paidAt.toISOString(),
-                                    method: payment.method,
-                                    reference: payment.reference,
-                                    notes: payment.notes,
-                                    receivableTitle: payment.receivable.title,
-                                  }}
-                                />
+                                <div className="flex items-center justify-end gap-1">
+                                  <PaymentReceiptMenu
+                                    payment={{
+                                      id: payment.id,
+                                      folio: payment.receiptFolio,
+                                      receivableTitle: payment.receivable.title,
+                                      clientName: client.name,
+                                      clientEmail: client.billingEmail ?? client.email,
+                                    }}
+                                  />
+                                  <EditPaymentDialog
+                                    payment={{
+                                      id: payment.id,
+                                      amount: payment.amount.toString(),
+                                      paidAt: payment.paidAt.toISOString(),
+                                      method: payment.method,
+                                      reference: payment.reference,
+                                      notes: payment.notes,
+                                      receivableTitle: payment.receivable.title,
+                                    }}
+                                  />
+                                </div>
                               </TableCell>
                             </TableRow>
                           ))}
