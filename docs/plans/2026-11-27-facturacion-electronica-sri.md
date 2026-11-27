@@ -1,7 +1,7 @@
 # Plan: Facturación electrónica SRI
 
 **Creado:** 2026-11-27
-**Estado:** 🟢 Fase A en producción (2026-11-27). Sigue B0 (trámites) y B1.
+**Estado:** 🟢 Fase A en producción (2026-11-27). **Siguiente sesión:** revisar la solicitud de pruebas (B0) y empezar B1 → B2.
 **Ramas:** una por subfase (`feat/sri-a1-lector-xml`, `feat/sri-b2-xml`, …) → `develop` → `main`
 
 ---
@@ -32,7 +32,7 @@ Antes de escribir código revisa:
 | **A1b** | Rediseño de Facturas según convenciones: KPIs, lista §7, ficha patrón «Plan», diálogo con el XML primero | — | ✅ en producción |
 | **A2** | «Comparar con el XML/RIDE» en la ficha: lista diferencias y corrige las elegidas | A1 | ✅ en producción |
 | **A3** | Desde el RIDE (PDF) o la clave pegada; si el SRI aún lo entrega, se baja y adjunta el XML; verificación de estado | A1 | ✅ en producción |
-| **B0** | Trámites: ambiente de pruebas, punto de emisión 001-002, consulta al contador | — | ⬜ (Sebastián) |
+| **B0** | Trámites: ambiente de pruebas, punto de emisión 001-002, consulta al contador | — | 🟡 solicitud de pruebas «en curso» (ver bitácora) |
 | **B1** | Modelo de datos: puntos de emisión, ítems, estados SRI, intentos | A1 | ⬜ |
 | **B2** | Generador de XML factura 1.1.0 + clave de acceso + cálculo de totales | B1 | ⬜ |
 | **B3** | Firma XAdES-BES con el `.p12` (custodia cifrada) | B2 | ⬜ |
@@ -311,3 +311,9 @@ Migración aditiva: las facturas actuales quedan como `UPLOADED`.
 - **2026-11-27, Fase A desplegada** (`main` 0e54a6d, Vercel en verde).
   - Antes del deploy se probó el RIDE contra el build de producción en local.
   - **Para probar un build de producción en local:** `AUTH_TRUST_HOST=true npx next start -p 3000`. Sin esa variable Auth.js rechaza el host (`UntrustedHost`) y la sesión parece cerrada.
+- **2026-11-27, cierre de sesión, estado de B0:**
+  - En SRI en línea, la página de solicitud del ambiente de pruebas (`https://srienlinea.sri.gob.ec/comprobantes-electronicos-internet-pruebas/pages/solicitud/menu.jsf`) dice que **ya hay una solicitud en curso** y no deja crear otra.
+  - **Para revisarlo:** Sebastián inicia sesión él mismo en SRI en línea (Claude no ingresa claves). Luego Claude lee la pantalla y busca el estado de la solicitud y la «Validación de emisor».
+  - **Ojo:** la autorización de oficio debería cubrir pruebas; puede que ya esté habilitado y la «solicitud en curso» sea un trámite viejo.
+  - Si no se resuelve, llamar al 1700 774 774.
+  - **B1 y B2 no dependen de esto:** se pueden hacer mientras tanto.

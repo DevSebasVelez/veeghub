@@ -133,24 +133,35 @@ export async function sendAccountStatement(formData: FormData): Promise<AdminFor
     });
 
     const owes = data.pendingCents > 0;
-    const subject = text(formData, "subject") ?? `Estado de cuenta · ${data.client.name}`;
+    const subject = text(formData, "subject") ?? `Estado de cuenta · ${data.project ?? data.client.name}`;
     const filename = statementFilename(data);
     const period = `${shortDay(data.from)} – ${shortDay(data.to)}`;
+    const summary = data.projectSummary;
     const html = buildDocumentEmailHtml({
       clientName: data.client.name,
-      intro: owes
-        ? `Le compartimos su estado de cuenta con corte al ${longDay(data.cutoff)}. Incluye los pagos recibidos en el periodo y el detalle de los valores pendientes con sus fechas de vencimiento.`
-        : `Le compartimos su estado de cuenta con corte al ${longDay(data.cutoff)}, con el detalle de los pagos recibidos en el periodo. No registra valores pendientes.`,
+      intro: summary
+        ? `Le compartimos el estado de cuenta del proyecto ${data.project} con corte al ${longDay(data.cutoff)}. Incluye todos los hitos del proyecto, lo pagado y el saldo pendiente.`
+        : owes
+          ? `Le compartimos su estado de cuenta con corte al ${longDay(data.cutoff)}. Incluye los pagos recibidos en el periodo y el detalle de los valores pendientes con sus fechas de vencimiento.`
+          : `Le compartimos su estado de cuenta con corte al ${longDay(data.cutoff)}, con el detalle de los pagos recibidos en el periodo. No registra valores pendientes.`,
       customMessage,
-      figureLabel: owes ? "Saldo pendiente" : "Pagado en el periodo",
-      figure: money(owes ? data.pendingCents : data.paidCents),
+      figureLabel: owes ? "Saldo pendiente" : summary ? "Pagado" : "Pagado en el periodo",
+      figure: money(owes ? data.pendingCents : summary ? summary.paidCents : data.paidCents),
       figureTone: owes ? (data.overdueCents > 0 ? "red" : "ink") : "emerald",
-      rows: [
-        { label: "Periodo", value: period },
-        ...(data.project ? [{ label: "Proyecto", value: data.project }] : []),
-        { label: "Pagado en el periodo", value: money(data.paidCents) },
-        ...(owes ? [{ label: "Vencido", value: money(data.overdueCents) }] : []),
-      ],
+      rows: summary
+        ? [
+            { label: "Proyecto", value: data.project ?? "" },
+            { label: "Valor del proyecto", value: money(summary.valueCents) },
+            { label: "Pagado", value: money(summary.paidCents) },
+            ...(summary.withheldCents ? [{ label: "Retenido", value: money(summary.withheldCents) }] : []),
+            ...(owes ? [{ label: "Vencido", value: money(data.overdueCents) }] : []),
+          ]
+        : [
+            { label: "Periodo", value: period },
+            ...(data.project ? [{ label: "Proyecto", value: data.project }] : []),
+            { label: "Pagado en el periodo", value: money(data.paidCents) },
+            ...(owes ? [{ label: "Vencido", value: money(data.overdueCents) }] : []),
+          ],
       attachmentName: filename,
       docLabel: "Estado de cuenta",
       docCode: data.code,
@@ -163,5 +174,7 @@ export async function sendAccountStatement(formData: FormData): Promise<AdminFor
     );
 
     revalidatePath(`/admin/clientes/${clientId}`);
+    const projectId = optionalId(formData, "proyecto");
+    if (projectId) revalidatePath(`/admin/proyectos/${projectId}`);
   });
 }

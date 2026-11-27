@@ -7,11 +7,18 @@ import type {
   StatementPayment,
   StatementPending,
 } from "@/lib/admin/receipts/data";
+import type {
+  MilestoneStanding,
+  ProjectStatementSummary,
+  StatementMilestone,
+} from "@/lib/admin/receipts/project-summary";
 import {
   DocFooter,
   DocHeader,
   Hairline,
   Parties,
+  Pill,
+  type PillTone,
   longDay,
   money,
   shortDay,
@@ -202,13 +209,165 @@ function PendingRow({ r, showProject }: { r: StatementPending; showProject: bool
   );
 }
 
-export function AccountStatementDocument({ data }: { data: AccountStatementData }) {
+const MILESTONE_COLS: Col[] = [
+  { label: "Hito" },
+  { label: "Vence", width: 60 },
+  { label: "Estado", width: 72 },
+  { label: "Valor", width: 62, align: "right" },
+  { label: "Cubierto", width: 62, align: "right" },
+  { label: "Saldo", width: 62, align: "right" },
+];
+
+const STANDING: Record<MilestoneStanding, { label: string; tone: PillTone }> = {
+  PAID: { label: "PAGADO", tone: "emerald" },
+  PARTIAL: { label: "ABONADO", tone: "blue" },
+  OVERDUE: { label: "VENCIDO", tone: "red" },
+  PENDING: { label: "PENDIENTE", tone: "zinc" },
+};
+
+function MilestoneRow({ m }: { m: StatementMilestone }) {
+  const standing = STANDING[m.standing];
+  const covered = m.paidCents + m.withheldCents;
+  const notes = [
+    m.invoiceNumber ? `Factura ${m.invoiceNumber}` : null,
+    m.withheldCents ? `Incluye ${money(m.withheldCents)} retenido` : null,
+  ].filter(Boolean);
+  return (
+    <View wrap={false} style={ROW}>
+      <Cell>
+        <Text style={{ fontWeight: 500 }}>{m.concept}</Text>
+        {m.detail ? <Text style={{ fontSize: 8, color: C.muted, marginTop: 1 }}>{m.detail}</Text> : null}
+        {notes.length ? (
+          <Text style={{ fontSize: 7.5, color: C.muted, marginTop: 1 }}>{notes.join(" · ")}</Text>
+        ) : null}
+      </Cell>
+      <Cell width={60}>
+        <Text>{m.dueDate ? shortDay(m.dueDate) : "—"}</Text>
+      </Cell>
+      <Cell width={72}>
+        <Pill tone={standing.tone}>{standing.label}</Pill>
+      </Cell>
+      <Cell width={62} align="right">
+        <Text style={{ color: C.body }}>{money(m.amountCents)}</Text>
+      </Cell>
+      <Cell width={62} align="right">
+        <Text style={{ color: C.body }}>{covered ? money(covered) : "—"}</Text>
+      </Cell>
+      <Cell width={62} align="right">
+        <Text style={{ fontWeight: 600, color: m.balanceCents ? C.ink : C.faint }}>
+          {m.balanceCents ? money(m.balanceCents) : "—"}
+        </Text>
+      </Cell>
+    </View>
+  );
+}
+
+function ProjectFigures({ summary }: { summary: ProjectStatementSummary }) {
+  const covered = summary.paidCents + summary.withheldCents;
+  const percent = summary.valueCents ? Math.round((covered / summary.valueCents) * 100) : 0;
+  const count = summary.milestones.length;
+  return (
+    <View style={{ flexDirection: "row", gap: 10, marginTop: 24 }}>
+      <Figure
+        label="Valor del proyecto"
+        value={money(summary.valueCents)}
+        helper={`${count} ${count === 1 ? "hito" : "hitos"}`}
+      />
+      <Figure
+        label="Pagado"
+        value={money(summary.paidCents)}
+        helper={
+          summary.withheldCents
+            ? `+ ${money(summary.withheldCents)} retenido · ${percent} % cubierto`
+            : `${percent} % del valor`
+        }
+        tone={summary.paidCents > 0 ? C.emerald : undefined}
+      />
+      <Figure
+        label="Saldo pendiente"
+        value={money(summary.balanceCents)}
+        helper={
+          summary.overdueCents
+            ? `${money(summary.overdueCents)} vencido`
+            : summary.balanceCents
+              ? "Todo al día"
+              : "Proyecto saldado"
+        }
+        tone={summary.overdueCents ? C.red : undefined}
+      />
+    </View>
+  );
+}
+
+function MilestonesTable({ summary }: { summary: ProjectStatementSummary }) {
+  if (summary.milestones.length === 0) {
+    return (
+      <>
+        <Text style={s.sectionTitle}>Hitos del proyecto</Text>
+        <Text style={{ color: C.muted }}>El proyecto aún no tiene hitos de cobro.</Text>
+      </>
+    );
+  }
+  return (
+    <KeptTable
+      title="Hitos del proyecto"
+      cols={MILESTONE_COLS}
+      rows={summary.milestones.map((m) => (
+        <MilestoneRow key={m.id} m={m} />
+      ))}
+      totals={
+        <>
+          {summary.withheldCents ? (
+            <TotalRow label="Retenido por el cliente" value={money(summary.withheldCents)} />
+          ) : null}
+          <TotalRow label="Saldo pendiente" value={money(summary.balanceCents)} />
+          {summary.overdueCents ? (
+            <TotalRow label="De lo cual vencido" value={money(summary.overdueCents)} tone={C.red} />
+          ) : null}
+        </>
+      }
+    />
+  );
+}
+
+/** Figures of a client statement: paid in the period, pending and overdue. */
+function ClientFigures({ data }: { data: AccountStatementData }) {
   const overdue = data.overdueCents > 0;
   const overdueCount = data.pending.filter((r) => (r.daysOverdue ?? 0) > 0).length;
+  return (
+    <View style={{ flexDirection: "row", gap: 10, marginTop: 24 }}>
+      <Figure
+        label="Pagado en el periodo"
+        value={money(data.paidCents)}
+        helper={`${data.payments.length} ${data.payments.length === 1 ? "pago" : "pagos"} recibidos`}
+        tone={data.paidCents > 0 ? C.emerald : undefined}
+      />
+      <Figure
+        label="Saldo pendiente"
+        value={money(data.pendingCents)}
+        helper={
+          data.pending.length
+            ? `${data.pending.length} ${data.pending.length === 1 ? "hito abierto" : "hitos abiertos"}`
+            : "Sin saldos por cobrar"
+        }
+      />
+      <Figure
+        label="Vencido"
+        value={money(data.overdueCents)}
+        helper={overdue ? `${overdueCount} ${overdueCount === 1 ? "hito" : "hitos"} fuera de plazo` : "Todo al día"}
+        tone={overdue ? C.red : undefined}
+      />
+    </View>
+  );
+}
+
+export function AccountStatementDocument({ data }: { data: AccountStatementData }) {
+  const summary = data.projectSummary;
+  const overdue = data.overdueCents > 0;
 
   return (
     <Document
-      title={`Estado de cuenta ${data.client.name}`}
+      title={`Estado de cuenta ${data.project ?? data.client.name}`}
       author={COMPANY.brand}
       creator={COMPANY.brand}
       producer={COMPANY.brand}
@@ -222,41 +381,30 @@ export function AccountStatementDocument({ data }: { data: AccountStatementData 
         />
 
         <View style={{ marginTop: 32 }}>
-          <Text style={s.label}>Periodo</Text>
+          <Text style={s.label}>{summary ? "Proyecto" : "Periodo"}</Text>
           <Text style={{ fontSize: 20, fontWeight: 600, letterSpacing: -0.6, marginTop: 7 }}>
-            {shortDay(data.from)} – {shortDay(data.to)}
+            {summary ? data.project : `${shortDay(data.from)} – ${shortDay(data.to)}`}
           </Text>
-          {data.project ? (
-            <Text style={{ fontSize: 9, color: C.body, marginTop: 5 }}>Proyecto: {data.project}</Text>
+          {summary ? (
+            <Text style={{ fontSize: 9, color: C.body, marginTop: 5 }}>
+              Pagos del {shortDay(data.from)} al {shortDay(data.to)}
+            </Text>
           ) : null}
         </View>
 
         <Hairline my={22} />
         <Parties clientLabel="Cliente" client={data.client} />
 
-        <View style={{ flexDirection: "row", gap: 10, marginTop: 24 }}>
-          <Figure
-            label="Pagado en el periodo"
-            value={money(data.paidCents)}
-            helper={`${data.payments.length} ${data.payments.length === 1 ? "pago" : "pagos"} recibidos`}
-            tone={data.paidCents > 0 ? C.emerald : undefined}
-          />
-          <Figure
-            label="Saldo pendiente"
-            value={money(data.pendingCents)}
-            helper={
-              data.pending.length
-                ? `${data.pending.length} ${data.pending.length === 1 ? "hito abierto" : "hitos abiertos"}`
-                : "Sin saldos por cobrar"
-            }
-          />
-          <Figure
-            label="Vencido"
-            value={money(data.overdueCents)}
-            helper={overdue ? `${overdueCount} ${overdueCount === 1 ? "hito" : "hitos"} fuera de plazo` : "Todo al día"}
-            tone={overdue ? C.red : undefined}
-          />
-        </View>
+        {summary ? (
+          <>
+            <ProjectFigures summary={summary} />
+            <View style={{ marginTop: 28 }}>
+              <MilestonesTable summary={summary} />
+            </View>
+          </>
+        ) : (
+          <ClientFigures data={data} />
+        )}
 
         {/* Payments */}
         <View style={{ marginTop: 28 }}>
@@ -277,8 +425,8 @@ export function AccountStatementDocument({ data }: { data: AccountStatementData 
           )}
         </View>
 
-        {/* Pending */}
-        {data.pending.length > 0 ? (
+        {/* Pending (the project view already lists every milestone) */}
+        {!summary && data.pending.length > 0 ? (
           <View style={{ marginTop: 28 }}>
             <KeptTable
               title="Pendiente de pago"

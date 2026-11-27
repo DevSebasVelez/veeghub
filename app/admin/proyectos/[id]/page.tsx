@@ -21,7 +21,10 @@ import {
   ReceivableDialog,
   SinglePaymentDialog,
 } from "@/components/admin/dialogs/receivable-dialog";
-import { PaymentReceiptMenu } from "@/components/admin/dialogs/receipt-dialogs";
+import {
+  AccountStatementDialog,
+  PaymentReceiptMenu,
+} from "@/components/admin/dialogs/receipt-dialogs";
 import { TaskDialog } from "@/components/admin/dialogs/task-dialog";
 import { ConfirmActionButton } from "@/components/admin/finance/confirm-action-button";
 import { ProjectExpensesPanel } from "@/components/admin/finance/project-expenses-panel";
@@ -358,6 +361,16 @@ export default async function ProjectDetailPage({
                         </Link>
                       </Button>
                     </>
+                  ) : null}
+                  {project.client ? (
+                    <AccountStatementDialog
+                      client={{
+                        id: project.client.id,
+                        name: project.client.name,
+                        email: project.client.billingEmail ?? project.client.email,
+                      }}
+                      project={{ id: project.id, name: project.name }}
+                    />
                   ) : null}
                   <ProjectDialog
                     project={forProjectDialog(project)}
