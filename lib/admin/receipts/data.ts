@@ -2,6 +2,10 @@ import prisma from "@/lib/db/prisma";
 import { dayKeyInAppZone } from "@/lib/admin/format";
 import { toCents } from "@/lib/admin/finance/money";
 import { parseDayParam, resolvePeriod } from "@/lib/admin/finance/period";
+import {
+  type ProjectStatementSummary,
+  summarizeProjectMilestones,
+} from "@/lib/admin/receipts/project-summary";
 
 const DAY_MS = 86_400_000;
 
@@ -193,6 +197,8 @@ export type AccountStatementData = {
   cutoff: Date;
   client: ReceiptParty;
   project: string | null;
+  /** Whole-project view (every milestone, paid or not); only for one project. */
+  projectSummary: ProjectStatementSummary | null;
   payments: StatementPayment[];
   paidCents: number;
   pending: StatementPending[];
@@ -214,6 +220,9 @@ export type StatementFilters = {
  * Account statement of a client: payments received in the period, plus every
  * milestone still open at the cutoff (today), whatever its due date, so the
  * same document proves what was paid and asks for what is owed.
+ *
+ * Narrowed to one project it also carries the whole project (every
+ * milestone, paid or not) in `projectSummary`.
  */
 export async function getAccountStatementData(
   filters: StatementFilters,
@@ -246,7 +255,7 @@ export async function getAccountStatementData(
     }
   }
 
-  const [payments, open] = await Promise.all([
+  const [payments, open, projectMilestones] = await Promise.all([
     prisma.payment.findMany({
       where: { receivable: receivableWhere, paidAt: period.range },
       orderBy: [{ paidAt: "asc" }, { createdAt: "asc" }],
@@ -261,6 +270,13 @@ export async function getAccountStatementData(
       orderBy: [{ dueDate: { sort: "asc", nulls: "last" } }, { createdAt: "asc" }],
       include: { project: { select: { name: true } } },
     }),
+    project
+      ? prisma.receivable.findMany({
+          where: { projectId: project.id, clientId: client.id },
+          orderBy: [{ dueDate: { sort: "asc", nulls: "last" } }, { createdAt: "asc" }],
+          include: { invoice: { select: { invoiceNumber: true } } },
+        })
+      : Promise.resolve(null),
   ]);
 
   const todayKey = dayKeyInAppZone(new Date());
@@ -299,8 +315,9 @@ export async function getAccountStatementData(
     }),
   );
 
+  const owner = project ?? client;
   return {
-    code: `EC-${todayKey.replaceAll("-", "")}-${client.id.slice(-4).toUpperCase()}`,
+    code: `EC-${todayKey.replaceAll("-", "")}-${owner.id.slice(-4).toUpperCase()}`,
     issuedAt: new Date(),
     from: period.from,
     to: period.to,
@@ -314,6 +331,7 @@ export async function getAccountStatementData(
       address: client.address,
     },
     project: project?.name ?? null,
+    projectSummary: projectMilestones ? summarizeProjectMilestones(projectMilestones, cutoff) : null,
     payments: rows,
     paidCents: rows.reduce((total, p) => total + p.amountCents, 0),
     pending,
