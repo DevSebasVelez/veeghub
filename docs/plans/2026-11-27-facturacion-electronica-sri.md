@@ -152,7 +152,7 @@ Rutas útiles:
 1. **El XML es la fuente de verdad, nunca el PDF.** Del RIDE solo se toma la clave.
 2. **La app emite con un punto de emisión propio, `001-002`.** El facturador del SRI se queda con `001-001`, así sus secuenciales nunca chocan. El secuencial se asigna en una transacción, como los folios de comprobantes.
 3. **Régimen, leyenda e IVA salen de `TaxProfile` según la fecha de emisión.**
-4. **El `.p12` vive cifrado** (AES-256-GCM) y la llave está en una variable *Sensitive* de Vercel.
+4. **El `.p12` y su clave viven cifrados** (AES-256-GCM) y la llave (`SRI_CERT_KEY`) está en una variable *Sensitive* de Vercel. La clave se escribe una sola vez, al subir el `.p12` en la pantalla, para poder renovar la firma sin tocar Vercel. Así lo pidió Sebastián el 2026-11-27; antes la clave iba en `SRI_CERT_PASSWORD`.
    - Nunca va al repo, a logs ni al cliente.
    - Cada firma queda registrada.
    - Hay un aviso 30 días antes de que caduque.
@@ -348,6 +348,9 @@ Migración aditiva: las facturas actuales quedan como `UPLOADED`.
   - **Recepción:** `sendToReception` en `ws.ts`. No se reintenta (§3.6).
   - **Smoke contra `celcer`:** con un `.p12` autofirmado salió `RECIBIDA` y luego `NO AUTORIZADO [39]` por la cadena de confianza. El XML, el envío y la lectura de la respuesta funcionan; solo falta una firma real.
   - **Tests:** 145 en verde. La firma se verifica con `xml-crypto`, se rompe si cambia la factura y el documento firmado pasa el XSD.
-  - **Para cerrar B3:** poner `SRI_CERT_PASSWORD` en `.env` (Sebastián, no por chat), subir el `.p12` en Impuestos, correr `npx tsx scripts/sri-smoke.ts` y esperar `AUTORIZADO`. `SRI_CERT_KEY` local ya está en `.env`.
-  - **Al desplegar:** crear `SRI_CERT_KEY` y `SRI_CERT_PASSWORD` como variables *Sensitive* en Vercel y subir el `.p12` en producción.
+  - **Cambio el mismo día (pedido de Sebastián):** la clave del `.p12` ya no va en `SRI_CERT_PASSWORD`. Se escribe al subir el archivo y se guarda cifrada junto a él (migración `20261127250000_sri_certificate_password`). Así renovar la firma es subir el archivo nuevo con su clave.
+    - Verificado con un script contra la BD local: con una clave equivocada no se guarda nada; con la correcta se guarda y firma sin ninguna variable de clave.
+    - No se pudo probar la subida desde el navegador: la herramienta no sube archivos `.p12` por política, así que esa prueba la hace Sebastián.
+  - **Para cerrar B3:** subir el `.p12` con su clave en Finanzas › Impuestos (Sebastián), correr `npx tsx scripts/sri-smoke.ts` y esperar `AUTORIZADO`. `SRI_CERT_KEY` local ya está en `.env`.
+  - **Al desplegar:** crear `SRI_CERT_KEY` como variable *Sensitive* en Vercel y subir el `.p12` en producción.
 

@@ -20,19 +20,23 @@ Lo que VeegHub necesita para emitir facturas propias. Plan completo y bitácora:
 
 ## Configurar la firma electrónica
 
-1. Variables del servidor. En Vercel van como *Sensitive*; en local, en `.env`:
-   - `SRI_CERT_KEY`: llave de cifrado del `.p12`, 32 bytes en base64 (`openssl rand -base64 32`). **No tiene valor por defecto.** Si cambia, la firma guardada ya no se puede descifrar y hay que volver a subirla.
-   - `SRI_CERT_PASSWORD`: la clave del `.p12`. Ninguna pantalla la pide y nunca se escribe en un chat.
-2. Subir el `.p12` en **Finanzas › Impuestos › Firma electrónica**. Antes de guardar, VeegHub abre el archivo con `SRI_CERT_PASSWORD` y hace una firma de prueba. Si algo falla, avisa y no guarda nada.
-3. Queda una sola firma activa: subir otra reemplaza la anterior. La tarjeta avisa 30 días antes de que caduque.
+1. Variable del servidor `SRI_CERT_KEY`: la llave de cifrado, 32 bytes en base64 (`openssl rand -base64 32`).
+   - En Vercel va como *Sensitive*; en local, en `.env`.
+   - **No tiene valor por defecto.** Si cambia, la firma guardada ya no se puede descifrar y hay que volver a subirla.
+2. Subir el `.p12` **con su clave** en **Finanzas › Impuestos › Firma electrónica**.
+   - Antes de guardar, VeegHub abre el archivo con esa clave y hace una firma de prueba. Si algo falla, avisa y no guarda nada.
+   - El archivo y la clave se guardan cifrados con `SRI_CERT_KEY`, cada uno con su propio IV y su propio AAD. La clave no se vuelve a mostrar ni se devuelve al navegador.
+   - La clave nunca se escribe en un chat.
+3. Queda una sola firma activa: para renovarla basta subir la nueva con su clave, y la anterior deja de usarse. La tarjeta avisa 30 días antes de que caduque.
 4. Elegir el régimen para la factura electrónica en la vigencia actual de Impuestos. Sin régimen, VeegHub no emite.
 
 ## Probar contra `celcer`
 
 ```bash
-npx tsx scripts/sri-smoke.ts                       # con la firma guardada en VeegHub
-SRI_P12_PATH=~/ruta/firma.p12 npx tsx scripts/sri-smoke.ts   # con un archivo
+npx tsx scripts/sri-smoke.ts     # con la firma subida en VeegHub
 ```
+
+Para probar un archivo antes de subirlo, pon `SRI_P12_PATH` y `SRI_P12_PASSWORD` en `.env`. No los pases en la línea de comandos, porque quedan en el historial de la terminal.
 
 El script:
 1. Emite una factura de USD 1,00 a consumidor final desde el punto 001-002 de PRUEBAS. Consume un secuencial de pruebas.
