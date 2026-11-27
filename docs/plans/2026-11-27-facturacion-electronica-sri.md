@@ -1,7 +1,7 @@
 # Plan: Facturación electrónica SRI
 
 **Creado:** 2026-11-27
-**Estado:** 🟢 Fase A en producción. B1, B2 y B3 hechos en ramas sin desplegar (2026-11-27). **Falta para cerrar B3:** que Sebastián suba su `.p12` y corra `scripts/sri-smoke.ts` contra `celcer`. Después sigue B4.
+**Estado:** 🟢 Fase A en producción. B1, B2 y B3 hechos y probados en ramas sin desplegar (2026-11-27). La primera factura firmada con la firma real fue **AUTORIZADA** en `celcer`. **Siguiente:** B4 (máquina de estados, reintentos y cron).
 **Ramas:** una por subfase (`feat/sri-a1-lector-xml`, `feat/sri-b2-xml`, …) → `develop` → `main`
 
 ---
@@ -35,7 +35,7 @@ Antes de escribir código revisa:
 | **B0** | Trámites: ambiente de pruebas, punto de emisión 001-002, consulta al contador | — | 🟡 pruebas ✅ aprobado; falta B0.2 (001-002) y B0.3 (contador) |
 | **B1** | Modelo de datos: puntos de emisión, ítems, estados SRI, intentos | A1 | ✅ rama `feat/sri-b1-modelo`, sin desplegar |
 | **B2** | Generador de XML factura 1.1.0 + clave de acceso + cálculo de totales | B1 | ✅ rama `feat/sri-b2-xml` (sobre B1), validado contra el XSD oficial, sin desplegar |
-| **B3** | Firma XAdES-BES con el `.p12` (custodia cifrada) | B2 | 🟡 rama `feat/sri-b3-firma` (sobre B2): código listo; falta la prueba con la firma real |
+| **B3** | Firma XAdES-BES con el `.p12` (custodia cifrada) | B2 | ✅ rama `feat/sri-b3-firma` (sobre B2), AUTORIZADO en `celcer`, sin desplegar |
 | **B4** | Cliente SRI: recepción, autorización, reintentos y máquina de estados | B3 | ⬜ |
 | **B5** | RIDE en PDF (Anexo 2 de la ficha) con el estilo de `lib/pdf` | B2 | ⬜ |
 | **B6** | Pantalla «Emitir factura» desde hitos, detalle con línea de tiempo, envío XML+RIDE | B4, B5 | ⬜ |
@@ -353,4 +353,11 @@ Migración aditiva: las facturas actuales quedan como `UPLOADED`.
     - No se pudo probar la subida desde el navegador: la herramienta no sube archivos `.p12` por política, así que esa prueba la hace Sebastián.
   - **Para cerrar B3:** subir el `.p12` con su clave en Finanzas › Impuestos (Sebastián), correr `npx tsx scripts/sri-smoke.ts` y esperar `AUTORIZADO`. `SRI_CERT_KEY` local ya está en `.env`.
   - **Al desplegar:** crear `SRI_CERT_KEY` como variable *Sensitive* en Vercel y subir el `.p12` en producción.
+- **2026-11-27, B3 cerrado con la firma real:**
+  - Sebastián subió su `.p12` con su clave en Finanzas › Impuestos (local).
+  - La tarjeta muestra: titular CHRISTIAN SEBASTIAN VELEZ PALOMEQUE, emisor «AUTORIDAD DE CERTIFICACION SUBCA-2 SECURITY DATA», vigente hasta el **4 may 2027**. Se revisó en claro y en oscuro.
+  - `npx tsx scripts/sri-smoke.ts`: factura `001-002-000000002` (PRUEBAS, USD 1,00, consumidor final, leyenda Negocio Popular) → XSD ✔ → **RECIBIDA** → **AUTORIZADO**. Clave `2711202601010488569400110010020000000022371751917`. Sin error 39 ni 52.
+  - Quedó una fila en `SriSigningEvent` (`smoke-test`, PRUEBAS).
+  - **Detalle:** el `serialNumber` del certificado de Security Data trae la cédula más un sufijo (`0104885694-…`), y así se muestra.
+  - El secuencial 001 de pruebas se consumió en la prueba con el certificado autofirmado (NO AUTORIZADO, error 39).
 
