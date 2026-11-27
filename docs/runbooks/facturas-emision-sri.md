@@ -14,9 +14,13 @@ Lo que VeegHub necesita para emitir facturas propias. Plan completo y bitácora:
 | `lib/sri/emission.ts` | Toma el secuencial del punto de emisión y lee el régimen y el IVA del `TaxProfile` vigente |
 | `lib/sri/certificate.ts` | Cifra y descifra el `.p12` y lee titular, emisor y vigencia |
 | `lib/sri/signing.ts` | Firma XAdES-BES (`ec-sri-invoice-signer`) y registra cada firma en `SriSigningEvent` |
-| `lib/sri/ws.ts` | Recepción (`validarComprobante`), autorización y consulta de estado |
+| `lib/sri/ws.ts` | Recepción (`validarComprobante`), autorización (`queryAuthorization`) y consulta de estado |
+| `lib/sri/state.ts` | Reglas puras de la máquina de estados |
+| `lib/sri/self-check.ts` | Revisión interna del XML antes de firmar y de cada envío |
+| `lib/sri/issue.ts` | Crear la factura emitida, avanzarla ante el SRI y procesar las pendientes (cron) |
 | `lib/sri/xsd/` | XSD oficial de la factura 1.1.0, con dos ajustes documentados en los archivos |
-| `scripts/sri-smoke.ts` | Prueba de punta a punta contra `celcer` |
+| `scripts/sri-smoke.ts` | Prueba de punta a punta contra `celcer`, sin crear factura |
+| `scripts/sri-campaign.ts` | Campaña de B4 contra `celcer` con la máquina real (`SRI_CAMPAIGN_ONLY=1,3` para correr solo algunos casos) |
 
 ## Configurar la firma electrónica
 
@@ -49,7 +53,28 @@ El ambiente está fijo en el código. Imprime la respuesta del SRI y la ruta del
 
 Con un certificado autofirmado sale `RECIBIDA` y luego `NO AUTORIZADO [39] FIRMA INVALIDA` («no existe un certificado root registrado»). Eso confirma que el XML y el circuito están bien y que solo falla la firma. Verificado el 2026-11-27.
 
+## Ciclo de una factura emitida
+
+```
+DRAFT ─firma→ SIGNED ─recepción→ RECEIVED ─autorización→ AUTHORIZED
+                 │                    │                  └→ NOT_AUTHORIZED
+                 └→ RETURNED          └ (en proceso: se vuelve a consultar)
+```
+
+- **Antes de firmar y antes de cada envío** corre la revisión interna (`self-check`): totales, aritmética de cada línea, clave y ambiente. Si algo no cuadra, no sale nada y la ficha dice «Revisión interna: …».
+- **Recepción sin respuesta:** la factura queda en SIGNED. En el siguiente intento se consulta la autorización primero y solo se reenvía si el SRI no tiene registro. Siempre se reenvían los mismos bytes (`Invoice.sriXml`) con la misma clave.
+- **43 o 70 en recepción:** el SRI ya tiene el documento, así que se pasa a consultar la autorización.
+- **Quién la empuja:**
+  - el botón de la tarjeta «SRI» en la ficha;
+  - el cron de marketing (`/api/cron/marketing`, cada 15 min), que procesa hasta 5 facturas en 20 s.
+
+  Un lease de 90 s impide que dos procesos avancen la misma factura.
+- **Producción** está bloqueada en el código salvo `SRI_ALLOW_PRODUCTION=true`. No se define hasta el paso a producción (B7).
+- **Facturas emitidas:** no se editan ni se «comparan». Sus datos son los del XML firmado; una corrección es una nota de crédito (B8).
+
 ## Lo que hay que saber
+
+- **`celcer` no valida la aritmética** (verificado el 2026-11-27): autorizó un total que no cuadraba, una línea mal multiplicada, una fecha de hace 40 días y una cédula inválida. Una autorización en pruebas no prueba que los cálculos estén bien; los protege la revisión interna y los tests.
 
 - **XSD publicado vs. real:** el ZIP del SRI (feb-2022) solo acepta la leyenda «CONTRIBUYENTE RÉGIMEN RIMPE». El SRI autoriza la de Negocio Popular, así que la copia local acepta las dos. El ZIP tampoco trae `xmldsig-core-schema.xsd`. En su lugar hay un sustituto que sirve para validar XML sin firmar.
 - **La recepción no se reintenta.** Si vence el tiempo, el resultado es incierto. Antes de reenviar se consulta la autorización: un reenvío con la misma clave devuelve el error 43.

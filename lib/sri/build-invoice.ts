@@ -191,6 +191,15 @@ function rate(value: number) {
   return Number.isInteger(value) ? value.toFixed(1) : String(value);
 }
 
+/**
+ * Line base in cents: quantity × unit price (six decimals each, exact) rounded
+ * once, minus the discount. The same rule the builder uses, for re-checking.
+ */
+export function lineBaseCents(quantity: string, unitPrice: string, discountCents: number) {
+  const product = toMillionths(quantity, "La cantidad") * toMillionths(unitPrice, "El precio unitario");
+  return Number((product + HALF_CENT) / PICO_PER_CENT) - discountCents;
+}
+
 // ─── XML ──────────────────────────────────────────────────────────────────
 
 function escapeXml(value: string) {

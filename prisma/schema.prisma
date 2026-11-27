@@ -370,18 +370,31 @@ model Invoice {
   paidAt        DateTime?
 
   // Electronic invoicing. UPLOADED invoices leave the rest null.
-  source          InvoiceSource     @default(UPLOADED)
-  sriStatus       SriStatus?
-  environment     SriEnvironment?
-  emissionPointId String?
-  emissionPoint   EmissionPoint?    @relation(fields: [emissionPointId], references: [id], onDelete: Restrict)
+  source           InvoiceSource     @default(UPLOADED)
+  sriStatus        SriStatus?
+  environment      SriEnvironment?
+  emissionPointId  String?
+  emissionPoint    EmissionPoint?    @relation(fields: [emissionPointId], references: [id], onDelete: Restrict)
   /// Secuencial taken from the emission point; the 9-digit text is in invoiceNumber.
-  sequential      Int?
+  sequential       Int?
   /// Instant the SRI authorized it (fechaAutorizacion), not a calendar day.
-  authorizedAt    DateTime?
-  items           InvoiceItem[]
-  sriSubmissions  SriSubmission[]
-  signingEvents   SriSigningEvent[]
+  authorizedAt     DateTime?
+  /// The factura as sent: unsigned while DRAFT, signed from SIGNED on. Every
+  /// retry sends these exact bytes, never a rebuilt document.
+  sriXml           String?           @db.Text
+  /// <autorizacion> answer of the SRI once AUTHORIZED.
+  sriAuthorizedXml String?           @db.Text
+  /// Calls made so far (reception + authorization).
+  sriAttempts      Int               @default(0)
+  /// When the cron should advance it again; null when nothing is pending.
+  sriNextAttemptAt DateTime?
+  /// Lease: one process advances an invoice at a time.
+  sriLeaseUntil    DateTime?
+  /// Last problem, in Spanish, for the UI.
+  sriLastError     String?
+  items            InvoiceItem[]
+  sriSubmissions   SriSubmission[]
+  signingEvents    SriSigningEvent[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -392,6 +405,7 @@ model Invoice {
   @@index([status])
   @@index([issueDate])
   @@index([sriStatus])
+  @@index([sriStatus, sriNextAttemptAt])
   @@index([status, createdAt], map: "invoice_status_created_idx")
   @@index([clientId, createdAt], map: "invoice_client_created_idx")
   @@index([issueDate, status], map: "invoice_issue_status_idx")

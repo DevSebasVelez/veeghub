@@ -1,7 +1,7 @@
 # Plan: Facturación electrónica SRI
 
 **Creado:** 2026-11-27
-**Estado:** 🟢 Fase A en producción. B1, B2 y B3 hechos y probados en ramas sin desplegar (2026-11-27). La primera factura firmada con la firma real fue **AUTORIZADA** en `celcer`. **Siguiente:** B4 (máquina de estados, reintentos y cron).
+**Estado:** 🟢 Fase A en producción. B1 a B4 hechos y probados en ramas sin desplegar (2026-11-27). La campaña de B4 contra `celcer` pasa 7/7. **Siguiente:** B5 (RIDE) y B6 (pantalla «Emitir factura»).
 **Ramas:** una por subfase (`feat/sri-a1-lector-xml`, `feat/sri-b2-xml`, …) → `develop` → `main`
 
 ---
@@ -36,7 +36,7 @@ Antes de escribir código revisa:
 | **B1** | Modelo de datos: puntos de emisión, ítems, estados SRI, intentos | A1 | ✅ rama `feat/sri-b1-modelo`, sin desplegar |
 | **B2** | Generador de XML factura 1.1.0 + clave de acceso + cálculo de totales | B1 | ✅ rama `feat/sri-b2-xml` (sobre B1), validado contra el XSD oficial, sin desplegar |
 | **B3** | Firma XAdES-BES con el `.p12` (custodia cifrada) | B2 | ✅ rama `feat/sri-b3-firma` (sobre B2), AUTORIZADO en `celcer`, sin desplegar |
-| **B4** | Cliente SRI: recepción, autorización, reintentos y máquina de estados | B3 | ⬜ |
+| **B4** | Cliente SRI: recepción, autorización, reintentos y máquina de estados | B3 | ✅ rama `feat/sri-b4-envio` (sobre B3), campaña 7/7 en `celcer`, sin desplegar |
 | **B5** | RIDE en PDF (Anexo 2 de la ficha) con el estilo de `lib/pdf` | B2 | ⬜ |
 | **B6** | Pantalla «Emitir factura» desde hitos, detalle con línea de tiempo, envío XML+RIDE | B4, B5 | ⬜ |
 | **B7** | Campaña de pruebas en `celcer` y paso a producción | B6 + B0 | ⬜ |
@@ -360,4 +360,40 @@ Migración aditiva: las facturas actuales quedan como `UPLOADED`.
   - Quedó una fila en `SriSigningEvent` (`smoke-test`, PRUEBAS).
   - **Detalle:** el `serialNumber` del certificado de Security Data trae la cédula más un sufijo (`0104885694-…`), y así se muestra.
   - El secuencial 001 de pruebas se consumió en la prueba con el certificado autofirmado (NO AUTORIZADO, error 39).
+- **2026-11-27, B4 hecho** (rama `feat/sri-b4-envio`, sobre B3, 9 commits):
+  - **Modelo:** `Invoice.sriXml` guarda los bytes exactos que se envían, `sriAuthorizedXml` la respuesta del SRI, y además `sriAttempts`, `sriNextAttemptAt`, `sriLeaseUntil` y `sriLastError`.
+  - **Reglas puras** (`lib/sri/state.ts`, con tests):
+    - 43 y 70 en recepción significan que el SRI ya tiene el documento: se pasa a consultar la autorización.
+    - Si un envío no tuvo respuesta, se consulta la autorización antes de reenviar, y solo se reenvía si el SRI no tiene registro.
+    - Los reintentos esperan cada vez más: 30 s, 1, 2, 5, 10 y 30 min, y luego cada hora.
+  - **Máquina** (`lib/sri/issue.ts`):
+    - `createIssuedInvoice` crea el borrador con el secuencial, los ítems y el XML en una sola transacción.
+    - `advanceInvoice` firma, envía y consulta la autorización. Usa un lease para que dos procesos no avancen la misma factura y registra cada llamada en `SriSubmission`.
+    - Producción se rechaza salvo `SRI_ALLOW_PRODUCTION=true`, que no se define hasta B7.
+  - **Revisión interna antes de firmar y antes de cada envío** (`lib/sri/self-check.ts`): relee el XML y exige que cuadren los totales, la aritmética de cada línea, la clave y el ambiente.
+  - **Hallazgo: `celcer` no valida la aritmética.** El 2026-11-27 autorizó:
+    - un total de USD 2,00 sobre una base de USD 1,00;
+    - una línea de 1 × 5,00 declarada como 1,00;
+    - una fecha de emisión de hace 40 días;
+    - una cédula con dígito verificador inválido.
+
+    En pruebas no se puede provocar el error 52. La revisión interna es la única barrera, y está probada en la campaña.
+  - **Cron:** va dentro de `/api/cron/marketing` (el Worker de Cloudflare, cada 15 min), antes de la sincronización de Meta para no quedarse sin tiempo. Retoma las facturas firmadas o recibidas cuyo siguiente intento ya venció. Nunca empieza una emisión.
+  - **Ficha de factura:** tarjeta «SRI» con el estado, el ambiente, el último problema, el próximo intento, el historial de llamadas y el botón contextual («Reintentar envío» o «Consultar autorización»). Se probó en el navegador: una factura con envío perdido pasó por ERROR → SIN REGISTRO → RECIBIDA → **AUTORIZADO** con un clic. Revisada en claro y en oscuro.
+  - **Facturas emitidas no editables:** «Editar» y «Comparar» las rechazan en el servidor y se ocultan en la ficha.
+  - **Campaña** (`npx tsx scripts/sri-campaign.ts`, 7/7):
+    1. autorizada;
+    2. clave repetida (43) que se resuelve sin crear un documento nuevo;
+    3. devuelta por estructura (35);
+    4. cálculos frenados por la revisión interna;
+    5. envío sin respuesta y luego recuperado;
+    6. dos procesos a la vez;
+    7. bloqueo de producción.
+
+    Las facturas de prueba quedan en la BD local con el cliente «Cliente de pruebas SRI».
+  - 159 tests en verde.
+  - **Pendiente para B6:**
+    - al autorizar, adjuntar el XML autorizado como archivo de la factura y ligar los hitos de los ítems;
+    - cambiar los textos de la ficha que mencionan «Editar» en facturas emitidas;
+    - validar la cédula o el RUC del comprador, porque producción puede exigirlo aunque `celcer` no lo haga.
 

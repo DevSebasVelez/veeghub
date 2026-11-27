@@ -185,3 +185,44 @@ export async function sendToReception(signedXml: string, env: SriEnvironment): P
   };
 }
 
+
+export type AuthorizationAnswer = {
+  /** AUTORIZADO, NO AUTORIZADO, EN PROCESO…; null when the SRI has no record of the clave. */
+  state: string | null;
+  /** fechaAutorizacion as the SRI writes it (ISO with offset). */
+  authorizedAt: string | null;
+  messages: SriMessage[];
+  /** The <autorizacion> element, to keep with the invoice. */
+  xml: string | null;
+};
+
+/**
+ * autorizacionComprobante(clave), read for the issuing state machine: the
+ * latest <autorizacion> with its state and messages. Safe to repeat.
+ */
+export async function queryAuthorization(accessKey: string, env: SriEnvironment): Promise<AuthorizationAnswer> {
+  const text = await soap(
+    `${HOSTS[env]}/AutorizacionComprobantesOffline`,
+    "http://ec.gob.sri.ws.autorizacion",
+    "autorizacionComprobante",
+    `<claveAccesoComprobante>${accessKey}</claveAccesoComprobante>`,
+  );
+  // The comprobante inside is CDATA or escaped XML: cut the element out of
+  // the raw text so it is stored exactly as the SRI sent it.
+  const blocks = [...text.matchAll(/<autorizacion>[\s\S]*?<\/autorizacion>/g)].map((m) => m[0]);
+  if (blocks.length === 0) return { state: null, authorizedAt: null, messages: [], xml: null };
+
+  // Several answers when it was sent more than once: an AUTORIZADO wins,
+  // otherwise the last one.
+  const parsed = blocks.map((xml) => {
+    const node = (parser.parse(xml) as { autorizacion?: Array<Record<string, unknown>> }).autorizacion?.[0] ?? {};
+    const str = (v: unknown) => (typeof v === "string" ? v : null);
+    return {
+      state: str(node.estado),
+      authorizedAt: str(node.fechaAutorizacion),
+      messages: messages(node.mensajes),
+      xml: `<?xml version="1.0" encoding="UTF-8"?>${xml}`,
+    };
+  });
+  return parsed.find((a) => a.state === "AUTORIZADO") ?? parsed[parsed.length - 1];
+}
