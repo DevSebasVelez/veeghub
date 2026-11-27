@@ -54,6 +54,44 @@ enum InvoiceStatus {
   CANCELLED
 }
 
+// Facturación electrónica SRI (docs/plans/2026-11-27-facturacion-electronica-sri.md).
+
+/// Where an invoice came from: registered from the SRI facturador's documents,
+/// or issued by VeegHub itself.
+enum InvoiceSource {
+  UPLOADED
+  ISSUED
+}
+
+/// SRI environment. Never defaulted: every issued document says which one.
+enum SriEnvironment {
+  PRUEBAS
+  PRODUCCION
+}
+
+/// Lifecycle of an invoice VeegHub issues:
+/// DRAFT → SIGNED → RECEIVED | RETURNED → AUTHORIZED | NOT_AUTHORIZED.
+enum SriStatus {
+  DRAFT
+  SIGNED
+  RECEIVED
+  RETURNED
+  AUTHORIZED
+  NOT_AUTHORIZED
+}
+
+enum SriOperation {
+  RECEPTION
+  AUTHORIZATION
+}
+
+/// Tax regime as the SRI XML needs it (contribuyenteRimpe legend).
+enum SriRegime {
+  GENERAL
+  RIMPE_EMPRENDEDOR
+  RIMPE_NEGOCIO_POPULAR
+}
+
 enum MeetingStatus {
   SCHEDULED
   COMPLETED
@@ -267,6 +305,7 @@ model Receivable {
   invoiceId      String?
   invoice        Invoice?         @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
   payments       Payment[]
+  invoiceItems   InvoiceItem[]
   createdAt      DateTime         @default(now())
   updatedAt      DateTime         @updatedAt
 
@@ -329,13 +368,29 @@ model Invoice {
   withholdings  Withholding[]
   sentAt        DateTime?
   paidAt        DateTime?
-  createdAt     DateTime        @default(now())
-  updatedAt     DateTime        @updatedAt
 
+  // Electronic invoicing. UPLOADED invoices leave the rest null.
+  source          InvoiceSource   @default(UPLOADED)
+  sriStatus       SriStatus?
+  environment     SriEnvironment?
+  emissionPointId String?
+  emissionPoint   EmissionPoint?  @relation(fields: [emissionPointId], references: [id], onDelete: Restrict)
+  /// Secuencial taken from the emission point; the 9-digit text is in invoiceNumber.
+  sequential      Int?
+  /// Instant the SRI authorized it (fechaAutorizacion), not a calendar day.
+  authorizedAt    DateTime?
+  items           InvoiceItem[]
+  sriSubmissions  SriSubmission[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([emissionPointId, sequential])
   @@index([clientId])
   @@index([projectId])
   @@index([status])
   @@index([issueDate])
+  @@index([sriStatus])
   @@index([status, createdAt], map: "invoice_status_created_idx")
   @@index([clientId, createdAt], map: "invoice_client_created_idx")
   @@index([issueDate, status], map: "invoice_issue_status_idx")
@@ -369,6 +424,72 @@ model EmailDelivery {
 
 /// Consecutive counters for numbered documents, one row per series and year
 /// (key "RC-2026"). Incremented atomically when a document is issued.
+/// Punto de emisión VeegHub issues from. The SRI facturador keeps 001-001;
+/// the app uses its own (001-002) so their secuenciales never collide. One row
+/// per environment: a test invoice never consumes a production number.
+model EmissionPoint {
+  id             String         @id @default(cuid())
+  establishment  String         @db.Char(3)
+  emissionPoint  String         @db.Char(3)
+  environment    SriEnvironment
+  /// Next secuencial to hand out; taken in the same transaction as the invoice.
+  nextSequential Int            @default(1)
+  active         Boolean        @default(true)
+  label          String?
+  /// dirEstablecimiento printed in the XML.
+  address        String?
+  invoices       Invoice[]
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  @@unique([establishment, emissionPoint, environment])
+}
+
+/// Line of an invoice VeegHub issues. Quantity and unit price keep up to six
+/// decimals like the XSD; money totals are computed in cents.
+model InvoiceItem {
+  id           String      @id @default(cuid())
+  invoiceId    String
+  invoice      Invoice     @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  position     Int
+  code         String?
+  description  String
+  quantity     Decimal     @db.Decimal(18, 6)
+  unitPrice    Decimal     @db.Decimal(18, 6)
+  discount     Decimal     @default(0) @db.Decimal(12, 2)
+  /// IVA codigoPorcentaje (Tabla 17): 0 and 7 are both 0 % but not the same.
+  vatCode      String
+  vatRate      Decimal     @db.Decimal(5, 2)
+  /// Milestone this line bills, if any.
+  receivableId String?
+  receivable   Receivable? @relation(fields: [receivableId], references: [id], onDelete: SetNull)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  @@unique([invoiceId, position])
+  @@index([receivableId])
+}
+
+/// Every call made to the SRI web services for an invoice, kept as a log.
+model SriSubmission {
+  id          String         @id @default(cuid())
+  invoiceId   String
+  invoice     Invoice        @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  operation   SriOperation
+  environment SriEnvironment
+  accessKey   String
+  /// SRI answer as given: RECIBIDA, DEVUELTA, AUTORIZADO, NO AUTORIZADO, EN PROCESO…
+  /// or ERROR when no answer came back (timeout, network).
+  status      String
+  /// [{ identificador, mensaje, informacionAdicional, tipo }]
+  messages    Json?
+  error       String?
+  durationMs  Int?
+  createdAt   DateTime       @default(now())
+
+  @@index([invoiceId, createdAt])
+}
+
 model DocumentSequence {
   key       String   @id
   value     Int      @default(0)
@@ -879,15 +1000,18 @@ model Withholding {
 // Configuración tributaria del titular por período de vigencia. Referencia
 // administrativa editable; no reemplaza la información oficial del SRI.
 model TaxProfile {
-  id             String    @id @default(cuid())
+  id             String     @id @default(cuid())
   regime         String
-  validFrom      DateTime  @db.Date
-  validTo        DateTime? @db.Date
-  vatRates       Decimal[] @db.Decimal(5, 2)
-  lastVerifiedAt DateTime? @db.Date
+  /// Regime as the SRI XML needs it; the legend is derived from it. Null
+  /// means "not set": VeegHub refuses to issue rather than guess.
+  sriRegime      SriRegime?
+  validFrom      DateTime   @db.Date
+  validTo        DateTime?  @db.Date
+  vatRates       Decimal[]  @db.Decimal(5, 2)
+  lastVerifiedAt DateTime?  @db.Date
   notes          String?
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
 
   @@index([validFrom])
 }

@@ -10,6 +10,7 @@ import { dayStartUtc, formatDateOnly } from "@/lib/admin/format";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { SRI_REGIME_LABELS, isSriRegime } from "@/lib/sri/regime";
 
 export default async function TaxSettingsPage() {
   const [profiles, current] = await Promise.all([
@@ -42,8 +43,10 @@ export default async function TaxSettingsPage() {
         <AlertTitle>Referencia editable</AlertTitle>
         <AlertDescription>
           Copia aquí lo que figura en tu RUC y verifícalo periódicamente en el
-          SRI. No se aplica automáticamente: cada factura guarda la tarifa de
-          IVA con la que se emitió, aunque cambies esta configuración.
+          SRI. Las facturas que emite VeegHub toman de aquí el régimen y las
+          tarifas de IVA según su fecha de emisión. Cada factura guarda la
+          tarifa con la que se emitió, aunque después cambies esta
+          configuración.
         </AlertDescription>
       </Alert>
 
@@ -85,6 +88,16 @@ export default async function TaxSettingsPage() {
                       <span className="text-muted-foreground">sin registrar</span>
                     )}
                   </div>
+                  <p className="text-muted-foreground">
+                    Factura electrónica:{" "}
+                    {isSriRegime(profile.sriRegime) ? (
+                      <span className="text-foreground">
+                        {SRI_REGIME_LABELS[profile.sriRegime]}
+                      </span>
+                    ) : (
+                      "régimen sin definir"
+                    )}
+                  </p>
                   <p className="text-muted-foreground">
                     Última verificación:{" "}
                     {profile.lastVerifiedAt
