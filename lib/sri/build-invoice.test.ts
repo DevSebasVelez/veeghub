@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { execFileSync, spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, it } from "node:test";
@@ -221,5 +222,37 @@ describe("SRI factura builder", () => {
     assert.equal(vatCodeForRate(15), "4");
     assert.equal(vatCodeForRate(5), "5");
     assert.equal(vatCodeForRate(8), null);
+  });
+
+  // The SRI's own XSD (lib/sri/xsd), checked with xmllint when the machine has
+  // it (macOS does). Catches error 35 before anything reaches celcer.
+  const hasXmllint = spawnSync("xmllint", ["--version"]).status === 0;
+  it("validates against the SRI factura 1.1.0 XSD", { skip: !hasXmllint && "xmllint no disponible" }, () => {
+    const xsd = path.join(process.cwd(), "lib/sri/xsd/factura_V1.1.0.xsd");
+    const consumer = { idType: "07" as const, id: "9999999999999", name: "CONSUMIDOR FINAL" };
+    const cases: Record<string, BuildInvoiceInput> = {
+      "factura real de mayo": MAY,
+      "varios ítems, descuento, 15 %, Emprendedor": TEST_15,
+      "régimen general": { ...MAY, rimpeLegend: rimpeLegend("GENERAL") },
+      "consumidor final": { ...MAY, buyer: consumer },
+      pasaporte: { ...MAY, buyer: { idType: "06", id: "AB123456", name: "JOHN DOE" } },
+      "dos formas de pago": {
+        ...MAY,
+        items: [{ ...MAY.items[0], unitPrice: "100" }],
+        payments: [
+          { method: "20", totalCents: 6000 },
+          { method: "19", totalCents: 4000 },
+        ],
+      },
+    };
+    for (const [name, input] of Object.entries(cases)) {
+      const { xml } = buildInvoiceXml(input);
+      try {
+        execFileSync("xmllint", ["--noout", "--schema", xsd, "-"], { input: xml, stdio: "pipe" });
+      } catch (error) {
+        const stderr = (error as { stderr?: Buffer }).stderr?.toString() ?? String(error);
+        assert.fail(`${name}: ${stderr}`);
+      }
+    }
   });
 });

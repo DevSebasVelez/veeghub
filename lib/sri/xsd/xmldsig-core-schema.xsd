@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Stand-in for the W3C XML-DSig schema that factura_V1.1.0.xsd imports (the
+  SRI ZIP does not ship it). Enough to validate UNSIGNED facturas, where
+  ds:Signature is absent (minOccurs="0"). It does not validate signatures:
+  the SRI checks those on reception (error 39).
+-->
+<xsd:schema xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+  targetNamespace="http://www.w3.org/2000/09/xmldsig#"
+  elementFormDefault="qualified">
+  <xsd:element name="Signature">
+    <xsd:complexType>
+      <xsd:sequence>
+        <xsd:any processContents="skip" minOccurs="0" maxOccurs="unbounded"/>
+      </xsd:sequence>
+      <xsd:anyAttribute processContents="skip"/>
+    </xsd:complexType>
+  </xsd:element>
+</xsd:schema>
