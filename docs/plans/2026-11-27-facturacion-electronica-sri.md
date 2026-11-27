@@ -1,7 +1,7 @@
 # Plan: Facturación electrónica SRI
 
 **Creado:** 2026-11-27
-**Estado:** 🟢 Fase A en producción. B0 resuelto, B1 y B2 hechos en ramas sin desplegar (2026-11-27). **Siguiente sesión:** decidir despliegue de B1+B2 y empezar B3 (firma).
+**Estado:** 🟢 Fase A en producción. B1, B2 y B3 hechos en ramas sin desplegar (2026-11-27). **Falta para cerrar B3:** que Sebastián suba su `.p12` y corra `scripts/sri-smoke.ts` contra `celcer`. Después sigue B4.
 **Ramas:** una por subfase (`feat/sri-a1-lector-xml`, `feat/sri-b2-xml`, …) → `develop` → `main`
 
 ---
@@ -34,8 +34,8 @@ Antes de escribir código revisa:
 | **A3** | Desde el RIDE (PDF) o la clave pegada; si el SRI aún lo entrega, se baja y adjunta el XML; verificación de estado | A1 | ✅ en producción |
 | **B0** | Trámites: ambiente de pruebas, punto de emisión 001-002, consulta al contador | — | 🟡 pruebas ✅ aprobado; falta B0.2 (001-002) y B0.3 (contador) |
 | **B1** | Modelo de datos: puntos de emisión, ítems, estados SRI, intentos | A1 | ✅ rama `feat/sri-b1-modelo`, sin desplegar |
-| **B2** | Generador de XML factura 1.1.0 + clave de acceso + cálculo de totales | B1 | ✅ rama `feat/sri-b2-xml` (sobre B1), sin desplegar |
-| **B3** | Firma XAdES-BES con el `.p12` (custodia cifrada) | B2 | ⬜ |
+| **B2** | Generador de XML factura 1.1.0 + clave de acceso + cálculo de totales | B1 | ✅ rama `feat/sri-b2-xml` (sobre B1), validado contra el XSD oficial, sin desplegar |
+| **B3** | Firma XAdES-BES con el `.p12` (custodia cifrada) | B2 | 🟡 rama `feat/sri-b3-firma` (sobre B2): código listo; falta la prueba con la firma real |
 | **B4** | Cliente SRI: recepción, autorización, reintentos y máquina de estados | B3 | ⬜ |
 | **B5** | RIDE en PDF (Anexo 2 de la ficha) con el estilo de `lib/pdf` | B2 | ⬜ |
 | **B6** | Pantalla «Emitir factura» desde hitos, detalle con línea de tiempo, envío XML+RIDE | B4, B5 | ⬜ |
@@ -334,5 +334,20 @@ Migración aditiva: las facturas actuales quedan como `UPLOADED`.
   - Cantidad × precio exacto con BigInt (6 decimales), un solo redondeo por línea; IVA por tarifa sobre la base sumada. Formatos como el facturador: `cantidad`/`precioUnitario`/`descuento` cortos («1»), totales con 2 decimales, `tarifa` «0.0».
   - **Test de oro en verde:** con los datos de la factura de mayo da el mismo `<factura>` (sin firma) y la misma clave. 12 tests del constructor; 127 en total.
   - **Riesgo a verificar en `celcer` (B3/B7):** el IVA de cada línea se redondea por separado y el total por tarifa sobre la suma, así que pueden diferir en 1 centavo con varias líneas gravadas. Si el SRI devuelve error 52, cambiar a total = suma de líneas.
-  - **Sin validar contra el XSD oficial:** no se descargó `factura_V1.1.0.xsd`. Validarlo con `xmllint` antes de B3 ahorra errores 35.
+  - **Sin validar contra el XSD oficial:** no se descargó `factura_V1.1.0.xsd`. Validarlo con `xmllint` antes de B3 ahorra errores 35. → Resuelto abajo.
+- **2026-11-27, XSD oficial** (rama `feat/sri-b2-xml`):
+  - Se bajó el ZIP «XML y XSD Factura» de sri.gob.ec (feb-2022) y se guardó `factura_V1.1.0.xsd` en `lib/sri/xsd/`.
+  - **Hallazgo:** el XSD publicado solo acepta la leyenda «CONTRIBUYENTE RÉGIMEN RIMPE». La factura real de mayo, con la de Negocio Popular, sí fue autorizada, así que el SRI valida con un XSD más nuevo que el que publica. La copia local acepta las dos leyendas.
+  - El ZIP no trae `xmldsig-core-schema.xsd`. Se puso un sustituto que valida documentos sin firmar.
+  - Seis variantes del constructor validan con `xmllint`.
+- **2026-11-27, B1 probado en el navegador:** con `next dev` reiniciado, el selector de régimen guarda y precarga, en claro y en oscuro.
+- **2026-11-27, B3 hecho en código** (rama `feat/sri-b3-firma`, 6 commits). Guía de uso: `docs/runbooks/facturas-emision-sri.md`.
+  - **Custodia:** `SriCertificate` guarda el `.p12` cifrado con AES-256-GCM bajo `SRI_CERT_KEY`, sin llave por defecto. Solo puede haber uno activo. La clave del archivo vive solo en `SRI_CERT_PASSWORD`.
+  - **Registro:** `SriSigningEvent` guarda una fila por cada firma.
+  - **Pantalla:** tarjeta «Firma electrónica» en Finanzas › Impuestos. Muestra titular, emisor y caducidad, con aviso 30 días antes. La subida solo envía el archivo.
+  - **Recepción:** `sendToReception` en `ws.ts`. No se reintenta (§3.6).
+  - **Smoke contra `celcer`:** con un `.p12` autofirmado salió `RECIBIDA` y luego `NO AUTORIZADO [39]` por la cadena de confianza. El XML, el envío y la lectura de la respuesta funcionan; solo falta una firma real.
+  - **Tests:** 145 en verde. La firma se verifica con `xml-crypto`, se rompe si cambia la factura y el documento firmado pasa el XSD.
+  - **Para cerrar B3:** poner `SRI_CERT_PASSWORD` en `.env` (Sebastián, no por chat), subir el `.p12` en Impuestos, correr `npx tsx scripts/sri-smoke.ts` y esperar `AUTORIZADO`. `SRI_CERT_KEY` local ya está en `.env`.
+  - **Al desplegar:** crear `SRI_CERT_KEY` y `SRI_CERT_PASSWORD` como variables *Sensitive* en Vercel y subir el `.p12` en producción.
 
