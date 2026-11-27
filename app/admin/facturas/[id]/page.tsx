@@ -27,6 +27,7 @@ import { formatCurrency, formatDate, formatDateOnly } from "@/lib/admin/format";
 import { IconTile } from "@/components/admin/tone";
 import { Button } from "@/components/ui/button";
 import { parseAccessKey } from "@/lib/sri/access-key";
+import { SriStatusCard } from "@/components/admin/finance/sri-status-card";
 
 export default async function InvoiceDetailPage({
   params,
@@ -48,6 +49,7 @@ export default async function InvoiceDetailPage({
       rideFile: true,
       emailLogs: { orderBy: { createdAt: "desc" } },
       withholdings: { orderBy: { createdAt: "asc" } },
+      sriSubmissions: { orderBy: { createdAt: "desc" }, take: 10 },
     },
   });
 
@@ -143,6 +145,18 @@ export default async function InvoiceDetailPage({
       <div className="flex flex-col gap-4 lg:grid lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start">
         {/* Side panel: status, key data and actions (top on mobile) */}
         <aside className="space-y-4 lg:sticky lg:top-20 lg:order-last">
+          {invoice.source === "ISSUED" && invoice.sriStatus && invoice.environment ? (
+            <SriStatusCard
+              invoiceId={invoice.id}
+              status={invoice.sriStatus}
+              environment={invoice.environment}
+              attempts={invoice.sriAttempts}
+              lastError={invoice.sriLastError}
+              nextAttemptAt={invoice.sriNextAttemptAt}
+              authorizedAt={invoice.authorizedAt}
+              submissions={invoice.sriSubmissions}
+            />
+          ) : null}
           <section className="rounded-2xl border bg-card">
             <div className="flex items-center justify-between border-b px-5 py-4">
               <div>
