@@ -43,6 +43,14 @@ Lo que VeegHub necesita para emitir facturas propias. Plan completo y bitácora:
 3. Queda una sola firma activa: para renovarla basta subir la nueva con su clave, y la anterior deja de usarse. La tarjeta avisa 30 días antes de que caduque.
 4. Elegir el régimen para la factura electrónica en la vigencia actual de Impuestos. Sin régimen, VeegHub no emite.
 
+## Habilitar producción
+
+1. En Vercel (Production): `SRI_CERT_KEY` (*Sensitive*) y `SRI_ALLOW_PRODUCTION=true`. La plantilla está en `.env.vercel`, que git ignora.
+2. En la app: régimen en la vigencia actual y firma subida (pasos de arriba).
+3. Finanzas › Impuestos › «Emisión en el SRI» → **Habilitar producción**. Crea el punto 001-002 de PRODUCCION con el primer secuencial que indiques (1 si nunca se usó en el facturador del SRI). Solo se habilita cuando el checklist está en verde y con una confirmación explícita.
+4. «Nueva factura» elige producción por defecto. El diálogo de confirmación muestra el ambiente en rojo: «Producción · factura real».
+5. Para volver a probar en `celcer`, elige el punto de pruebas en el selector del resumen.
+
 ## Probar contra `celcer`
 
 ```bash

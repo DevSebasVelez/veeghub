@@ -1,7 +1,7 @@
 # Plan: Facturación electrónica SRI
 
 **Creado:** 2026-11-27
-**Estado:** 🟢 Fase A en producción. B1 a B6 hechos y probados en ramas sin desplegar (2026-11-27). **Siguiente:** B7, la campaña en `celcer` y el paso a producción (requiere B0.2/B0.3 con el contador).
+**Estado:** 🟢 Fase A y B1–B6 en producción desde el 2026-11-27 (`main` 1b4f912). **Siguiente:** B7 en producción: subir la firma, elegir el régimen, «Habilitar producción» y emitir la primera factura real de bajo monto. B0.2/B0.3 (contador) se consultan después, por decisión de Sebastián.
 **Ramas:** una por subfase (`feat/sri-a1-lector-xml`, `feat/sri-b2-xml`, …) → `develop` → `main`. Las de la Fase B van apiladas, cada una sobre la anterior, hasta que se despliegue el lote.
 
 ---
@@ -32,14 +32,14 @@ Antes de escribir código revisa:
 | **A1b** | Rediseño de Facturas según convenciones: KPIs, lista §7, ficha patrón «Plan», diálogo con el XML primero | — | ✅ en producción |
 | **A2** | «Comparar con el XML/RIDE» en la ficha: lista diferencias y corrige las elegidas | A1 | ✅ en producción |
 | **A3** | Desde el RIDE (PDF) o la clave pegada; si el SRI aún lo entrega, se baja y adjunta el XML; verificación de estado | A1 | ✅ en producción |
-| **B0** | Trámites: ambiente de pruebas, punto de emisión 001-002, consulta al contador | — | 🟡 pruebas ✅ aprobado; falta B0.2 (001-002) y B0.3 (contador) |
-| **B1** | Modelo de datos: puntos de emisión, ítems, estados SRI, intentos | A1 | ✅ rama `feat/sri-b1-modelo`, sin desplegar |
-| **B2** | Generador de XML factura 1.1.0 + clave de acceso + cálculo de totales | B1 | ✅ rama `feat/sri-b2-xml` (sobre B1), validado contra el XSD oficial, sin desplegar |
-| **B3** | Firma XAdES-BES con el `.p12` (custodia cifrada) | B2 | ✅ rama `feat/sri-b3-firma` (sobre B2), AUTORIZADO en `celcer`, sin desplegar |
-| **B4** | Cliente SRI: recepción, autorización, reintentos y máquina de estados | B3 | ✅ rama `feat/sri-b4-envio` (sobre B3), campaña 7/7 en `celcer`, sin desplegar |
-| **B5** | RIDE en PDF (Anexo 2 de la ficha) con el estilo de `lib/pdf` | B2 | ✅ rama `feat/sri-b5-ride` (sobre B4), sin desplegar |
-| **B6** | Pantalla «Emitir factura» desde hitos, detalle con línea de tiempo, envío XML+RIDE | B4, B5 | ✅ rama `feat/sri-b6-emitir` (sobre B5), 2 facturas AUTORIZADAS en `celcer` desde la pantalla, sin desplegar |
-| **B7** | Campaña de pruebas en `celcer` y paso a producción | B6 + B0 | ⬜ |
+| **B0** | Trámites: ambiente de pruebas, punto de emisión 001-002, consulta al contador | — | 🟡 pruebas ✅ aprobado; B0.2 y B0.3 se consultan después de salir (decisión de Sebastián, 2026-11-27) |
+| **B1** | Modelo de datos: puntos de emisión, ítems, estados SRI, intentos | A1 | ✅ en producción |
+| **B2** | Generador de XML factura 1.1.0 + clave de acceso + cálculo de totales | B1 | ✅ en producción |
+| **B3** | Firma XAdES-BES con el `.p12` (custodia cifrada) | B2 | ✅ en producción |
+| **B4** | Cliente SRI: recepción, autorización, reintentos y máquina de estados | B3 | ✅ en producción |
+| **B5** | RIDE en PDF (Anexo 2 de la ficha) con el estilo de `lib/pdf` | B2 | ✅ en producción |
+| **B6** | Pantalla «Emitir factura», catálogo, plan de pagos, envío XML+RIDE | B4, B5 | ✅ en producción; 4 facturas AUTORIZADAS en `celcer` desde la pantalla |
+| **B7** | Paso a producción | B6 | 🟡 código desplegado y variables en Vercel; faltan los pasos en la app (ver bitácora del cierre) |
 | **B8** | Nota de crédito (anulaciones después del día 7) | B7 | ⬜ |
 
 **Orden:** A1 → A2 → A3, mientras B0 avanza en paralelo; después B1 → B2 → B3 → B4 → B5 → B6 → B7, y B8 al final.
@@ -485,3 +485,16 @@ Migración aditiva: las facturas actuales quedan como `UPLOADED`.
     - `*.p12`/`*.pfx` en `.gitignore`.
   - **Pendiente, menor:** los mensajes de error del firmador llegan crudos al admin (solo él los ve) y las consultas de lista cargan `sriXml` (optimización con `omit`).
   - `next build` en verde. Emisión `001-002-000000023` AUTORIZADA en `celcer` después de las correcciones.
+- **2026-11-27, despliegue de la Fase B** (decisión de Sebastián: no esperar al contador; B0.2/B0.3 se consultan después):
+  - **Habilitar producción** ya no es un trámite de código: Finanzas › Impuestos › «Emisión en el SRI» lista los puntos y muestra un checklist (firma vigente, régimen, `SRI_ALLOW_PRODUCTION`). El botón «Habilitar producción» crea el punto 001-002 de PRODUCCION con un clic confirmado y el primer secuencial (1 si nunca se usó). Nunca por migración. Desde entonces «Nueva factura» elige producción por defecto; pruebas sigue en el selector.
+  - **Correo probado:** la factura de pruebas 001-002-000000023 se envió a info@veegsoft.com con el XML y el RIDE adjuntos (Resend OK).
+  - **Variables en Vercel** (las agregó Sebastián desde `.env.vercel`, que git ignora): `SRI_CERT_KEY` (*Sensitive*, distinta de la local) y `SRI_ALLOW_PRODUCTION=true`.
+  - **Release:** las ramas `feat/sri-b1-modelo` a `feat/sri-b6-emitir` se fusionaron con `--no-ff` en `develop` (250a23b), y `develop` en `main` (1b4f912). Los 15 commits de B6 compilan uno por uno, `next build` pasa y hay 171 tests en verde. Migraciones aplicadas por Vercel: `20261127230000_sri_emission_model`, `20261127240000_sri_certificate`, `20261127250000_sri_certificate_password`, `20261128000000_sri_issuing_state`, `20261128010000_catalog_items` y `20261128020000_invoice_issue_request`.
+  - **Para retomar, en producción (Sebastián, desde la app):**
+    1. Finanzas › Impuestos: editar la vigencia actual → «RIMPE · Negocio Popular».
+    2. Subir el `.p12` con su clave (tarjeta «Firma electrónica»).
+    3. «Emisión en el SRI» → «Habilitar producción» (primer número 1).
+    4. Emitir una factura real de bajo monto y comprobarla en SRI en línea › Comprobantes electrónicos emitidos.
+    5. Si algo falla: la tarjeta «SRI» de la factura muestra el estado y el mensaje del SRI; el cron la retoma cada 15 min.
+  - **Pendientes:** B0.2/B0.3 con el contador; nota de crédito (B8); mensajes crudos del firmador hacia el admin y `omit` de `sriXml` en las listas (menores, de la auditoría); el margen cobrado de Egresos (fuera del SRI).
+
