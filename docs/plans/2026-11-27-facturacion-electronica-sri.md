@@ -1,7 +1,7 @@
 # Plan: Facturación electrónica SRI
 
 **Creado:** 2026-11-27
-**Estado:** 🟢 Fase A completa en rama (A1, A1b, A2, A3), lista para desplegar. Sigue B0 (trámites) y luego B1.
+**Estado:** 🟢 Fase A en producción (2026-11-27). Sigue B0 (trámites) y B1.
 **Ramas:** una por subfase (`feat/sri-a1-lector-xml`, `feat/sri-b2-xml`, …) → `develop` → `main`
 
 ---
@@ -28,10 +28,10 @@ Antes de escribir código revisa:
 
 | Fase | Qué entrega | Depende de | Estado |
 |---|---|---|---|
-| **A1** | Lector de XML: al subir el XML autorizado se llenan solos los campos de la factura, que se valida | — | ✅ en rama `feat/sri-a1-lector-xml` |
-| **A1b** | Rediseño de Facturas según convenciones: KPIs, lista §7, ficha patrón «Plan», diálogo con el XML primero | — | ✅ en la misma rama |
-| **A2** | «Comparar con el XML/RIDE» en la ficha: lista diferencias y corrige las elegidas | A1 | ✅ en rama |
-| **A3** | Desde el RIDE (PDF) o la clave pegada; si el SRI aún lo entrega, se baja y adjunta el XML; verificación de estado | A1 | ✅ en rama |
+| **A1** | Lector de XML: al subir el XML autorizado se llenan solos los campos de la factura, que se valida | — | ✅ en producción |
+| **A1b** | Rediseño de Facturas según convenciones: KPIs, lista §7, ficha patrón «Plan», diálogo con el XML primero | — | ✅ en producción |
+| **A2** | «Comparar con el XML/RIDE» en la ficha: lista diferencias y corrige las elegidas | A1 | ✅ en producción |
+| **A3** | Desde el RIDE (PDF) o la clave pegada; si el SRI aún lo entrega, se baja y adjunta el XML; verificación de estado | A1 | ✅ en producción |
 | **B0** | Trámites: ambiente de pruebas, punto de emisión 001-002, consulta al contador | — | ⬜ (Sebastián) |
 | **B1** | Modelo de datos: puntos de emisión, ítems, estados SRI, intentos | A1 | ⬜ |
 | **B2** | Generador de XML factura 1.1.0 + clave de acceso + cálculo de totales | B1 | ⬜ |
@@ -308,3 +308,6 @@ Migración aditiva: las facturas actuales quedan como `UPLOADED`.
     - Detalle en `docs/runbooks/facturas-lectura-sri.md`.
   - 113 tests en verde.
   - **Pendientes:** probar el RIDE contra el build de producción con sesión, y la vista móvil.
+- **2026-11-27, Fase A desplegada** (`main` 0e54a6d, Vercel en verde).
+  - Antes del deploy se probó el RIDE contra el build de producción en local.
+  - **Para probar un build de producción en local:** `AUTH_TRUST_HOST=true npx next start -p 3000`. Sin esa variable Auth.js rechaza el host (`UntrustedHost`) y la sesión parece cerrada.
