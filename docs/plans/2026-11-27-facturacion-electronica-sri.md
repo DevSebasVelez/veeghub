@@ -2,7 +2,7 @@
 
 **Creado:** 2026-11-27
 **Estado:** 🟢 Fase A en producción. B1 a B5 hechos y probados en ramas sin desplegar (2026-11-27). **Siguiente:** B6, la pantalla «Emitir factura»: un facturador normal con ítems editables, catálogo de productos y vista previa del RIDE (ver el diseño en la bitácora del 2026-11-27).
-**Ramas:** una por subfase (`feat/sri-a1-lector-xml`, `feat/sri-b2-xml`, …) → `develop` → `main`
+**Ramas:** una por subfase (`feat/sri-a1-lector-xml`, `feat/sri-b2-xml`, …) → `develop` → `main`. Las de la Fase B van apiladas, cada una sobre la anterior, hasta que se despliegue el lote.
 
 ---
 
@@ -420,4 +420,25 @@ Migración aditiva: las facturas actuales quedan como `UPLOADED`.
     - totales en vivo, calculados con el mismo código que firma.
   - **Catálogo de productos y servicios** reutilizable.
   - **Al emitir:** vista previa del RIDE → «Emitir» con confirmación (ambiente, número y total) → progreso en vivo → «Enviar al cliente» con el XML y el RIDE.
+- **2026-11-27, cierre de sesión. Para retomar B6:**
+  - **Ramas** (cada una sobre la anterior, ninguna fusionada ni desplegada): `feat/sri-b1-modelo` → `feat/sri-b2-xml` → `feat/sri-b3-firma` → `feat/sri-b4-envio` → `feat/sri-b5-ride`. Todas rebasadas sobre `develop` (9414172). B6 sale de `feat/sri-b5-ride`.
+  - **Entorno local:**
+    - `.env` tiene `SRI_CERT_KEY`.
+    - La firma real de Security Data (vigente hasta el 4 may 2027) está subida en la BD local.
+    - El TaxProfile local es «RIMPE Negocio Popular» desde el 2026-01-01, con IVA 0 %.
+    - El punto 001-002 de PRUEBAS va por el secuencial ~20.
+    - Las facturas de prueba están con el cliente «Cliente de pruebas SRI».
+  - **Migraciones nuevas** (aditivas, todavía sin aplicar en producción): `20261127230000_sri_emission_model`, `20261127240000_sri_certificate`, `20261127250000_sri_certificate_password` y `20261128000000_sri_issuing_state`.
+  - **Al agregar modelos de Prisma**, hay que reiniciar `next dev`.
+  - **Pendientes de B4 que se resuelven en B6:**
+    - al autorizar, adjuntar el XML autorizado y el RIDE como archivos de la factura (hoy la ficha dice «XML autorizado · pendiente de subir»);
+    - ligar los hitos de los ítems (`InvoiceItem.receivableId` → `Receivable.invoiceId` + `syncInvoicePaidStatus`);
+    - quitar o adaptar los textos «usa Editar» en las facturas emitidas;
+    - validar la cédula (módulo 10) y el RUC del comprador.
+  - **Antes de B7 (producción):**
+    - confirmar con el contador B0.2 (si 001-002 necesita registro) y B0.3 (NAC-DGERCGC26-00000027);
+    - crear `SRI_CERT_KEY` en Vercel y subir el `.p12` en producción;
+    - crear el `EmissionPoint` de PRODUCCION;
+    - definir `SRI_ALLOW_PRODUCTION=true` solo entonces.
+  - **También pendiente** (fuera del SRI): pasar el margen de Egresos a «margen cobrado». El análisis está hecho (calc.ts:287); falta implementarlo.
 
