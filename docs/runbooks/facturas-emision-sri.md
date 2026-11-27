@@ -80,6 +80,7 @@ DRAFT ─firma→ SIGNED ─recepción→ RECEIVED ─autorización→ AUTHORIZE
   Un lease de 90 s impide que dos procesos avancen la misma factura.
 - **Producción** está bloqueada en el código salvo `SRI_ALLOW_PRODUCTION=true`. No se define hasta el paso a producción (B7).
 - **Al autorizar:** se guardan el `<autorizacion>` (XML autorizado) y el RIDE como archivos de la factura y, solo en PRODUCCION, se ligan los hitos de sus ítems. Si falla, el cron lo reintenta.
+- **Pagos:** una emitida se puede facturar sin hitos. En su ficha, «Plan de pagos» crea las cuotas (hitos ligados), «Ligar hitos» suma hitos existentes y «Cobrar» registra el pago. Una emitida pasa a «Pagada» cuando lo cobrado más lo retenido llega a su total (`syncInvoicePaidStatus`).
 - **Pruebas no se mezcla:** las facturas de PRUEBAS se listan con etiqueta pero no suman en cifras, reportes ni exportaciones (`REAL_INVOICES`) y no ligan ni reservan hitos.
 - **Facturas emitidas:** no se editan ni se «comparan». Sus datos son los del XML firmado; una corrección es una nota de crédito (B8).
 

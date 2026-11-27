@@ -463,3 +463,15 @@ Migración aditiva: las facturas actuales quedan como `UPLOADED`.
   - 171 tests en verde.
   - **Pendientes:** la vista a 390 px real; la línea de tiempo de `SriSubmission` es la de B4 (tarjeta SRI), sin cambios.
 
+- **2026-11-27, B6b: plan de pagos de una factura emitida** (pedido de Sebastián: «facturar primero y luego ir asociando los pagos», flexible y fácil):
+  - Se puede facturar sin hitos (ítems libres o del catálogo) y planificar los pagos después. En la ficha de una emitida y autorizada, la tarjeta «Pagos de la factura»:
+    - **Plan de pagos:** crea los hitos de lo que falta cubrir. Por defecto un solo pago por el saldo; con un clic, 2 o 3 cuotas iguales (la última absorbe el centavo); cada cuota con nombre, monto y vencimiento. No deja pasar del saldo.
+    - **Ligar hitos:** elige hitos libres del cliente.
+    - **Desligar** cada hito; el hito y sus pagos se conservan en Cobros.
+    - **Cobrar** directo desde la ficha (`SinglePaymentDialog`).
+    - Cifras: planificado, cobrado y por planificar.
+  - **Regla nueva de «Pagada» para emitidas** (`syncInvoicePaidStatus`): lo cobrado más lo retenido de sus hitos debe llegar al **total de la factura**. Antes bastaba con que sus hitos ligados estuvieran cobrados, y una factura de $1.000 con un hito de $300 quedaba «Pagada». Las registradas (UPLOADED) mantienen la regla anterior.
+  - El ligado manual también funciona en PRUEBAS, para poder probarlo; el ligado automático al emitir sigue siendo solo de PRODUCCION. El diálogo avisa que esos hitos sí aparecen en Cobros.
+  - `DatePickerField` (shadcn) ahora está en español, se cierra al elegir y se puede usar de forma controlada; aplica a todo el panel.
+  - Probado en el navegador: la factura 020 ($21,75) se partió en 2 cuotas (10,87 + 10,88); al cobrar la primera siguió «Por enviar» y al cobrar la segunda pasó a **Pagada**. En la 021 ($2) se ligó un hito de $1,50, se planificó el resto ($0,50, vence el 4 dic) y se desligó un hito. Claro y oscuro.
+  - **Datos de prueba que quedan en local:** hitos «Factura 001-002-000000020 · cuota 1/2 y 2/2» (cobrados), «Pago factura 001-002-000000021» y «Hito prueba B6 · …», todos del «Cliente de pruebas SRI».
