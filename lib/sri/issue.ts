@@ -403,3 +403,17 @@ export async function processPendingInvoices({ limit = 10, budgetMs = 40_000 } =
   }
   return { due: due.length, processed: results };
 }
+
+/**
+ * Invoices issued by VeegHub are what their signed XML says: number, clave,
+ * client and amounts cannot be edited afterwards (a correction is a nota de
+ * crédito, B8). Called by every action that edits an invoice.
+ */
+export async function assertNotIssued(invoiceId: string, db: Prisma.TransactionClient = prisma) {
+  const invoice = await db.invoice.findUnique({ where: { id: invoiceId }, select: { source: true } });
+  if (invoice?.source === "ISSUED") {
+    throw new SriEmissionError(
+      "Esta factura se emitió desde VeegHub: sus datos son los del XML firmado y no se editan.",
+    );
+  }
+}

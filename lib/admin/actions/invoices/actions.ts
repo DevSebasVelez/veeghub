@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import prisma from "@/lib/db/prisma";
+import { assertNotIssued } from "@/lib/sri/issue";
 import { requireAdmin } from "@/lib/auth/require-admin";
 import { invoiceSchema, parseForm } from "@/lib/admin/schemas";
 import { requiredText, text, actionState } from "@/lib/admin/actions/shared";
@@ -91,6 +92,7 @@ export async function updateInvoice(id: string, formData: FormData): Promise<Adm
   await requireAdmin();
 
   return actionState(async () => {
+    await assertNotIssued(id);
     const { receivableIds, ...data } = parseForm(invoiceSchema, formData);
 
     const xml = formData.get("xml") as File | null;
@@ -283,6 +285,7 @@ export async function updateInvoiceWithKeys(id: string, formData: FormData): Pro
   await requireAdmin();
 
   return actionState(async () => {
+    await assertNotIssued(id);
     const { receivableIds, ...data } = parseForm(invoiceSchema, formData);
     await assertAccessKey(data.accessKey, id);
 

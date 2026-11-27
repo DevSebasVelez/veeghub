@@ -163,7 +163,9 @@ export default async function InvoiceDetailPage({
                 <h2 className="text-sm font-semibold">Datos de la factura</h2>
                 <p className="mt-0.5 text-xs text-muted-foreground">Tal como se registró.</p>
               </div>
-              <InvoiceEditDialog invoice={forInvoiceDialog(invoice)} clientsWithContext={editCtx} />
+              {invoice.source === "ISSUED" ? null : (
+                <InvoiceEditDialog invoice={forInvoiceDialog(invoice)} clientsWithContext={editCtx} />
+              )}
             </div>
             <dl className="space-y-3 px-5 py-4 text-sm">
               {[
@@ -302,7 +304,7 @@ export default async function InvoiceDetailPage({
                   El cliente debe recibir los dos.
                 </p>
               </div>
-              {invoice.xmlFile || invoice.rideFile ? (
+              {invoice.source !== "ISSUED" && (invoice.xmlFile || invoice.rideFile) ? (
                 <ReconcileInvoiceDialog
                   invoiceId={invoice.id}
                   label={invoice.xmlFile ? "Comparar con el XML" : "Comparar con el RIDE"}

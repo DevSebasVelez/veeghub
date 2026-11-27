@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import prisma from "@/lib/db/prisma";
+import { assertNotIssued } from "@/lib/sri/issue";
 import { requireAdmin } from "@/lib/auth/require-admin";
 import { actionResult, actionState } from "@/lib/admin/actions/shared";
 import type { AdminFormState } from "@/lib/admin/actions/types";
@@ -148,6 +149,7 @@ export async function applyDocumentCorrections(invoiceId: string, fields: string
   await requireAdmin();
 
   return actionState(async () => {
+    await assertNotIssued(invoiceId);
     const chosen = FIELDS.filter((f) => fields.includes(f));
     if (!chosen.length) throw new Error("Elige al menos un dato para corregir.");
 
