@@ -4,8 +4,9 @@ import {
   ArrowLeft,
   CheckCircle2,
   Download,
+  FileCode2,
   FileText,
-  Mail,
+  Flag,
   XCircle,
 } from "lucide-react";
 
@@ -17,14 +18,15 @@ import { checkInvoiceTotals } from "@/lib/admin/finance/calc";
 import { fromCents, sumCents } from "@/lib/admin/finance/money";
 
 import { InvoiceEditDialog } from "@/components/admin/dialogs/invoice-dialog";
+import { ReconcileInvoiceDialog } from "@/components/admin/dialogs/reconcile-invoice-dialog";
 import { SendInvoiceForm } from "@/components/admin/send-invoice-form";
 import { StatusBadge } from "@/components/admin/status-badge";
 import { forInvoiceDialog, forWithholdingDialog } from "@/lib/admin/serialize";
 import prisma from "@/lib/db/prisma";
 import { formatCurrency, formatDate, formatDateOnly } from "@/lib/admin/format";
+import { IconTile } from "@/components/admin/tone";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
+import { parseAccessKey } from "@/lib/sri/access-key";
 
 export default async function InvoiceDetailPage({
   params,
@@ -96,403 +98,293 @@ export default async function InvoiceDetailPage({
   const defaultEmail =
     invoice.client.billingEmail ?? invoice.client.email ?? "";
 
+  const keyParts = invoice.accessKey ? parseAccessKey(invoice.accessKey) : null;
+  const vatLabel =
+    invoice.vatRate != null ? `${Number(invoice.vatRate.toString())} %` : "No registrada";
+
+  const documents = [
+    { label: "XML autorizado", hint: "Comprobante electrónico firmado", file: invoice.xmlFile, icon: FileCode2, tone: "emerald" as const },
+    { label: "RIDE", hint: "Representación impresa en PDF", file: invoice.rideFile, icon: FileText, tone: "blue" as const },
+  ];
+
   return (
     <div className="space-y-6">
-      {/* Back + header */}
-      <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-        <div className="min-w-0 space-y-1.5">
-          <Link
-            href="/admin/facturas"
-            className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
-          >
-            <ArrowLeft className="size-3.5" />
-            Facturas
+      {/* Header */}
+      <div className="min-w-0 space-y-2">
+        <Link
+          href="/admin/facturas"
+          className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+        >
+          <ArrowLeft className="size-3.5" />
+          Facturas
+        </Link>
+        <div className="flex min-w-0 flex-wrap items-center gap-3">
+          <h1 className="min-w-0 font-mono text-2xl font-semibold tracking-tight tabular-nums">
+            {invoice.invoiceNumber ?? "Factura sin número"}
+          </h1>
+          <StatusBadge value={invoice.status} />
+        </div>
+        <p className="text-sm text-muted-foreground">
+          <Link href={`/admin/clientes/${invoice.client.id}`} className="hover:text-foreground hover:underline">
+            {invoice.client.name}
           </Link>
-          <div className="flex min-w-0 flex-wrap items-center gap-3">
-            <h1 className="min-w-0 wrap-break-word text-2xl font-semibold tracking-tight">
-              {invoice.invoiceNumber ?? "Factura sin número"}
-            </h1>
-            <StatusBadge value={invoice.status} />
-          </div>
-          <div className="flex min-w-0 flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
-            <Link
-              href={`/admin/clientes/${invoice.client.id}`}
-              className="min-w-0 max-w-full truncate hover:text-foreground hover:underline"
-            >
-              {invoice.client.name}
-            </Link>
-            {invoice.project ? (
-              <Link
-                href={`/admin/proyectos/${invoice.project.id}`}
-                className="min-w-0 max-w-full truncate hover:text-foreground hover:underline"
-              >
+          {invoice.project ? (
+            <>
+              {" · "}
+              <Link href={`/admin/proyectos/${invoice.project.id}`} className="hover:text-foreground hover:underline">
                 {invoice.project.name}
               </Link>
-            ) : null}
-            {invoice.issueDate ? (
-              <span>{formatDateOnly(invoice.issueDate)}</span>
-            ) : null}
-          </div>
-        </div>
-        <div className="flex shrink-0 items-start gap-2">
-          <InvoiceEditDialog
-            invoice={forInvoiceDialog(invoice)}
-            clientsWithContext={editCtx}
-          />
-        </div>
+            </>
+          ) : null}
+          {invoice.issueDate ? ` · ${formatDateOnly(invoice.issueDate)}` : null}
+        </p>
       </div>
 
-      <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
-        {/* Main: details + files */}
-        <div className="space-y-5">
+      <div className="flex flex-col gap-4 lg:grid lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start">
+        {/* Side panel: status, key data and actions (top on mobile) */}
+        <aside className="space-y-4 lg:sticky lg:top-20 lg:order-last">
+          <section className="rounded-2xl border bg-card">
+            <div className="flex items-center justify-between border-b px-5 py-4">
+              <div>
+                <h2 className="text-sm font-semibold">Datos de la factura</h2>
+                <p className="mt-0.5 text-xs text-muted-foreground">Tal como se registró.</p>
+              </div>
+              <InvoiceEditDialog invoice={forInvoiceDialog(invoice)} clientsWithContext={editCtx} />
+            </div>
+            <dl className="space-y-3 px-5 py-4 text-sm">
+              {[
+                ["Cliente", invoice.client.name],
+                ["Identificación", invoice.client.taxId ?? "—"],
+                ["Emisión", invoice.issueDate ? formatDateOnly(invoice.issueDate) : "—"],
+                ["Tarifa IVA", vatLabel],
+                ["Ambiente", keyParts ? (keyParts.environment === "PRODUCCION" ? "Producción" : "Pruebas") : "—"],
+              ].map(([label, value]) => (
+                <div key={label} className="flex items-baseline justify-between gap-3">
+                  <dt className="text-xs text-muted-foreground">{label}</dt>
+                  <dd className="min-w-0 truncate text-right font-medium">{value}</dd>
+                </div>
+              ))}
+              <div className="space-y-1 border-t pt-3">
+                <dt className="text-xs text-muted-foreground">Clave de acceso</dt>
+                <dd className="break-all font-mono text-[11px] leading-relaxed text-muted-foreground">
+                  {invoice.accessKey ?? "Sin clave registrada"}
+                </dd>
+              </div>
+            </dl>
+          </section>
+
+          <section className="rounded-2xl border bg-card">
+            <div className="border-b px-5 py-4">
+              <h2 className="text-sm font-semibold">Enviar al cliente</h2>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                Correo de VeegSoft con el XML y el RIDE adjuntos.
+              </p>
+            </div>
+            <div className="px-5 py-4">
+              {canSend ? (
+                <SendInvoiceForm
+                  invoiceId={invoice.id}
+                  defaultTo={defaultEmail}
+                  defaultSubject={`Factura ${invoice.invoiceNumber ?? ""} · ${invoice.client.name}`.trim()}
+                />
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  Sube el XML y el RIDE (con «Editar») para poder enviarla.
+                </p>
+              )}
+            </div>
+          </section>
+
+          {invoice.emailLogs.length > 0 ? (
+            <section className="rounded-2xl border bg-card">
+              <div className="border-b px-5 py-4">
+                <h2 className="text-sm font-semibold">Historial de envíos</h2>
+              </div>
+              <ul className="divide-y">
+                {invoice.emailLogs.map((log) => (
+                  <li key={log.id} className="space-y-0.5 px-5 py-3">
+                    <div className="flex min-w-0 items-center gap-2">
+                      {log.status === "FAILED" ? (
+                        <XCircle className="size-3.5 shrink-0 text-red-600 dark:text-red-400" />
+                      ) : (
+                        <CheckCircle2 className="size-3.5 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                      )}
+                      <p className="truncate text-sm font-medium">{log.to}</p>
+                    </div>
+                    <p className="pl-5.5 text-xs text-muted-foreground">
+                      {log.sentAt ? formatDate(log.sentAt) : formatDate(log.createdAt)}
+                      {log.cc ? ` · CC ${log.cc}` : ""}
+                    </p>
+                    {log.status === "FAILED" && log.error ? (
+                      <p className="pl-5.5 text-xs text-red-600 dark:text-red-400">{log.error}</p>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
+        </aside>
+
+        {/* Content */}
+        <div className="min-w-0 space-y-4">
           {/* Amounts */}
-          <Card className="rounded-lg">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base">Montos</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid gap-4 sm:grid-cols-3">
-                <div>
-                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                    Subtotal
-                  </p>
-                  <p className="mt-1 text-xl font-semibold">
-                    {invoice.subtotal
-                      ? formatCurrency(invoice.subtotal.toString())
-                      : "—"}
-                  </p>
+          <section className="rounded-2xl border bg-card p-5">
+            <p className="text-xs text-muted-foreground">Total facturado</p>
+            <p className="mt-1 text-3xl font-semibold tracking-tight tabular-nums">
+              {formatCurrency(invoice.total.toString())}
+            </p>
+            <div className="mt-4 grid gap-3 sm:grid-cols-3">
+              {[
+                ["Subtotal", invoice.subtotal ? formatCurrency(invoice.subtotal.toString()) : "—"],
+                [`IVA · ${vatLabel}`, invoice.taxAmount ? formatCurrency(invoice.taxAmount.toString()) : "—"],
+                ["Retenido", invoice.withholdings.length ? formatCurrency(withheldTotal) : "—"],
+              ].map(([label, value]) => (
+                <div key={label} className="rounded-xl bg-muted/40 px-4 py-3">
+                  <p className="text-xs text-muted-foreground">{label}</p>
+                  <p className="mt-0.5 text-base font-semibold tabular-nums">{value}</p>
                 </div>
-                <div>
-                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                    IVA
-                  </p>
-                  <p className="mt-1 text-xl font-semibold">
-                    {invoice.taxAmount
-                      ? formatCurrency(invoice.taxAmount.toString())
-                      : "—"}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                    Total
-                  </p>
-                  <p className="mt-1 text-2xl font-bold">
-                    {formatCurrency(invoice.total.toString())}
-                  </p>
-                </div>
-              </div>
+              ))}
+            </div>
+            {totalsCheck.complete && totalsCheck.difference !== "0.00" ? (
+              <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:bg-amber-950/40 dark:text-amber-300">
+                Subtotal + IVA difiere del total en {formatCurrency(totalsCheck.difference)}.
+              </p>
+            ) : null}
+          </section>
 
-              <div className="mt-4 flex flex-wrap gap-x-4 gap-y-1 border-t pt-4 text-xs text-muted-foreground">
-                <span>
-                  Tarifa IVA aplicada:{" "}
-                  <span className="font-medium text-foreground">
-                    {invoice.vatRate != null
-                      ? `${Number(invoice.vatRate.toString())}%`
-                      : "no registrada"}
-                  </span>
-                </span>
-                {totalsCheck.complete && totalsCheck.difference !== "0.00" ? (
-                  <span className="text-amber-600">
-                    Subtotal + IVA difiere del total en{" "}
-                    {formatCurrency(totalsCheck.difference)}
-                  </span>
-                ) : null}
-              </div>
+          {/* Milestones */}
+          <section className="rounded-2xl border bg-card">
+            <div className="border-b px-5 py-4">
+              <h2 className="text-sm font-semibold">Hitos que cubre</h2>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                Cuando todos se cobran, la factura pasa a «Pagada» sola.
+              </p>
+            </div>
+            {invoice.receivables.length === 0 ? (
+              <p className="px-5 py-6 text-sm text-muted-foreground">
+                No está ligada a ningún hito. Usa «Editar» para elegir los que cubre.
+              </p>
+            ) : (
+              <ul className="divide-y">
+                {invoice.receivables.map((r) => (
+                  <li key={r.id} className="flex items-center gap-3 px-5 py-3.5">
+                    <IconTile icon={Flag} tone="blue" size="sm" />
+                    <p className="min-w-0 flex-1 truncate text-sm font-medium">{r.title}</p>
+                    <p className="shrink-0 text-sm font-semibold tabular-nums">
+                      {formatCurrency(r.amount.toString())}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
 
-              {invoice.accessKey ? (
-                <div className="mt-4 border-t pt-4">
-                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                    Clave de acceso SRI
-                  </p>
-                  <p className="mt-1 break-all font-mono text-xs text-muted-foreground">
-                    {invoice.accessKey}
-                  </p>
-                </div>
+          {/* Documents */}
+          <section className="rounded-2xl border bg-card">
+            <div className="flex items-start justify-between gap-3 border-b px-5 py-4">
+              <div>
+                <h2 className="text-sm font-semibold">Documentos del SRI</h2>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  El cliente debe recibir los dos.
+                </p>
+              </div>
+              {invoice.xmlFile || invoice.rideFile ? (
+                <ReconcileInvoiceDialog
+                  invoiceId={invoice.id}
+                  label={invoice.xmlFile ? "Comparar con el XML" : "Comparar con el RIDE"}
+                />
               ) : null}
-
-              {invoice.receivables.length > 0 ? (
-                <div className="mt-4 border-t pt-4">
-                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                    {invoice.receivables.length === 1
-                      ? "Hito cubierto"
-                      : `Hitos cubiertos (${invoice.receivables.length})`}
-                  </p>
-                  <ul className="mt-2 space-y-1.5">
-                    {invoice.receivables.map((r) => (
-                      <li
-                        key={r.id}
-                        className="flex flex-col gap-1 text-sm sm:flex-row sm:items-center sm:justify-between sm:gap-3"
+            </div>
+            {(invoice.xmlFile || invoice.rideFile) && !invoice.accessKey ? (
+              <p className="border-b bg-amber-50/60 px-5 py-2.5 text-xs text-amber-800 dark:bg-amber-950/30 dark:text-amber-300">
+                Falta la clave de acceso. Usa «Comparar» para completar los datos desde el documento.
+              </p>
+            ) : null}
+            <ul className="divide-y">
+              {documents.map((doc) => (
+                <li key={doc.label} className="flex items-center gap-3 px-5 py-3.5">
+                  <IconTile icon={doc.icon} tone={doc.file ? doc.tone : "zinc"} size="sm" />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium">{doc.label}</p>
+                    <p className="truncate text-xs text-muted-foreground">
+                      {doc.file ? doc.file.name : `${doc.hint} · pendiente de subir`}
+                    </p>
+                  </div>
+                  {doc.file ? (
+                    <Button asChild variant="outline" size="icon" className="size-8 rounded-full">
+                      <a
+                        href={`/admin/drive/download/${doc.file.id}?download=1`}
+                        target="_blank"
+                        rel="noreferrer"
+                        aria-label={`Descargar ${doc.label}`}
                       >
-                        <span className="min-w-0 wrap-break-word font-medium">
-                          {r.title}
-                        </span>
-                        <span className="text-xs text-muted-foreground">
-                          {formatCurrency(r.amount.toString())}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ) : null}
-            </CardContent>
-          </Card>
+                        <Download className="size-3.5" />
+                      </a>
+                    </Button>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          </section>
 
           {/* Withholdings: informative, never counted as cash received */}
-          <Card className="rounded-lg">
-            <CardHeader className="flex flex-row items-start justify-between gap-2 space-y-0 pb-3">
+          <section className="rounded-2xl border bg-card">
+            <div className="flex items-start justify-between gap-3 border-b px-5 py-4">
               <div>
-                <CardTitle className="text-base">Retenciones recibidas</CardTitle>
-                <p className="text-xs text-muted-foreground">
-                  No cuentan como dinero cobrado. Las marcadas como
-                  descontadas cierran el saldo de los hitos.
+                <h2 className="text-sm font-semibold">Retenciones recibidas</h2>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  No cuentan como dinero cobrado. Las descontadas cierran el saldo de los hitos.
                 </p>
               </div>
               <WithholdingDialog invoiceId={invoice.id} mode="create" />
-            </CardHeader>
-            <CardContent>
-              {invoice.withholdings.length === 0 ? (
-                <p className="text-sm text-muted-foreground">
-                  Sin retenciones registradas.
-                </p>
-              ) : (
-                <ul className="divide-y">
-                  {invoice.withholdings.map((w) => (
-                    <li
-                      key={w.id}
-                      className="flex flex-col gap-2 py-2 sm:flex-row sm:items-center sm:justify-between"
-                    >
-                      <div className="min-w-0 text-sm">
-                        <p className="font-medium">
-                          {WITHHOLDING_KIND_LABELS[w.kind]}
-                          {w.percentage != null
-                            ? ` · ${Number(w.percentage.toString())}%`
-                            : ""}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {w.appliesToBalance
-                            ? "Descontada del saldo del cliente"
-                            : "Solo informativa"}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {[
-                            w.receiptNumber,
-                            w.issueDate ? formatDateOnly(w.issueDate) : null,
-                          ]
-                            .filter(Boolean)
-                            .join(" · ") || "Sin comprobante"}
-                        </p>
-                      </div>
-                      <div className="flex items-center justify-between gap-2 sm:justify-end">
-                        <span className="font-semibold">
-                          {formatCurrency(w.amount.toString())}
-                        </span>
-                        <div className="flex items-center gap-1">
-                          <WithholdingDialog
-                            invoiceId={invoice.id}
-                            withholding={forWithholdingDialog(w)}
-                          />
-                          <ConfirmActionButton
-                            icon="trash"
-                            title="Eliminar retención"
-                            description={`¿Eliminar la retención de ${formatCurrency(w.amount.toString())}?`}
-                            confirmLabel="Eliminar"
-                            destructive
-                            successMessage="Retención eliminada."
-                            action={deleteWithholding.bind(null, w.id)}
-                          />
-                        </div>
-                      </div>
-                    </li>
-                  ))}
-                  <li className="flex justify-between pt-2 text-sm">
-                    <span className="text-muted-foreground">Total retenido</span>
-                    <span className="font-semibold">
-                      {formatCurrency(withheldTotal)}
+            </div>
+            {invoice.withholdings.length === 0 ? (
+              <p className="px-5 py-6 text-sm text-muted-foreground">
+                Sin retenciones. Regístralas cuando el cliente te envíe el comprobante de retención.
+              </p>
+            ) : (
+              <ul className="divide-y">
+                {invoice.withholdings.map((w) => (
+                  <li key={w.id} className="flex items-center gap-3 px-5 py-3.5">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium">
+                        {WITHHOLDING_KIND_LABELS[w.kind]}
+                        {w.percentage != null ? ` · ${Number(w.percentage.toString())} %` : ""}
+                      </p>
+                      <p className="truncate text-xs text-muted-foreground">
+                        {[
+                          w.appliesToBalance ? "Descontada del saldo" : "Solo informativa",
+                          w.receiptNumber,
+                          w.issueDate ? formatDateOnly(w.issueDate) : null,
+                        ]
+                          .filter(Boolean)
+                          .join(" · ")}
+                      </p>
+                    </div>
+                    <span className="shrink-0 text-sm font-semibold tabular-nums">
+                      {formatCurrency(w.amount.toString())}
                     </span>
+                    <div className="flex shrink-0 items-center gap-1">
+                      <WithholdingDialog invoiceId={invoice.id} withholding={forWithholdingDialog(w)} />
+                      <ConfirmActionButton
+                        icon="trash"
+                        title="Eliminar retención"
+                        description={`¿Eliminar la retención de ${formatCurrency(w.amount.toString())}?`}
+                        confirmLabel="Eliminar"
+                        destructive
+                        successMessage="Retención eliminada."
+                        action={deleteWithholding.bind(null, w.id)}
+                      />
+                    </div>
                   </li>
-                </ul>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* XML + RIDE */}
-          <Card className="rounded-lg">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base">Documentos</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {/* XML */}
-              <div className="flex flex-col gap-3 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex min-w-0 items-center gap-3">
-                  <FileText className="size-5 shrink-0 text-emerald-600" />
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium">XML autorizado</p>
-                    {invoice.xmlFile ? (
-                      <p className="break-all text-xs text-muted-foreground sm:break-normal">
-                        {invoice.xmlFile.name}
-                      </p>
-                    ) : (
-                      <p className="text-xs text-muted-foreground/60">
-                        No subido
-                      </p>
-                    )}
-                  </div>
-                </div>
-                {invoice.xmlFile ? (
-                  <Button
-                    asChild
-                    variant="outline"
-                    size="sm"
-                    className="w-full sm:w-auto"
-                  >
-                    <a
-                      href={`/admin/drive/download/${invoice.xmlFile.id}?download=1`}
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      <Download className="size-3.5" />
-                      Descargar
-                    </a>
-                  </Button>
-                ) : (
-                  <span className="text-xs text-muted-foreground">
-                    Pendiente
-                  </span>
-                )}
-              </div>
-
-              {/* RIDE */}
-              <div className="flex flex-col gap-3 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex min-w-0 items-center gap-3">
-                  <FileText className="size-5 shrink-0 text-blue-600" />
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium">RIDE PDF</p>
-                    {invoice.rideFile ? (
-                      <p className="break-all text-xs text-muted-foreground sm:break-normal">
-                        {invoice.rideFile.name}
-                      </p>
-                    ) : (
-                      <p className="text-xs text-muted-foreground/60">
-                        No subido
-                      </p>
-                    )}
-                  </div>
-                </div>
-                {invoice.rideFile ? (
-                  <Button
-                    asChild
-                    variant="outline"
-                    size="sm"
-                    className="w-full sm:w-auto"
-                  >
-                    <a
-                      href={`/admin/drive/download/${invoice.rideFile.id}?download=1`}
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      <Download className="size-3.5" />
-                      Descargar
-                    </a>
-                  </Button>
-                ) : (
-                  <span className="text-xs text-muted-foreground">
-                    Pendiente
-                  </span>
-                )}
-              </div>
-
-              {!canSend ? (
-                <p className="text-xs text-muted-foreground">
-                  Sube XML y RIDE para poder enviar la factura por email.
-                </p>
-              ) : null}
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Sidebar: email + history */}
-        <div className="min-w-0 space-y-5">
-          {/* Send email */}
-          <Card className="rounded-lg">
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Mail className="size-4" />
-                Enviar por email
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {canSend ? (
-                <>
-                  {/* Template preview badge */}
-                  <div className="rounded-lg border border-indigo-200 bg-indigo-50/60 p-3 dark:border-indigo-800/50 dark:bg-indigo-950/30">
-                    <div className="flex items-start gap-2.5">
-                      <div className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-indigo-600">
-                        <span className="text-[10px] font-bold text-white">
-                          V
-                        </span>
-                      </div>
-                      <div>
-                        <p className="text-xs font-semibold text-indigo-900 dark:text-indigo-200">
-                          Plantilla VEEGSOFT profesional
-                        </p>
-                        <p className="mt-0.5 text-xs text-indigo-700 dark:text-indigo-400">
-                          Se enviará un email con diseño enterprise que incluye
-                          N° factura, monto, proyecto y los documentos adjuntos.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <SendInvoiceForm
-                    invoiceId={invoice.id}
-                    defaultTo={defaultEmail}
-                    defaultSubject={`Factura ${invoice.invoiceNumber ?? ""} · ${invoice.client.name}`.trim()}
-                  />
-                </>
-              ) : (
-                <p className="text-center text-sm text-muted-foreground">
-                  Adjunta el XML y RIDE para habilitar el envío.
-                </p>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Email history */}
-          {invoice.emailLogs.length > 0 ? (
-            <Card className="rounded-lg">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base">Historial de envíos</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {invoice.emailLogs.map((log) => (
-                  <div key={log.id} className="space-y-1">
-                    <div className="flex min-w-0 items-center gap-2">
-                      {log.status === "FAILED" ? (
-                        <XCircle className="size-3.5 shrink-0 text-destructive" />
-                      ) : (
-                        <CheckCircle2 className="size-3.5 shrink-0 text-emerald-600" />
-                      )}
-                      <p className="truncate text-sm font-medium">{log.to}</p>
-                      <span className="ml-auto shrink-0 text-xs text-muted-foreground">
-                        {log.sentAt ? formatDate(log.sentAt) : "—"}
-                      </span>
-                    </div>
-                    {log.cc ? (
-                      <p className="pl-5 text-xs text-muted-foreground">
-                        CC: {log.cc}
-                      </p>
-                    ) : null}
-                    {log.status === "FAILED" && log.error ? (
-                      <p className="pl-5 text-xs text-destructive">
-                        {log.error}
-                      </p>
-                    ) : null}
-                    <Separator />
-                  </div>
                 ))}
-              </CardContent>
-            </Card>
-          ) : null}
+                <li className="flex justify-between px-5 py-3 text-sm">
+                  <span className="text-muted-foreground">Total retenido</span>
+                  <span className="font-semibold tabular-nums">{formatCurrency(withheldTotal)}</span>
+                </li>
+              </ul>
+            )}
+          </section>
         </div>
       </div>
     </div>

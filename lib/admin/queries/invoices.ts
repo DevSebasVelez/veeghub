@@ -104,3 +104,50 @@ export async function getInvoicesPageData({
     serializeRecv,
   };
 }
+
+/**
+ * Figures for the invoices KPI strip. "This year" is counted by issue date
+ * (a calendar day) in the business timezone; cancelled invoices never count.
+ */
+export async function getInvoiceStats(year: number) {
+  const issuedThisYear = {
+    issueDate: {
+      gte: new Date(`${year}-01-01T00:00:00.000Z`),
+      lt: new Date(`${year + 1}-01-01T00:00:00.000Z`),
+    },
+  };
+
+  const [billed, byStatus, missingDocs] = await Promise.all([
+    prisma.invoice.aggregate({
+      where: { ...issuedThisYear, status: { not: "CANCELLED" } },
+      _sum: { total: true },
+      _count: true,
+    }),
+    prisma.invoice.groupBy({
+      by: ["status"],
+      where: { status: { not: "CANCELLED" } },
+      _sum: { total: true },
+      _count: true,
+    }),
+    prisma.invoice.count({
+      where: {
+        status: { not: "CANCELLED" },
+        OR: [{ xmlFileId: null }, { rideFileId: null }],
+      },
+    }),
+  ]);
+
+  const status = (s: string) => byStatus.find((row) => row.status === s);
+
+  return {
+    billedTotal: billed._sum.total?.toString() ?? "0",
+    billedCount: billed._count,
+    toSendCount: status("READY_TO_SEND")?._count ?? 0,
+    toSendTotal: status("READY_TO_SEND")?._sum.total?.toString() ?? "0",
+    toCollectCount: status("SENT")?._count ?? 0,
+    toCollectTotal: status("SENT")?._sum.total?.toString() ?? "0",
+    paidCount: status("PAID")?._count ?? 0,
+    paidTotal: status("PAID")?._sum.total?.toString() ?? "0",
+    missingDocs,
+  };
+}

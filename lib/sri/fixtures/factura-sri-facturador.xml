@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?><factura id="comprobante" version="1.1.0">
+    <infoTributaria>
+        <ambiente>2</ambiente>
+        <tipoEmision>1</tipoEmision>
+        <razonSocial>VELEZ PALOMEQUE CHRISTIAN SEBASTIAN</razonSocial>
+        <nombreComercial>VEEGSOFT</nombreComercial>
+        <ruc>0104885694001</ruc>
+        <claveAcceso>1305202601010488569400120010010000000016329301616</claveAcceso>
+        <codDoc>01</codDoc>
+        <estab>001</estab>
+        <ptoEmi>001</ptoEmi>
+        <secuencial>000000001</secuencial>
+        <dirMatriz>Barrio: LA FLORIDA Calle: RAFAEL AGUILAR Numero: SN Interseccion: ISAURO RODRIGUEZ </dirMatriz>
+        <contribuyenteRimpe>CONTRIBUYENTE NEGOCIO POPULAR - RÉGIMEN RIMPE</contribuyenteRimpe>
+    </infoTributaria>
+    <infoFactura>
+        <fechaEmision>13/05/2026</fechaEmision>
+        <dirEstablecimiento>Barrio: LA FLORIDA Calle: RAFAEL AGUILAR Numero: SN Interseccion: ISAURO RODRIGUEZ </dirEstablecimiento>
+        <obligadoContabilidad>NO</obligadoContabilidad>
+        <tipoIdentificacionComprador>05</tipoIdentificacionComprador>
+        <razonSocialComprador>CLIENTE DE PRUEBA S.A.</razonSocialComprador>
+        <identificacionComprador>0102030405</identificacionComprador>
+        <direccionComprador>AV. DE PRUEBA 1-23</direccionComprador>
+        <totalSinImpuestos>1.00</totalSinImpuestos>
+        <totalDescuento>0.00</totalDescuento>
+        <totalConImpuestos>
+            <totalImpuesto>
+                <codigo>2</codigo>
+                <codigoPorcentaje>0</codigoPorcentaje>
+                <baseImponible>1.00</baseImponible>
+                <valor>0.00</valor>
+            </totalImpuesto>
+        </totalConImpuestos>
+        <propina>0</propina>
+        <importeTotal>1.00</importeTotal>
+        <moneda>DOLAR</moneda>
+        <pagos>
+            <pago>
+                <formaPago>01</formaPago>
+                <total>1.00</total>
+            </pago>
+        </pagos>
+    </infoFactura>
+    <detalles>
+        <detalle>
+            <codigoPrincipal>AV001</codigoPrincipal>
+            <descripcion>PRODUCCION Y POSTPRODUCCION AUDIOVISUAL ANIMACION 3D Y EFECTOS VISUALES</descripcion>
+            <cantidad>1</cantidad>
+            <precioUnitario>1</precioUnitario>
+            <descuento>0</descuento>
+            <precioTotalSinImpuesto>1.00</precioTotalSinImpuesto>
+            <impuestos>
+                <impuesto>
+                    <codigo>2</codigo>
+                    <codigoPorcentaje>0</codigoPorcentaje>
+                    <tarifa>0.0</tarifa>
+                    <baseImponible>1.00</baseImponible>
+                    <valor>0.00</valor>
+                </impuesto>
+            </impuestos>
+        </detalle>
+    </detalles>
+    <infoAdicional>
+        <campoAdicional nombre="Email">cliente@example.com</campoAdicional>
+    </infoAdicional>
+<!-- firma XAdES-BES omitida en el fixture --></factura>
