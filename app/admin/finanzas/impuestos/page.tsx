@@ -11,12 +11,20 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { SRI_REGIME_LABELS, isSriRegime } from "@/lib/sri/regime";
+import { getActiveCertificate } from "@/lib/sri/signing";
+import prisma from "@/lib/db/prisma";
+import { SriCertificateCard } from "@/components/admin/finance/sri-certificate-card";
 
 export default async function TaxSettingsPage() {
-  const [profiles, current] = await Promise.all([
+  const [profiles, current, certificate, signatures] = await Promise.all([
     getTaxProfiles(),
     getCurrentTaxProfile(),
+    getActiveCertificate(),
+    prisma.sriSigningEvent.count(),
   ]);
+  const certificateMissingEnv = ["SRI_CERT_KEY", "SRI_CERT_PASSWORD"].filter(
+    (name) => !process.env[name],
+  );
   const today = dayStartUtc(new Date());
 
   const daysSince = (value: Date | null) =>
@@ -49,6 +57,12 @@ export default async function TaxSettingsPage() {
           configuración.
         </AlertDescription>
       </Alert>
+
+      <SriCertificateCard
+        certificate={certificate}
+        signatures={signatures}
+        missingEnv={certificateMissingEnv}
+      />
 
       {profiles.length === 0 ? (
         <Card className="rounded-lg">
