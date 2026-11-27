@@ -1,12 +1,14 @@
 import Link from "next/link";
-import { CircleCheck, FileText, Hourglass, Receipt, Send } from "lucide-react";
+import { CircleCheck, FileText, FileUp, Hourglass, Plus, Receipt, Send } from "lucide-react";
 
 import { InvoiceStatusFilter } from "@/app/admin/facturas/invoice-status-filter";
 import {
   CreateInvoiceDialog,
   InvoiceEditDialog,
 } from "@/components/admin/dialogs/invoice-dialog";
+import { InvoicesNav } from "@/components/admin/finance/invoices-nav";
 import { Pagination } from "@/components/admin/pagination";
+import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/admin/status-badge";
 import { IconTile, KpiCard } from "@/components/admin/tone";
 import { forInvoiceDialog } from "@/lib/admin/serialize";
@@ -60,8 +62,26 @@ export default async function InvoicesPage({
             Facturas electrónicas del SRI: XML autorizado, RIDE y envío al cliente.
           </p>
         </div>
-        <CreateInvoiceDialog clientsWithContext={clientsForCreate} />
+        <div className="flex flex-wrap gap-2">
+          <CreateInvoiceDialog
+            clientsWithContext={clientsForCreate}
+            trigger={
+              <Button type="button" variant="outline" size="sm" className="max-sm:h-10">
+                <FileUp className="size-3.5" />
+                Registrar del SRI
+              </Button>
+            }
+          />
+          <Button asChild size="sm" className="max-sm:h-10 max-sm:px-4">
+            <Link href="/admin/facturas/nueva">
+              <Plus className="size-3.5" />
+              Nueva factura
+            </Link>
+          </Button>
+        </div>
       </div>
+
+      <InvoicesNav active="facturas" />
 
       <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
         <KpiCard
@@ -126,7 +146,7 @@ export default async function InvoicesPage({
               {statusFilter ? "No hay facturas con ese estado" : "Aún no hay facturas"}
             </p>
             <p className="max-w-sm text-xs text-muted-foreground">
-              Registra una con «Nueva factura»: sube el XML autorizado del SRI y el resto se llena solo.
+              Emite una con «Nueva factura», o registra una del facturador del SRI subiendo su XML.
             </p>
           </div>
         ) : (

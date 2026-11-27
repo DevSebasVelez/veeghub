@@ -550,6 +550,25 @@ model SriSigningEvent {
   @@index([invoiceId])
 }
 
+/// Products and services to reuse on issued invoices. An InvoiceItem copies
+/// the values; editing the catalogue never changes an issued invoice.
+model CatalogItem {
+  id        String   @id @default(cuid())
+  /// codigoPrincipal printed on the factura; optional.
+  code      String?  @unique
+  /// descripcion on the factura.
+  name      String
+  unitPrice Decimal  @db.Decimal(18, 6)
+  /// IVA codigoPorcentaje (Tabla 17); null = the profile's default rate.
+  vatCode   String?
+  active    Boolean  @default(true)
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([active, name])
+}
+
 model DocumentSequence {
   key       String   @id
   value     Int      @default(0)
