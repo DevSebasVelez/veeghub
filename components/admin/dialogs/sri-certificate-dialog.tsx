@@ -20,7 +20,10 @@ import {
 import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 
-/** Upload (or replace) the .p12. The password never goes through the browser. */
+/**
+ * Upload (or replace) the .p12 with its password. The server checks both
+ * before saving and keeps them encrypted; the password is never shown again.
+ */
 export function SriCertificateDialog({ replacing }: { replacing: boolean }) {
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -54,7 +57,8 @@ export function SriCertificateDialog({ replacing }: { replacing: boolean }) {
         <DialogHeader>
           <DialogTitle>{replacing ? "Reemplazar firma electrónica" : "Subir firma electrónica"}</DialogTitle>
           <DialogDescription>
-            El archivo se guarda cifrado y solo se usa para firmar las facturas que emitas.
+            El archivo y su clave se guardan cifrados y solo se usan para firmar las
+            facturas que emitas. La clave no se vuelve a mostrar.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -62,9 +66,13 @@ export function SriCertificateDialog({ replacing }: { replacing: boolean }) {
             <Field>
               <FieldLabel>Archivo .p12</FieldLabel>
               <Input name="p12" type="file" accept=".p12,.pfx,application/x-pkcs12" required />
+            </Field>
+            <Field>
+              <FieldLabel>Clave de la firma</FieldLabel>
+              <Input name="password" type="password" autoComplete="off" required />
               <FieldDescription>
-                La clave del archivo no se escribe aquí: se configura en el servidor
-                (SRI_CERT_PASSWORD). Si no coincide, VeegHub te lo dirá sin guardar nada.
+                La que te dio Security Data. VeegHub abre el archivo y hace una firma de
+                prueba antes de guardar; si no coincide, no guarda nada.
                 {replacing ? " La firma anterior deja de usarse." : null}
               </FieldDescription>
             </Field>

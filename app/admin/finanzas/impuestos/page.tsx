@@ -22,9 +22,7 @@ export default async function TaxSettingsPage() {
     getActiveCertificate(),
     prisma.sriSigningEvent.count(),
   ]);
-  const certificateMissingEnv = ["SRI_CERT_KEY", "SRI_CERT_PASSWORD"].filter(
-    (name) => !process.env[name],
-  );
+  const certificateServerReady = Boolean(process.env.SRI_CERT_KEY);
   const today = dayStartUtc(new Date());
 
   const daysSince = (value: Date | null) =>
@@ -61,7 +59,7 @@ export default async function TaxSettingsPage() {
       <SriCertificateCard
         certificate={certificate}
         signatures={signatures}
-        missingEnv={certificateMissingEnv}
+        serverReady={certificateServerReady}
       />
 
       {profiles.length === 0 ? (

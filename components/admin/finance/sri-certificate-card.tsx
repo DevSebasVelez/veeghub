@@ -14,10 +14,6 @@ type ActiveCertificate = {
   createdAt: Date;
 };
 
-const ENV_LABELS: Record<string, string> = {
-  SRI_CERT_KEY: "llave de cifrado",
-  SRI_CERT_PASSWORD: "clave del .p12",
-};
 
 const PILL = {
   emerald: "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-300",
@@ -47,15 +43,14 @@ function standing(certificate: ActiveCertificate | null) {
 export function SriCertificateCard({
   certificate,
   signatures,
-  missingEnv,
+  serverReady,
 }: {
   certificate: ActiveCertificate | null;
   signatures: number;
-  /** Server variables not set yet (names only, never values). */
-  missingEnv: string[];
+  /** SRI_CERT_KEY is set (whether, never its value). */
+  serverReady: boolean;
 }) {
   const state = standing(certificate);
-  const serverReady = missingEnv.length === 0;
 
   return (
     <section className="rounded-2xl border bg-card">
@@ -110,15 +105,9 @@ export function SriCertificateCard({
 
         {!serverReady ? (
           <p className="rounded-xl bg-muted/40 p-3 text-xs text-muted-foreground">
-            Falta configurar en el servidor{" "}
-            {missingEnv.map((name, i) => (
-              <span key={name}>
-                {i ? " y " : null}
-                <code>{name}</code> ({ENV_LABELS[name]})
-              </span>
-            ))}
-            . Se definen como variables <em>Sensitive</em> en Vercel (en local, en{" "}
-            <code>.env</code>); nunca se escriben en esta pantalla.
+            Falta configurar en el servidor <code>SRI_CERT_KEY</code>, la llave con la que
+            se cifra la firma. Se define como variable <em>Sensitive</em> en Vercel (en
+            local, en <code>.env</code>): <code>openssl rand -base64 32</code>.
           </p>
         ) : null}
       </div>
