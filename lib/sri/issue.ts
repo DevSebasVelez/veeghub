@@ -52,6 +52,48 @@ export type CreateIssuedInvoiceInput = {
   additionalInfo?: BuildInvoiceInput["additionalInfo"];
 };
 
+function buildFor(
+  input: CreateIssuedInvoiceInput,
+  tax: Awaited<ReturnType<typeof getSriTaxContext>>,
+  pointAddress: string | null,
+  taken: { establishment: string; emissionPoint: string; sequential: number },
+) {
+  return buildInvoiceXml({
+    environment: input.environment,
+    emitter: SRI_EMITTER,
+    rimpeLegend: tax.legend,
+    allowedVatRates: tax.vatRates,
+    establishment: taken.establishment,
+    emissionPoint: taken.emissionPoint,
+    establishmentAddress: pointAddress,
+    sequential: taken.sequential,
+    issueDay: input.issueDay,
+    buyer: input.buyer,
+    items: input.items,
+    payments: input.payments,
+    additionalInfo: input.additionalInfo,
+  });
+}
+
+/**
+ * The XML the invoice would have if issued now, numbered with the point's
+ * next secuencial, without taking it: for the RIDE preview before «Emitir».
+ * Builds through the same code as createIssuedInvoice, so it fails the same.
+ */
+export async function previewIssuedInvoice(input: CreateIssuedInvoiceInput) {
+  const issueDate = new Date(`${input.issueDay}T00:00:00.000Z`);
+  const tax = await getSriTaxContext(issueDate);
+  const point = await prisma.emissionPoint.findUniqueOrThrow({ where: { id: input.emissionPointId } });
+  if (point.environment !== input.environment) {
+    throw new SriEmissionError(`El punto de emisión es de ${point.environment} y la factura de ${input.environment}.`);
+  }
+  return buildFor(input, tax, point.address, {
+    establishment: point.establishment,
+    emissionPoint: point.emissionPoint,
+    sequential: point.nextSequential,
+  });
+}
+
 /**
  * Creates the invoice as DRAFT: takes the secuencial, builds the unsigned XML
  * (which validates every figure) and stores it with its items, all in one
@@ -67,22 +109,7 @@ export async function createIssuedInvoice(input: CreateIssuedInvoiceInput) {
       select: { address: true },
     });
     const taken = await takeSequential(tx, input.emissionPointId, input.environment);
-
-    const built = buildInvoiceXml({
-      environment: input.environment,
-      emitter: SRI_EMITTER,
-      rimpeLegend: tax.legend,
-      allowedVatRates: tax.vatRates,
-      establishment: taken.establishment,
-      emissionPoint: taken.emissionPoint,
-      establishmentAddress: point.address,
-      sequential: taken.sequential,
-      issueDay: input.issueDay,
-      buyer: input.buyer,
-      items: input.items,
-      payments: input.payments,
-      additionalInfo: input.additionalInfo,
-    });
+    const built = buildFor(input, tax, point.address, taken);
 
     const rates = [...new Set(built.lines.map((l) => l.vatRate))];
     return tx.invoice.create({
@@ -138,6 +165,8 @@ export type IssueDeps = {
   send: (xml: string, env: SriEnvironment) => Promise<ReceptionResult>;
   query: (accessKey: string, env: SriEnvironment) => Promise<AuthorizationAnswer>;
   sleep: (ms: number) => Promise<void>;
+  /** After AUTHORIZED: attach XML + RIDE and link milestones. Left out by tests. */
+  finalize?: (invoiceId: string) => Promise<void>;
 };
 
 const defaultDeps: IssueDeps = {
@@ -151,7 +180,30 @@ const defaultDeps: IssueDeps = {
   send: sendToReception,
   query: queryAuthorization,
   sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+  // Imported lazily: it pulls the PDF renderer and R2, which the SRI
+  // machinery itself does not need.
+  finalize: async (invoiceId) => (await import("@/lib/sri/finalize")).finalizeAuthorizedInvoice(invoiceId),
 };
+
+const FINALIZE_PROBLEM = "Autorizada, pero no se pudieron guardar el XML y el RIDE";
+
+/** Runs deps.finalize, recording a failure for the cron to retry. */
+async function finalizeSafely(invoiceId: string, deps: IssueDeps) {
+  if (!deps.finalize) return null;
+  try {
+    await deps.finalize(invoiceId);
+    await prisma.invoice.updateMany({
+      where: { id: invoiceId, sriLastError: { startsWith: FINALIZE_PROBLEM } },
+      data: { sriLastError: null },
+    });
+    return null;
+  } catch (error) {
+    console.error("[sri] finalize failed", invoiceId, error);
+    const problem = `${FINALIZE_PROBLEM}: ${errorText(error)}. Se reintenta solo.`;
+    await prisma.invoice.update({ where: { id: invoiceId }, data: { sriLastError: problem } });
+    return problem;
+  }
+}
 
 const LEASE_MS = 90_000;
 /** Authorization polls within one run before leaving it to the cron. */
@@ -361,6 +413,11 @@ export async function advanceInvoice(invoiceId: string, deps: IssueDeps = defaul
       }
     }
 
+    if (invoice.sriStatus === "AUTHORIZED") {
+      const problem = await finalizeSafely(invoice.id, deps);
+      if (problem) last = { ...last, problem };
+    }
+
     return {
       busy: false,
       status: invoice.sriStatus,
@@ -401,6 +458,19 @@ export async function processPendingInvoices({ limit = 10, budgetMs = 40_000 } =
       results.push({ id, status: "error" });
     }
   }
+  // Authorized invoices whose XML/RIDE could not be stored yet.
+  const unfinished = await prisma.invoice.findMany({
+    where: { source: "ISSUED", sriStatus: "AUTHORIZED", OR: [{ xmlFileId: null }, { rideFileId: null }] },
+    orderBy: { authorizedAt: "asc" },
+    take: limit,
+    select: { id: true },
+  });
+  for (const { id } of unfinished) {
+    if (Date.now() - started > budgetMs) break;
+    const problem = await finalizeSafely(id, defaultDeps);
+    results.push({ id, status: problem ? "finalize-error" : "finalized" });
+  }
+
   return { due: due.length, processed: results };
 }
 
