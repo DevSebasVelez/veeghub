@@ -25,11 +25,20 @@ import {
 } from "@/components/ui/dialog";
 import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { SRI_REGIMES, SRI_REGIME_LABELS } from "@/lib/sri/regime";
 
 type TaxProfileProps = {
   id: string;
   regime: string;
+  sriRegime: string | null;
   validFrom: string;
   validTo: string | null;
   vatRates: string[];
@@ -46,6 +55,7 @@ export function TaxProfileDialog({
 }) {
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [sriRegime, setSriRegime] = useState(profile?.sriRegime ?? "none");
   const router = useRouter();
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -101,6 +111,27 @@ export function TaxProfileDialog({
                 placeholder="Tal como figura en tu RUC"
                 required
               />
+            </Field>
+            <Field>
+              <FieldLabel>Régimen para la factura electrónica</FieldLabel>
+              <input type="hidden" name="sriRegime" value={sriRegime} />
+              <Select value={sriRegime} onValueChange={setSriRegime}>
+                <SelectTrigger className="h-10 w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Sin definir</SelectItem>
+                  {SRI_REGIMES.map((value) => (
+                    <SelectItem key={value} value={value}>
+                      {SRI_REGIME_LABELS[value]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <FieldDescription>
+                Define la leyenda RIMPE de las facturas que emite VeegHub. Sin
+                definir, VeegHub no emite.
+              </FieldDescription>
             </Field>
             <div className="grid gap-3 sm:grid-cols-2">
               <Field>

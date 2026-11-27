@@ -348,6 +348,7 @@ export function forWithholdingDialog(w: {
 export function forTaxProfileDialog(t: {
   id: string;
   regime: string;
+  sriRegime: string | null;
   validFrom: Date;
   validTo: Date | null;
   vatRates: { toString(): string }[];
@@ -357,6 +358,7 @@ export function forTaxProfileDialog(t: {
   return {
     id: t.id,
     regime: t.regime,
+    sriRegime: t.sriRegime,
     validFrom: t.validFrom.toISOString(),
     validTo: t.validTo?.toISOString() ?? null,
     vatRates: t.vatRates.map((r) => Number(r.toString()).toString()),

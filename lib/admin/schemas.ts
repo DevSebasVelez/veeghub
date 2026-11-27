@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { APP_TIME_ZONE, zoneOffsetMinutes } from "@/lib/admin/format";
+import { SRI_REGIMES } from "@/lib/sri/regime";
 
 // Preprocess normalizes null/undefined to "" so downstream validators don't choke on missing form fields.
 const coerceStr = (val: unknown) => (val == null ? "" : String(val));
@@ -480,6 +481,10 @@ const rateList = z.preprocess(
 export const taxProfileSchema = z
   .object({
     regime: requiredText,
+    sriRegime: z.preprocess(
+      (v) => (v === "" || v === "none" ? null : v),
+      z.enum(SRI_REGIMES).nullable(),
+    ),
     validFrom: z.preprocess(
       coerceStr,
       z
