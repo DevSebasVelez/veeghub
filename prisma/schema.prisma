@@ -392,6 +392,9 @@ model Invoice {
   sriLeaseUntil    DateTime?
   /// Last problem, in Spanish, for the UI.
   sriLastError     String?
+  /// Id the «Emitir» screen sends with the click: a retried click returns the
+  /// invoice it already created instead of taking another secuencial.
+  issueRequestId   String?           @unique
   items            InvoiceItem[]
   sriSubmissions   SriSubmission[]
   signingEvents    SriSigningEvent[]

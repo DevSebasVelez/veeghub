@@ -44,3 +44,6 @@ next-env.d.ts
 
 # docker
 compose.yml
+# Electronic signature certificates: never in the repo
+*.p12
+*.pfx

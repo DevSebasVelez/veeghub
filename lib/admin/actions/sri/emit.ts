@@ -28,7 +28,21 @@ export async function createIssued(raw: unknown) {
 
   return actionResult(async () => {
     const { request, input } = await resolveIssueRequest(raw);
-    const invoice = await createIssuedInvoice(input);
+    let invoice: { id: string; invoiceNumber: string | null };
+    try {
+      invoice = await createIssuedInvoice(input);
+    } catch (error) {
+      // Two submits of the same click at once: the second hits the unique
+      // issueRequestId and rolls back; answer with the first one's invoice.
+      const same = input.requestId
+        ? await prisma.invoice.findUnique({
+            where: { issueRequestId: input.requestId },
+            select: { id: true, invoiceNumber: true },
+          })
+        : null;
+      if (!same) throw error;
+      invoice = same;
+    }
 
     if (request.updateClient && request.buyer.idType !== "07") {
       await prisma.client.update({

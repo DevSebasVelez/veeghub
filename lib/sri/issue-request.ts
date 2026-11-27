@@ -43,6 +43,8 @@ export const issueRequestSchema = z.object({
   additionalInfo: z.array(z.object({ name: text(300), value: text(300) })).max(14),
   /** Save buyer id, name, address and e-mail on the client. */
   updateClient: z.boolean(),
+  /** Idempotency id of the «Emitir» click (absent for the preview). */
+  requestId: z.string().uuid().optional(),
 });
 
 export type IssueRequest = z.infer<typeof issueRequestSchema>;
@@ -142,6 +144,7 @@ export async function resolveIssueRequest(raw: unknown) {
     })),
     payments: [{ method: request.paymentMethod as keyof typeof PAYMENT_METHODS }],
     additionalInfo,
+    requestId: request.requestId ?? null,
   };
 
   return { request, input, warning: idCheck.warning };

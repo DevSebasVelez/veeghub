@@ -62,6 +62,15 @@ export async function setInvoiceReceivables(invoiceId: string, receivableIds: st
       if (usable !== ids.length) throw new Error("Algún hito no es del cliente o ya tiene otra factura.");
     }
     await prisma.$transaction(async (tx) => {
+      // Lock and re-check: a concurrent link must not move a milestone away
+      // from another invoice.
+      if (ids.length) {
+        await tx.$queryRaw`SELECT id FROM "Receivable" WHERE id = ANY(${ids}) FOR UPDATE`;
+        const free = await tx.receivable.count({
+          where: { id: { in: ids }, OR: [{ invoiceId: null }, { invoiceId }] },
+        });
+        if (free !== ids.length) throw new Error("Algún hito acaba de ligarse a otra factura.");
+      }
       await syncInvoiceReceivables(tx, invoiceId, ids);
       await syncInvoicePaidStatus(tx, invoiceId);
     });
@@ -99,15 +108,20 @@ export async function createInvoicePaymentPlan(invoiceId: string, raw: unknown):
       return { ...row, cents };
     });
 
-    const balance = toCents(invoice.total) - sumCents(invoice.receivables, (r) => r.amount);
     const planned = plan.reduce((sum, row) => sum + row.cents, 0);
-    if (planned > balance) {
-      throw new Error(
-        `Las cuotas suman ${fromCents(planned)} y lo que falta planificar es ${fromCents(Math.max(balance, 0))}.`,
-      );
-    }
 
     await prisma.$transaction(async (tx) => {
+      // Lock the invoice and compute the balance here, so two submits at
+      // once cannot plan more than its total.
+      await tx.$queryRaw`SELECT id FROM "Invoice" WHERE id = ${invoiceId} FOR UPDATE`;
+      const current = await tx.receivable.findMany({ where: { invoiceId }, select: { amount: true } });
+      const balance = toCents(invoice.total) - sumCents(current, (r) => r.amount);
+      if (planned > balance) {
+        throw new Error(
+          `Las cuotas suman ${fromCents(planned)} y lo que falta planificar es ${fromCents(Math.max(balance, 0))}.`,
+        );
+      }
+
       for (const row of plan) {
         await tx.receivable.create({
           data: {
