@@ -8,7 +8,11 @@ Lo que VeegHub necesita para emitir facturas propias. Plan completo y bitácora:
 
 | Archivo | Qué hace |
 |---|---|
+| `lib/sri/invoice-calc.ts` | Aritmética de la factura (líneas, IVA por tarifa, totales), sin Node: la usan la pantalla y el constructor |
 | `lib/sri/build-invoice.ts` | Arma el XML `factura` 1.1.0 sin firmar: totales en centavos, clave de acceso, leyenda RIMPE |
+| `lib/sri/identification.ts` | Cédula (módulo 10) y RUC del comprador |
+| `lib/sri/issue-request.ts` | Valida lo que manda la pantalla «Nueva factura» (cliente, proyecto, punto, hitos, identificación) |
+| `lib/sri/finalize.ts` | Al autorizar: guarda XML autorizado y RIDE como archivos y liga hitos (solo PRODUCCION) |
 | `lib/sri/emitter.ts` | El emisor tal como figura en el RUC (razón social con los apellidos primero, dirección matriz) |
 | `lib/sri/regime.ts` | Leyenda `contribuyenteRimpe` de cada régimen |
 | `lib/sri/emission.ts` | Toma el secuencial del punto de emisión y lee el régimen y el IVA del `TaxProfile` vigente |
@@ -20,6 +24,9 @@ Lo que VeegHub necesita para emitir facturas propias. Plan completo y bitácora:
 | `lib/sri/issue.ts` | Crear la factura emitida, avanzarla ante el SRI y procesar las pendientes (cron) |
 | `lib/pdf/ride.tsx` | RIDE en PDF armado desde el XML; si no está autorizada, sale como vista previa sin valor tributario |
 | `app/admin/facturas/[id]/ride` | Ruta del RIDE (`?download=1` para descargar) |
+| `app/admin/facturas/nueva` | Pantalla «Nueva factura»; `vista-previa` arma el RIDE sin tomar secuencial |
+| `app/admin/facturas/[id]/estado` | Estado SRI para el progreso en vivo de «Emitir» |
+| `app/admin/facturas/catalogo` | Catálogo de productos y servicios (`CatalogItem`) |
 | `lib/sri/xsd/` | XSD oficial de la factura 1.1.0, con dos ajustes documentados en los archivos |
 | `scripts/sri-smoke.ts` | Prueba de punta a punta contra `celcer`, sin crear factura |
 | `scripts/sri-campaign.ts` | Campaña de B4 contra `celcer` con la máquina real (`SRI_CAMPAIGN_ONLY=1,3` para correr solo algunos casos) |
@@ -72,6 +79,9 @@ DRAFT ─firma→ SIGNED ─recepción→ RECEIVED ─autorización→ AUTHORIZE
 
   Un lease de 90 s impide que dos procesos avancen la misma factura.
 - **Producción** está bloqueada en el código salvo `SRI_ALLOW_PRODUCTION=true`. No se define hasta el paso a producción (B7).
+- **Al autorizar:** se guardan el `<autorizacion>` (XML autorizado) y el RIDE como archivos de la factura y, solo en PRODUCCION, se ligan los hitos de sus ítems. Si falla, el cron lo reintenta.
+- **Pagos:** una emitida se puede facturar sin hitos. En su ficha, «Plan de pagos» crea las cuotas (hitos ligados), «Ligar hitos» suma hitos existentes y «Cobrar» registra el pago. Una emitida pasa a «Pagada» cuando lo cobrado más lo retenido llega a su total (`syncInvoicePaidStatus`).
+- **Pruebas no se mezcla:** las facturas de PRUEBAS se listan con etiqueta pero no suman en cifras, reportes ni exportaciones (`REAL_INVOICES`) y no ligan ni reservan hitos.
 - **Facturas emitidas:** no se editan ni se «comparan». Sus datos son los del XML firmado; una corrección es una nota de crédito (B8).
 
 ## Lo que hay que saber

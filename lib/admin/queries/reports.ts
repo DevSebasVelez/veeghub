@@ -1,4 +1,5 @@
 import prisma from "@/lib/db/prisma";
+import { REAL_INVOICES } from "@/lib/admin/finance/real-invoices";
 
 export async function getReportsData({
   firstChartMonth,
@@ -25,11 +26,11 @@ export async function getReportsData({
   ] = await Promise.all([
     prisma.invoice.findFirst({
       select: { issueDate: true },
-      where: { issueDate: { not: null } },
+      where: { ...REAL_INVOICES, issueDate: { not: null } },
       orderBy: { issueDate: "asc" },
     }),
     prisma.invoice.findMany({
-      where: { issueDate: { gte: firstChartMonth } },
+      where: { ...REAL_INVOICES, issueDate: { gte: firstChartMonth } },
       select: { issueDate: true, total: true },
     }),
     prisma.payment.findMany({
@@ -46,7 +47,7 @@ export async function getReportsData({
       },
     }),
     prisma.invoice.findMany({
-      where: { issueDate: { gte: selectedStart, lte: selectedEnd } },
+      where: { ...REAL_INVOICES, issueDate: { gte: selectedStart, lte: selectedEnd } },
       include: { client: true, project: true },
       orderBy: { issueDate: "desc" },
     }),

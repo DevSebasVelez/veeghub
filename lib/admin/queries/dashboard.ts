@@ -1,4 +1,5 @@
 import prisma from "@/lib/db/prisma";
+import { REAL_INVOICES } from "@/lib/admin/finance/real-invoices";
 import { dayKeyInAppZone } from "@/lib/admin/format";
 import { fromCents, toCents } from "@/lib/admin/finance/money";
 
@@ -80,7 +81,7 @@ export async function getAdminDashboardData() {
       where: { status: { not: "PAID" } },
       _sum: { amount: true, paidAmount: true, withheldAmount: true },
     }),
-    prisma.invoice.count({ where: { status: "READY_TO_SEND" } }),
+    prisma.invoice.count({ where: { ...REAL_INVOICES, status: "READY_TO_SEND" } }),
     prisma.credential.count(),
     prisma.task.findMany({
       where: { status: { not: "DONE" } },

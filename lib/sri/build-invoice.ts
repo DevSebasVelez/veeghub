@@ -1,83 +1,47 @@
 import { randomInt } from "node:crypto";
 
-import { percentOfCents } from "@/lib/admin/finance/money";
 import { type SriEnvironment, buildAccessKey } from "@/lib/sri/access-key";
 import type { SriEmitter } from "@/lib/sri/emitter";
+import {
+  BUYER_ID_TYPES,
+  type BuildInvoiceItem,
+  type BuyerIdType,
+  CONSUMER_ID,
+  CONSUMER_MAX_CENTS,
+  type InvoiceTotals,
+  PAYMENT_METHODS,
+  type PaymentMethod,
+  SriBuildError,
+  computeInvoiceTotals,
+  shortMoney,
+} from "@/lib/sri/invoice-calc";
+
+// The arithmetic lives in invoice-calc.ts (browser-safe); re-exported here so
+// server code keeps a single import.
+export {
+  BUYER_ID_TYPES,
+  PAYMENT_METHODS,
+  SriBuildError,
+  lineBaseCents,
+  vatCodeForRate,
+} from "@/lib/sri/invoice-calc";
+export type {
+  BuildInvoiceItem,
+  BuiltInvoiceLine,
+  BuiltInvoiceTax,
+  BuyerIdType,
+  PaymentMethod,
+} from "@/lib/sri/invoice-calc";
 
 // Builds the unsigned <factura version="1.1.0"> of the SRI offline scheme
 // (Ficha Técnica v2.34, Anexo 3) from typed data.
 //
 // - Nodes go in the XSD's order; optional ones are left out when empty.
-// - Money is integer cents end to end. Quantity and unit price keep up to six
-//   decimals (as the XSD allows) and are multiplied exactly with BigInt; the
-//   line is then rounded once to the cent.
-// - IVA per line is rounded on the line's base; IVA per rate in
-//   totalConImpuestos is rounded on the summed base of that rate.
+// - Totals come from computeInvoiceTotals (invoice-calc.ts), the same code
+//   the «Emitir factura» screen runs for its live totals.
 // - The regime legend comes from the caller (TaxProfile), never from here.
 //
 // Signing (B3) takes this string as is.
-
-export class SriBuildError extends Error {}
-
-/** Tabla 17: IVA codigoPorcentaje → rate %. 6 (no objeto) and 7 (exento) are 0 %. */
-const VAT_CODE_RATES: Record<string, number> = {
-  "0": 0,
-  "2": 12,
-  "3": 14,
-  "4": 15,
-  "5": 5,
-  "6": 0,
-  "7": 0,
-  "10": 13,
-};
-
-/** codigoPorcentaje for a plain rate (0 → "0", 15 → "4"...), or null if none. */
-export function vatCodeForRate(rate: number) {
-  const found = Object.entries(VAT_CODE_RATES).find(
-    ([code, value]) => value === rate && code !== "6" && code !== "7",
-  );
-  return found ? found[0] : null;
-}
-
-/** Tabla 6: tipoIdentificacionComprador. */
-export const BUYER_ID_TYPES = {
-  RUC: "04",
-  CEDULA: "05",
-  PASAPORTE: "06",
-  CONSUMIDOR_FINAL: "07",
-  EXTERIOR: "08",
-} as const;
-export type BuyerIdType = (typeof BUYER_ID_TYPES)[keyof typeof BUYER_ID_TYPES];
-
-/** Tabla 24: formaPago. */
-export const PAYMENT_METHODS = {
-  "01": "Sin utilización del sistema financiero",
-  "15": "Compensación de deudas",
-  "16": "Tarjeta de débito",
-  "17": "Dinero electrónico",
-  "18": "Tarjeta prepago",
-  "19": "Tarjeta de crédito",
-  "20": "Otros con utilización del sistema financiero",
-  "21": "Endoso de títulos",
-} as const;
-export type PaymentMethod = keyof typeof PAYMENT_METHODS;
-
-const CONSUMER_ID = "9999999999999";
-/** A consumidor final invoice may not exceed USD 50 (Reglamento de comprobantes, art. 8). */
-const CONSUMER_MAX_CENTS = 5000;
-
-export type BuildInvoiceItem = {
-  code?: string | null;
-  description: string;
-  /** Decimal string, up to 6 decimals ("1", "2.5"). */
-  quantity: string;
-  /** Decimal string, up to 6 decimals. */
-  unitPrice: string;
-  /** Money, up to 2 decimals. Default 0. */
-  discount?: string;
-  /** Tabla 17 codigoPorcentaje. */
-  vatCode: string;
-};
 
 export type BuildInvoiceInput = {
   environment: SriEnvironment;
@@ -108,36 +72,11 @@ export type BuildInvoiceInput = {
   additionalInfo?: { name: string; value: string }[];
 };
 
-export type BuiltInvoiceLine = {
-  code: string | null;
-  description: string;
-  quantity: string;
-  unitPrice: string;
-  discountCents: number;
-  baseCents: number;
-  vatCode: string;
-  vatRate: number;
-  vatCents: number;
-};
-
-export type BuiltInvoiceTax = {
-  vatCode: string;
-  vatRate: number;
-  baseCents: number;
-  valueCents: number;
-};
-
-export type BuiltInvoice = {
+export type BuiltInvoice = InvoiceTotals & {
   xml: string;
   accessKey: string;
   /** "001-002-000000001". */
   number: string;
-  lines: BuiltInvoiceLine[];
-  taxes: BuiltInvoiceTax[];
-  subtotalCents: number;
-  discountCents: number;
-  vatCents: number;
-  totalCents: number;
 };
 
 export function randomNumericCode() {
@@ -146,58 +85,14 @@ export function randomNumericCode() {
 
 // ─── Numbers ──────────────────────────────────────────────────────────────
 
-// BigInt() instead of literals: tsconfig targets ES2017.
-const ZERO = BigInt(0);
-const SCALE = BigInt(1_000_000);
-const CENTS_PER_MILLIONTH = BigInt(10_000);
-/** millionths × millionths are 10⁻¹² units; this many make a cent. */
-const PICO_PER_CENT = BigInt(10_000_000_000);
-const HALF_CENT = BigInt(5_000_000_000);
-const SIX_DECIMALS = /^(\d+)(?:\.(\d{1,6}))?$/;
-const TWO_DECIMALS = /^(\d+)(?:\.(\d{1,2}))?$/;
-
-/** "2.5" → 2_500_000n (millionths). */
-function toMillionths(value: string, field: string) {
-  const match = SIX_DECIMALS.exec(value.trim());
-  if (!match) throw new SriBuildError(`${field} debe ser un número con hasta 6 decimales: «${value}».`);
-  return BigInt(match[1]) * SCALE + BigInt((match[2] ?? "").padEnd(6, "0"));
-}
-
-function moneyToCents(value: string, field: string) {
-  const match = TWO_DECIMALS.exec(value.trim());
-  if (!match) throw new SriBuildError(`${field} debe ser un monto con hasta 2 decimales: «${value}».`);
-  return Number(match[1]) * 100 + Number((match[2] ?? "").padEnd(2, "0"));
-}
-
-/** Millionths back to the shortest decimal: 1_000_000n → "1", 2_500_000n → "2.5". */
-function formatMillionths(value: bigint) {
-  const whole = value / SCALE;
-  const fraction = (value % SCALE).toString().padStart(6, "0").replace(/0+$/, "");
-  return fraction ? `${whole}.${fraction}` : `${whole}`;
-}
-
 /** Cents as "1.00", the form every money total takes. */
 function money(cents: number) {
   return `${Math.floor(cents / 100)}.${String(cents % 100).padStart(2, "0")}`;
 }
 
-/** Cents as the shortest decimal ("0", "1.5"), like the facturador's descuento. */
-function shortMoney(cents: number) {
-  return formatMillionths(BigInt(cents) * CENTS_PER_MILLIONTH);
-}
-
 /** Rate with at least one decimal ("0.0", "15.0"), like the facturador's tarifa. */
 function rate(value: number) {
   return Number.isInteger(value) ? value.toFixed(1) : String(value);
-}
-
-/**
- * Line base in cents: quantity × unit price (six decimals each, exact) rounded
- * once, minus the discount. The same rule the builder uses, for re-checking.
- */
-export function lineBaseCents(quantity: string, unitPrice: string, discountCents: number) {
-  const product = toMillionths(quantity, "La cantidad") * toMillionths(unitPrice, "El precio unitario");
-  return Number((product + HALF_CENT) / PICO_PER_CENT) - discountCents;
 }
 
 // ─── XML ──────────────────────────────────────────────────────────────────
@@ -267,62 +162,12 @@ export function buildInvoiceXml(input: BuildInvoiceInput): BuiltInvoice {
     throw new SriBuildError(`Secuencial fuera de rango: ${input.sequential}.`);
   }
   checkBuyer(input.buyer);
-  if (input.items.length === 0) throw new SriBuildError("La factura no tiene ítems.");
   if ((input.additionalInfo?.length ?? 0) > 15) {
     throw new SriBuildError("La información adicional admite hasta 15 campos.");
   }
 
-  // Lines.
-  const lines: BuiltInvoiceLine[] = input.items.map((item, index) => {
-    const label = `Ítem ${index + 1}`;
-    const quantity = toMillionths(item.quantity, `${label}: la cantidad`);
-    const unitPrice = toMillionths(item.unitPrice, `${label}: el precio unitario`);
-    if (quantity <= ZERO) throw new SriBuildError(`${label}: la cantidad debe ser mayor que cero.`);
-
-    // Exact product, rounded half up to the cent once.
-    const grossCents = Number((quantity * unitPrice + HALF_CENT) / PICO_PER_CENT);
-    const discountCents = moneyToCents(item.discount ?? "0", `${label}: el descuento`);
-    if (discountCents > grossCents) {
-      throw new SriBuildError(`${label}: el descuento supera el valor del ítem.`);
-    }
-
-    const vatRate = VAT_CODE_RATES[item.vatCode];
-    if (vatRate === undefined) {
-      throw new SriBuildError(`${label}: código de IVA desconocido «${item.vatCode}».`);
-    }
-    if (!input.allowedVatRates.includes(vatRate)) {
-      throw new SriBuildError(
-        `${label}: la tarifa de IVA ${vatRate} % no está en la configuración tributaria vigente.`,
-      );
-    }
-
-    const baseCents = grossCents - discountCents;
-    return {
-      code: item.code?.trim() || null,
-      description: requireText(item.description, `${label}: la descripción`, 300),
-      quantity: formatMillionths(quantity),
-      unitPrice: formatMillionths(unitPrice),
-      discountCents,
-      baseCents,
-      vatCode: item.vatCode,
-      vatRate,
-      vatCents: percentOfCents(baseCents, vatRate),
-    };
-  });
-
-  // Totals per IVA code, in the order the codes first appear.
-  const taxes: BuiltInvoiceTax[] = [];
-  for (const line of lines) {
-    const tax = taxes.find((t) => t.vatCode === line.vatCode);
-    if (tax) tax.baseCents += line.baseCents;
-    else taxes.push({ vatCode: line.vatCode, vatRate: line.vatRate, baseCents: line.baseCents, valueCents: 0 });
-  }
-  for (const tax of taxes) tax.valueCents = percentOfCents(tax.baseCents, tax.vatRate);
-
-  const subtotalCents = lines.reduce((sum, line) => sum + line.baseCents, 0);
-  const discountCents = lines.reduce((sum, line) => sum + line.discountCents, 0);
-  const vatCents = taxes.reduce((sum, tax) => sum + tax.valueCents, 0);
-  const totalCents = subtotalCents + vatCents;
+  const totals = computeInvoiceTotals(input.items, input.allowedVatRates);
+  const { lines, taxes, subtotalCents, discountCents, totalCents } = totals;
 
   if (input.buyer.idType === BUYER_ID_TYPES.CONSUMIDOR_FINAL && totalCents > CONSUMER_MAX_CENTS) {
     throw new SriBuildError("Una factura a consumidor final no puede superar USD 50.");
@@ -442,11 +287,6 @@ export function buildInvoiceXml(input: BuildInvoiceInput): BuiltInvoice {
     xml,
     accessKey,
     number: `${input.establishment}-${input.emissionPoint}-${sequential}`,
-    lines,
-    taxes,
-    subtotalCents,
-    discountCents,
-    vatCents,
-    totalCents,
+    ...totals,
   };
 }

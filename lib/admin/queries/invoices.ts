@@ -1,4 +1,5 @@
 import prisma from "@/lib/db/prisma";
+import { REAL_INVOICES } from "@/lib/admin/finance/real-invoices";
 import { getPage } from "@/components/admin/pagination";
 
 const INVOICES_PAGE_SIZE = 12;
@@ -119,20 +120,20 @@ export async function getInvoiceStats(year: number) {
 
   const [billed, byStatus, missingDocs] = await Promise.all([
     prisma.invoice.aggregate({
-      where: { ...issuedThisYear, status: { not: "CANCELLED" } },
+      where: { ...issuedThisYear, ...REAL_INVOICES, status: { not: "CANCELLED" } },
       _sum: { total: true },
       _count: true,
     }),
     prisma.invoice.groupBy({
       by: ["status"],
-      where: { status: { not: "CANCELLED" } },
+      where: { ...REAL_INVOICES, status: { not: "CANCELLED" } },
       _sum: { total: true },
       _count: true,
     }),
     prisma.invoice.count({
       where: {
         status: { not: "CANCELLED" },
-        OR: [{ xmlFileId: null }, { rideFileId: null }],
+        AND: [REAL_INVOICES, { OR: [{ xmlFileId: null }, { rideFileId: null }] }],
       },
     }),
   ]);

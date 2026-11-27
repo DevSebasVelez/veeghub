@@ -34,29 +34,46 @@ function fromIsoDate(iso: string): Date | undefined {
 export function DatePickerField({
   name,
   defaultValue,
+  value,
+  onChange,
+  placeholder = "Seleccionar fecha",
+  className,
+  ariaLabel,
 }: {
-  name: string;
+  /** Form field name; leave out when used controlled. */
+  name?: string;
   defaultValue?: Date | string | null;
+  /** Controlled "YYYY-MM-DD" ("" = none), for forms kept in state. */
+  value?: string;
+  onChange?: (iso: string) => void;
+  placeholder?: string;
+  className?: string;
+  ariaLabel?: string;
 }) {
-  const [iso, setIso] = useState<string>(() => toIsoDate(defaultValue));
+  const [ownIso, setOwnIso] = useState<string>(() => toIsoDate(defaultValue));
+  const iso = value ?? ownIso;
+  const setIso = (next: string) => (value !== undefined ? onChange?.(next) : setOwnIso(next));
   const selected = fromIsoDate(iso);
+  const [open, setOpen] = useState(false);
 
   return (
-    <Popover>
-      <input type="hidden" name={name} value={iso} />
+    <Popover open={open} onOpenChange={setOpen}>
+      {name ? <input type="hidden" name={name} value={iso} /> : null}
       <PopoverTrigger asChild>
         <Button
           type="button"
           variant="outline"
+          aria-label={ariaLabel}
           className={cn(
             "h-10 w-full justify-start text-left font-normal",
             !selected && "text-muted-foreground",
+            className,
           )}
         >
           <CalendarIcon />
           {selected
-            ? format(selected, "PPP", { locale: es })
-            : "Seleccionar fecha"}
+            ? format(selected, value !== undefined ? "d MMM yyyy" : "PPP", { locale: es })
+            : placeholder}
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-auto p-0" align="start">
@@ -71,7 +88,10 @@ export function DatePickerField({
             setIso(
               `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`,
             );
+            setOpen(false);
           }}
+          defaultMonth={selected}
+          locale={es}
           captionLayout="dropdown"
         />
       </PopoverContent>
