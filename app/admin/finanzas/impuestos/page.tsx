@@ -10,12 +10,21 @@ import { dayStartUtc, formatDateOnly } from "@/lib/admin/format";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { SRI_REGIME_LABELS, isSriRegime } from "@/lib/sri/regime";
+import { getActiveCertificate } from "@/lib/sri/signing";
+import prisma from "@/lib/db/prisma";
+import { SriCertificateCard } from "@/components/admin/finance/sri-certificate-card";
+import { SriEmissionCard } from "@/components/admin/finance/sri-emission-card";
 
 export default async function TaxSettingsPage() {
-  const [profiles, current] = await Promise.all([
+  const [profiles, current, certificate, signatures, points] = await Promise.all([
     getTaxProfiles(),
     getCurrentTaxProfile(),
+    getActiveCertificate(),
+    prisma.sriSigningEvent.count(),
+    prisma.emissionPoint.findMany({ orderBy: [{ environment: "desc" }, { emissionPoint: "asc" }] }),
   ]);
+  const certificateServerReady = Boolean(process.env.SRI_CERT_KEY);
   const today = dayStartUtc(new Date());
 
   const daysSince = (value: Date | null) =>
@@ -42,10 +51,33 @@ export default async function TaxSettingsPage() {
         <AlertTitle>Referencia editable</AlertTitle>
         <AlertDescription>
           Copia aquí lo que figura en tu RUC y verifícalo periódicamente en el
-          SRI. No se aplica automáticamente: cada factura guarda la tarifa de
-          IVA con la que se emitió, aunque cambies esta configuración.
+          SRI. Las facturas que emite VeegHub toman de aquí el régimen y las
+          tarifas de IVA según su fecha de emisión. Cada factura guarda la
+          tarifa con la que se emitió, aunque después cambies esta
+          configuración.
         </AlertDescription>
       </Alert>
+
+      <SriCertificateCard
+        certificate={certificate}
+        signatures={signatures}
+        serverReady={certificateServerReady}
+      />
+
+      <SriEmissionCard
+        points={points.map((p) => ({
+          id: p.id,
+          prefix: `${p.establishment}-${p.emissionPoint}`,
+          environment: p.environment,
+          nextNumber: `${p.establishment}-${p.emissionPoint}-${String(p.nextSequential).padStart(9, "0")}`,
+          active: p.active,
+        }))}
+        checks={[
+          { label: "Firma electrónica vigente cargada", ok: Boolean(certificate && certificate.validTo > new Date()) },
+          { label: "Régimen para la factura electrónica en la configuración vigente", ok: isSriRegime(current?.sriRegime) },
+          { label: "SRI_ALLOW_PRODUCTION=true en el servidor", ok: process.env.SRI_ALLOW_PRODUCTION === "true" },
+        ]}
+      />
 
       {profiles.length === 0 ? (
         <Card className="rounded-lg">
@@ -85,6 +117,16 @@ export default async function TaxSettingsPage() {
                       <span className="text-muted-foreground">sin registrar</span>
                     )}
                   </div>
+                  <p className="text-muted-foreground">
+                    Factura electrónica:{" "}
+                    {isSriRegime(profile.sriRegime) ? (
+                      <span className="text-foreground">
+                        {SRI_REGIME_LABELS[profile.sriRegime]}
+                      </span>
+                    ) : (
+                      "régimen sin definir"
+                    )}
+                  </p>
                   <p className="text-muted-foreground">
                     Última verificación:{" "}
                     {profile.lastVerifiedAt

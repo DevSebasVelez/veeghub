@@ -1,4 +1,5 @@
 import type { Prisma } from "@/app/generated/prisma/client";
+import { REAL_INVOICES } from "@/lib/admin/finance/real-invoices";
 import prisma from "@/lib/db/prisma";
 import { summarize } from "@/lib/admin/finance/calc";
 import { resolvePeriod } from "@/lib/admin/finance/period";
@@ -43,6 +44,7 @@ function summaryScope(filters: SummaryFilters) {
   });
 
   const invoiceScope: Prisma.InvoiceWhereInput = {
+    ...REAL_INVOICES,
     status: { not: "CANCELLED" },
     ...(clientId ? { clientId } : {}),
     ...(projectId ? { projectId } : {}),

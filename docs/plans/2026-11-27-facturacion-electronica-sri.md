@@ -1,8 +1,8 @@
 # Plan: Facturación electrónica SRI
 
 **Creado:** 2026-11-27
-**Estado:** 🟢 Fase A en producción (2026-11-27). **Siguiente sesión:** revisar la solicitud de pruebas (B0) y empezar B1 → B2.
-**Ramas:** una por subfase (`feat/sri-a1-lector-xml`, `feat/sri-b2-xml`, …) → `develop` → `main`
+**Estado:** 🟢 Fase A en producción. B1 a B6 hechos y probados en ramas sin desplegar (2026-11-27). **Siguiente:** B7, la campaña en `celcer` y el paso a producción (requiere B0.2/B0.3 con el contador).
+**Ramas:** una por subfase (`feat/sri-a1-lector-xml`, `feat/sri-b2-xml`, …) → `develop` → `main`. Las de la Fase B van apiladas, cada una sobre la anterior, hasta que se despliegue el lote.
 
 ---
 
@@ -32,13 +32,13 @@ Antes de escribir código revisa:
 | **A1b** | Rediseño de Facturas según convenciones: KPIs, lista §7, ficha patrón «Plan», diálogo con el XML primero | — | ✅ en producción |
 | **A2** | «Comparar con el XML/RIDE» en la ficha: lista diferencias y corrige las elegidas | A1 | ✅ en producción |
 | **A3** | Desde el RIDE (PDF) o la clave pegada; si el SRI aún lo entrega, se baja y adjunta el XML; verificación de estado | A1 | ✅ en producción |
-| **B0** | Trámites: ambiente de pruebas, punto de emisión 001-002, consulta al contador | — | 🟡 solicitud de pruebas «en curso» (ver bitácora) |
-| **B1** | Modelo de datos: puntos de emisión, ítems, estados SRI, intentos | A1 | ⬜ |
-| **B2** | Generador de XML factura 1.1.0 + clave de acceso + cálculo de totales | B1 | ⬜ |
-| **B3** | Firma XAdES-BES con el `.p12` (custodia cifrada) | B2 | ⬜ |
-| **B4** | Cliente SRI: recepción, autorización, reintentos y máquina de estados | B3 | ⬜ |
-| **B5** | RIDE en PDF (Anexo 2 de la ficha) con el estilo de `lib/pdf` | B2 | ⬜ |
-| **B6** | Pantalla «Emitir factura» desde hitos, detalle con línea de tiempo, envío XML+RIDE | B4, B5 | ⬜ |
+| **B0** | Trámites: ambiente de pruebas, punto de emisión 001-002, consulta al contador | — | 🟡 pruebas ✅ aprobado; falta B0.2 (001-002) y B0.3 (contador) |
+| **B1** | Modelo de datos: puntos de emisión, ítems, estados SRI, intentos | A1 | ✅ rama `feat/sri-b1-modelo`, sin desplegar |
+| **B2** | Generador de XML factura 1.1.0 + clave de acceso + cálculo de totales | B1 | ✅ rama `feat/sri-b2-xml` (sobre B1), validado contra el XSD oficial, sin desplegar |
+| **B3** | Firma XAdES-BES con el `.p12` (custodia cifrada) | B2 | ✅ rama `feat/sri-b3-firma` (sobre B2), AUTORIZADO en `celcer`, sin desplegar |
+| **B4** | Cliente SRI: recepción, autorización, reintentos y máquina de estados | B3 | ✅ rama `feat/sri-b4-envio` (sobre B3), campaña 7/7 en `celcer`, sin desplegar |
+| **B5** | RIDE en PDF (Anexo 2 de la ficha) con el estilo de `lib/pdf` | B2 | ✅ rama `feat/sri-b5-ride` (sobre B4), sin desplegar |
+| **B6** | Pantalla «Emitir factura» desde hitos, detalle con línea de tiempo, envío XML+RIDE | B4, B5 | ✅ rama `feat/sri-b6-emitir` (sobre B5), 2 facturas AUTORIZADAS en `celcer` desde la pantalla, sin desplegar |
 | **B7** | Campaña de pruebas en `celcer` y paso a producción | B6 + B0 | ⬜ |
 | **B8** | Nota de crédito (anulaciones después del día 7) | B7 | ⬜ |
 
@@ -152,7 +152,7 @@ Rutas útiles:
 1. **El XML es la fuente de verdad, nunca el PDF.** Del RIDE solo se toma la clave.
 2. **La app emite con un punto de emisión propio, `001-002`.** El facturador del SRI se queda con `001-001`, así sus secuenciales nunca chocan. El secuencial se asigna en una transacción, como los folios de comprobantes.
 3. **Régimen, leyenda e IVA salen de `TaxProfile` según la fecha de emisión.**
-4. **El `.p12` vive cifrado** (AES-256-GCM) y la llave está en una variable *Sensitive* de Vercel.
+4. **El `.p12` y su clave viven cifrados** (AES-256-GCM) y la llave (`SRI_CERT_KEY`) está en una variable *Sensitive* de Vercel. La clave se escribe una sola vez, al subir el `.p12` en la pantalla, para poder renovar la firma sin tocar Vercel. Así lo pidió Sebastián el 2026-11-27; antes la clave iba en `SRI_CERT_PASSWORD`.
    - Nunca va al repo, a logs ni al cliente.
    - Cada firma queda registrada.
    - Hay un aviso 30 días antes de que caduque.
@@ -317,3 +317,171 @@ Migración aditiva: las facturas actuales quedan como `UPLOADED`.
   - **Ojo:** la autorización de oficio debería cubrir pruebas; puede que ya esté habilitado y la «solicitud en curso» sea un trámite viejo.
   - Si no se resuelve, llamar al 1700 774 774.
   - **B1 y B2 no dependen de esto:** se pueden hacer mientras tanto.
+- **2026-11-27, B0 revisado** (Claude leyó SRI en línea con la sesión ya abierta por Sebastián; no se ingresó ninguna clave):
+  - Solicitud de emisión en **ambiente de pruebas**: al pulsar «Siguiente» el SRI responde «YA TIENE UNA SOLICITUD DE AUTORIZACIÓN APROBADA EN AMBIENTE DE PRUEBAS». **Pruebas ya está habilitado**; la «solicitud en curso» era eso.
+  - **Validación de emisor** (`comprobantes-electronicos-internet/publico/validezEmisor.jsf`) con el RUC 0104885694001: aparece como emisor autorizado, fecha de autorización **13/05/2026 10:25**, Azuay, Cuenca.
+  - Siguen abiertos B0.2 (¿001-002 sin registro aparte?) y B0.3 (contador).
+- **2026-11-27, B1 hecho** (rama `feat/sri-b1-modelo`, 3 commits):
+  - Migración aditiva `20261127230000_sri_emission_model`: `EmissionPoint` (uno por ambiente, contador propio), `Invoice.source/sriStatus/environment/emissionPointId/sequential/authorizedAt`, `InvoiceItem`, `SriSubmission`, `TaxProfile.sriRegime`.
+  - CHECK en BD: una factura `ISSUED` siempre tiene ambiente, punto, secuencial y estado; `(punto, secuencial)` es único. Se siembra solo `001-002` en **PRUEBAS**; el de producción se crea a propósito en B7.
+  - `lib/sri/emission.ts`: `takeSequential` (bloquea el punto dentro de la transacción de la factura; rechaza punto de otro ambiente) y `getSriTaxContext(día)` (rechaza emitir si no hay perfil vigente o no tiene régimen SRI).
+  - `TaxProfile.regime` era texto libre, así que se agregó `sriRegime` (enum) con selector en el diálogo de Impuestos. La leyenda sale de `lib/sri/regime.ts`.
+  - Probado contra la BD local: 20 emisiones concurrentes dan 1..20 sin huecos ni duplicados, un rollback devuelve el número, el CHECK y el único funcionan.
+  - **Pendiente:** probar el selector de régimen en el navegador (claro/oscuro). El `next dev` que estaba corriendo tenía el cliente Prisma viejo («error de la base de datos» al guardar); hay que reiniciarlo.
+  - **Al desplegar:** en producción, editar la vigencia actual en Finanzas › Impuestos y elegir «RIMPE · Negocio Popular»; sin eso VeegHub no emite.
+- **2026-11-27, B2 hecho** (rama `feat/sri-b2-xml`, sobre B1, 2 commits):
+  - `lib/sri/build-invoice.ts` (`buildInvoiceXml`), `lib/sri/emitter.ts` (emisor tal como en el RUC: razón social apellidos primero) y `buildAccessKey` en `access-key.ts`.
+  - Cantidad × precio exacto con BigInt (6 decimales), un solo redondeo por línea; IVA por tarifa sobre la base sumada. Formatos como el facturador: `cantidad`/`precioUnitario`/`descuento` cortos («1»), totales con 2 decimales, `tarifa` «0.0».
+  - **Test de oro en verde:** con los datos de la factura de mayo da el mismo `<factura>` (sin firma) y la misma clave. 12 tests del constructor; 127 en total.
+  - **Riesgo a verificar en `celcer` (B3/B7):** el IVA de cada línea se redondea por separado y el total por tarifa sobre la suma, así que pueden diferir en 1 centavo con varias líneas gravadas. Si el SRI devuelve error 52, cambiar a total = suma de líneas.
+  - **Sin validar contra el XSD oficial:** no se descargó `factura_V1.1.0.xsd`. Validarlo con `xmllint` antes de B3 ahorra errores 35. → Resuelto abajo.
+- **2026-11-27, XSD oficial** (rama `feat/sri-b2-xml`):
+  - Se bajó el ZIP «XML y XSD Factura» de sri.gob.ec (feb-2022) y se guardó `factura_V1.1.0.xsd` en `lib/sri/xsd/`.
+  - **Hallazgo:** el XSD publicado solo acepta la leyenda «CONTRIBUYENTE RÉGIMEN RIMPE». La factura real de mayo, con la de Negocio Popular, sí fue autorizada, así que el SRI valida con un XSD más nuevo que el que publica. La copia local acepta las dos leyendas.
+  - El ZIP no trae `xmldsig-core-schema.xsd`. Se puso un sustituto que valida documentos sin firmar.
+  - Seis variantes del constructor validan con `xmllint`.
+- **2026-11-27, B1 probado en el navegador:** con `next dev` reiniciado, el selector de régimen guarda y precarga, en claro y en oscuro.
+- **2026-11-27, B3 hecho en código** (rama `feat/sri-b3-firma`, 6 commits). Guía de uso: `docs/runbooks/facturas-emision-sri.md`.
+  - **Custodia:** `SriCertificate` guarda el `.p12` cifrado con AES-256-GCM bajo `SRI_CERT_KEY`, sin llave por defecto. Solo puede haber uno activo. La clave del archivo vive solo en `SRI_CERT_PASSWORD`.
+  - **Registro:** `SriSigningEvent` guarda una fila por cada firma.
+  - **Pantalla:** tarjeta «Firma electrónica» en Finanzas › Impuestos. Muestra titular, emisor y caducidad, con aviso 30 días antes. La subida solo envía el archivo.
+  - **Recepción:** `sendToReception` en `ws.ts`. No se reintenta (§3.6).
+  - **Smoke contra `celcer`:** con un `.p12` autofirmado salió `RECIBIDA` y luego `NO AUTORIZADO [39]` por la cadena de confianza. El XML, el envío y la lectura de la respuesta funcionan; solo falta una firma real.
+  - **Tests:** 145 en verde. La firma se verifica con `xml-crypto`, se rompe si cambia la factura y el documento firmado pasa el XSD.
+  - **Cambio el mismo día (pedido de Sebastián):** la clave del `.p12` ya no va en `SRI_CERT_PASSWORD`. Se escribe al subir el archivo y se guarda cifrada junto a él (migración `20261127250000_sri_certificate_password`). Así renovar la firma es subir el archivo nuevo con su clave.
+    - Verificado con un script contra la BD local: con una clave equivocada no se guarda nada; con la correcta se guarda y firma sin ninguna variable de clave.
+    - No se pudo probar la subida desde el navegador: la herramienta no sube archivos `.p12` por política, así que esa prueba la hace Sebastián.
+  - **Para cerrar B3:** subir el `.p12` con su clave en Finanzas › Impuestos (Sebastián), correr `npx tsx scripts/sri-smoke.ts` y esperar `AUTORIZADO`. `SRI_CERT_KEY` local ya está en `.env`.
+  - **Al desplegar:** crear `SRI_CERT_KEY` como variable *Sensitive* en Vercel y subir el `.p12` en producción.
+- **2026-11-27, B3 cerrado con la firma real:**
+  - Sebastián subió su `.p12` con su clave en Finanzas › Impuestos (local).
+  - La tarjeta muestra: titular CHRISTIAN SEBASTIAN VELEZ PALOMEQUE, emisor «AUTORIDAD DE CERTIFICACION SUBCA-2 SECURITY DATA», vigente hasta el **4 may 2027**. Se revisó en claro y en oscuro.
+  - `npx tsx scripts/sri-smoke.ts`: factura `001-002-000000002` (PRUEBAS, USD 1,00, consumidor final, leyenda Negocio Popular) → XSD ✔ → **RECIBIDA** → **AUTORIZADO**. Clave `2711202601010488569400110010020000000022371751917`. Sin error 39 ni 52.
+  - Quedó una fila en `SriSigningEvent` (`smoke-test`, PRUEBAS).
+  - **Detalle:** el `serialNumber` del certificado de Security Data trae la cédula más un sufijo (`0104885694-…`), y así se muestra.
+  - El secuencial 001 de pruebas se consumió en la prueba con el certificado autofirmado (NO AUTORIZADO, error 39).
+- **2026-11-27, B4 hecho** (rama `feat/sri-b4-envio`, sobre B3, 9 commits):
+  - **Modelo:** `Invoice.sriXml` guarda los bytes exactos que se envían, `sriAuthorizedXml` la respuesta del SRI, y además `sriAttempts`, `sriNextAttemptAt`, `sriLeaseUntil` y `sriLastError`.
+  - **Reglas puras** (`lib/sri/state.ts`, con tests):
+    - 43 y 70 en recepción significan que el SRI ya tiene el documento: se pasa a consultar la autorización.
+    - Si un envío no tuvo respuesta, se consulta la autorización antes de reenviar, y solo se reenvía si el SRI no tiene registro.
+    - Los reintentos esperan cada vez más: 30 s, 1, 2, 5, 10 y 30 min, y luego cada hora.
+  - **Máquina** (`lib/sri/issue.ts`):
+    - `createIssuedInvoice` crea el borrador con el secuencial, los ítems y el XML en una sola transacción.
+    - `advanceInvoice` firma, envía y consulta la autorización. Usa un lease para que dos procesos no avancen la misma factura y registra cada llamada en `SriSubmission`.
+    - Producción se rechaza salvo `SRI_ALLOW_PRODUCTION=true`, que no se define hasta B7.
+  - **Revisión interna antes de firmar y antes de cada envío** (`lib/sri/self-check.ts`): relee el XML y exige que cuadren los totales, la aritmética de cada línea, la clave y el ambiente.
+  - **Hallazgo: `celcer` no valida la aritmética.** El 2026-11-27 autorizó:
+    - un total de USD 2,00 sobre una base de USD 1,00;
+    - una línea de 1 × 5,00 declarada como 1,00;
+    - una fecha de emisión de hace 40 días;
+    - una cédula con dígito verificador inválido.
+
+    En pruebas no se puede provocar el error 52. La revisión interna es la única barrera, y está probada en la campaña.
+  - **Cron:** va dentro de `/api/cron/marketing` (el Worker de Cloudflare, cada 15 min), antes de la sincronización de Meta para no quedarse sin tiempo. Retoma las facturas firmadas o recibidas cuyo siguiente intento ya venció. Nunca empieza una emisión.
+  - **Ficha de factura:** tarjeta «SRI» con el estado, el ambiente, el último problema, el próximo intento, el historial de llamadas y el botón contextual («Reintentar envío» o «Consultar autorización»). Se probó en el navegador: una factura con envío perdido pasó por ERROR → SIN REGISTRO → RECIBIDA → **AUTORIZADO** con un clic. Revisada en claro y en oscuro.
+  - **Facturas emitidas no editables:** «Editar» y «Comparar» las rechazan en el servidor y se ocultan en la ficha.
+  - **Campaña** (`npx tsx scripts/sri-campaign.ts`, 7/7):
+    1. autorizada;
+    2. clave repetida (43) que se resuelve sin crear un documento nuevo;
+    3. devuelta por estructura (35);
+    4. cálculos frenados por la revisión interna;
+    5. envío sin respuesta y luego recuperado;
+    6. dos procesos a la vez;
+    7. bloqueo de producción.
+
+    Las facturas de prueba quedan en la BD local con el cliente «Cliente de pruebas SRI».
+  - 159 tests en verde.
+  - **Pendiente para B6:**
+    - al autorizar, adjuntar el XML autorizado como archivo de la factura y ligar los hitos de los ítems;
+    - cambiar los textos de la ficha que mencionan «Editar» en facturas emitidas;
+    - validar la cédula o el RUC del comprador, porque producción puede exigirlo aunque `celcer` no lo haga.
+- **2026-11-27, B5 hecho** (rama `feat/sri-b5-ride`, sobre B4, 4 commits):
+  - **RIDE** en `lib/pdf/ride.tsx`, armado **desde el XML de la factura**, igual que el facturador del SRI. Tiene:
+    - caja del emisor (logo, razón social, nombre comercial, dirección matriz, obligado a contabilidad, leyenda RIMPE);
+    - caja del documento (RUC, número, autorización, fecha y hora, ambiente, emisión, clave en Code 128 y en texto);
+    - comprador, detalle, información adicional y forma de pago;
+    - subtotales por tarifa: 15 %, 0 %, no objeto, exento, sin impuestos, descuento, IVA, propina y total.
+  - **Vista previa:** si la factura no está autorizada, el RIDE lleva arriba «VISTA PREVIA · SIN AUTORIZACIÓN DEL SRI · SIN VALOR TRIBUTARIO». B6 la usará antes de «Emitir».
+  - **Código de barras:** `bwip-js` (JS puro, MIT), importado como `bwip-js/node`.
+  - El lector del XML ahora también lee la dirección del establecimiento, si lleva contabilidad y las formas de pago.
+  - **Ruta:** `/admin/facturas/[id]/ride` (`?download=1` para descargar). En la tarjeta SRI de la ficha están «Ver RIDE» o «Vista previa», y «Descargar».
+  - **Probado así:**
+    - se revisaron como imagen el RIDE de la factura real de mayo, uno de pruebas autorizado y uno de varios ítems al 15 % y 0 % con descuento;
+    - la ruta funciona en dev y en el **build de producción** (`next build` + `next start`);
+    - la tarjeta se revisó en claro y en oscuro.
+  - 162 tests en verde.
+- **2026-11-27, diseño acordado para B6** (con Sebastián): un facturador normal y sencillo, con las convenciones de diseño.
+  - **Entradas:** «Nueva factura» en Facturas, y «Facturar» en el hito o el proyecto, que precarga cliente, concepto y valor.
+  - **Una sola pantalla:**
+    - cliente y comprador editables;
+    - ítems con agregar y quitar, y código, concepto, cantidad, precio, descuento e IVA editables;
+    - forma de pago e información adicional;
+    - totales en vivo, calculados con el mismo código que firma.
+  - **Catálogo de productos y servicios** reutilizable.
+  - **Al emitir:** vista previa del RIDE → «Emitir» con confirmación (ambiente, número y total) → progreso en vivo → «Enviar al cliente» con el XML y el RIDE.
+- **2026-11-27, cierre de sesión. Para retomar B6:**
+  - **Ramas** (cada una sobre la anterior, ninguna fusionada ni desplegada): `feat/sri-b1-modelo` → `feat/sri-b2-xml` → `feat/sri-b3-firma` → `feat/sri-b4-envio` → `feat/sri-b5-ride`. Todas rebasadas sobre `develop` (9414172). B6 sale de `feat/sri-b5-ride`.
+  - **Entorno local:**
+    - `.env` tiene `SRI_CERT_KEY`.
+    - La firma real de Security Data (vigente hasta el 4 may 2027) está subida en la BD local.
+    - El TaxProfile local es «RIMPE Negocio Popular» desde el 2026-01-01, con IVA 0 %.
+    - El punto 001-002 de PRUEBAS va por el secuencial ~20.
+    - Las facturas de prueba están con el cliente «Cliente de pruebas SRI».
+  - **Migraciones nuevas** (aditivas, todavía sin aplicar en producción): `20261127230000_sri_emission_model`, `20261127240000_sri_certificate`, `20261127250000_sri_certificate_password` y `20261128000000_sri_issuing_state`.
+  - **Al agregar modelos de Prisma**, hay que reiniciar `next dev`.
+  - **Pendientes de B4 que se resuelven en B6:**
+    - al autorizar, adjuntar el XML autorizado y el RIDE como archivos de la factura (hoy la ficha dice «XML autorizado · pendiente de subir»);
+    - ligar los hitos de los ítems (`InvoiceItem.receivableId` → `Receivable.invoiceId` + `syncInvoicePaidStatus`);
+    - quitar o adaptar los textos «usa Editar» en las facturas emitidas;
+    - validar la cédula (módulo 10) y el RUC del comprador.
+  - **Antes de B7 (producción):**
+    - confirmar con el contador B0.2 (si 001-002 necesita registro) y B0.3 (NAC-DGERCGC26-00000027);
+    - crear `SRI_CERT_KEY` en Vercel y subir el `.p12` en producción;
+    - crear el `EmissionPoint` de PRODUCCION;
+    - definir `SRI_ALLOW_PRODUCTION=true` solo entonces.
+  - **También pendiente** (fuera del SRI): pasar el margen de Egresos a «margen cobrado». El análisis está hecho (calc.ts:287); falta implementarlo.
+- **2026-11-27, B6 hecho** (rama `feat/sri-b6-emitir`, sobre B5, 7 commits):
+  - **Cálculo compartido:** `computeInvoiceTotals` pasó a `lib/sri/invoice-calc.ts`, sin imports de Node. La pantalla muestra los totales en vivo con el mismo código que firma; `buildInvoiceXml` lo usa y el test de oro sigue en verde.
+  - **Identificación:** `lib/sri/identification.ts` valida cédula (módulo 10) y RUC (persona natural = cédula + establecimiento; sociedades módulo 11). Un RUC de sociedad que no cuadra con módulo 11 solo **avisa**, porque el SRI ha entregado RUC así. Se valida en la pantalla y en el servidor (`resolveIssueRequest`), no en el constructor: el XML de oro usa una cédula anonimizada.
+  - **Catálogo:** modelo `CatalogItem` (migración `20261128010000_catalog_items`) y página Facturas › Productos y servicios (crear, editar, archivar). La factura copia los valores.
+  - **Pantalla** `/admin/facturas/nueva`:
+    - cliente y comprador editables (con «Guardar estos datos en el cliente»), ítems con código, concepto, cantidad, precio, descuento e IVA de las tarifas vigentes, «Del catálogo» e «Hito pendiente», forma de pago e información adicional (el email va como campo «Email»);
+    - panel con ambiente, número siguiente, fecha y totales;
+    - «Revisar y emitir» → RIDE de vista previa (ruta `nueva/vista-previa`, arma el XML con el siguiente secuencial **sin tomarlo**) + ambiente, número y total → «Emitir en pruebas» → progreso en vivo (firmando, enviando, esperando autorización, guardando XML y RIDE) → «Enviar al cliente» con `SendInvoiceForm`.
+    - El progreso se consulta en `/admin/facturas/[id]/estado` (route handler): el cliente ejecuta las server actions de una en una, así que no se puede sondear con otra acción mientras corre `sendIssued`.
+  - **Entradas:** «Nueva factura» en Facturas (el registro por XML quedó como «Registrar del SRI»); «Facturar» en un hito abre un menú (Emitir factura / Registrar del SRI); «Facturar» en la cabecera del proyecto (precarga cliente, nombre y saldo del presupuesto); «Emitir factura» en la ficha del cliente.
+  - **Al autorizar** (`lib/sri/finalize.ts`, llamado por `advanceInvoice` y reintentado por el cron): guarda el `<autorizacion>` del SRI como XML de la factura y el RIDE autorizado, y liga los hitos de los ítems con `syncInvoiceReceivables` + `syncInvoicePaidStatus`. Si falla (p. ej. R2), queda «Autorizada, pero no se pudieron guardar…» y el cron lo reintenta.
+  - **Decisión (regla de oro):** una factura de **PRUEBAS no liga hitos** ni los reserva, y **no suma** en los KPIs de Facturas, reportes, resumen financiero, su exportación ni el dashboard (`REAL_INVOICES`). Se listan con la etiqueta «Pruebas». Antes de este cambio las facturas de la campaña B4 inflaban «Facturado en 2026». El ligado se probó en pruebas antes de restringirlo (hito → INVOICED) y después se deshizo.
+  - **Ficha:** los textos «usa Editar» se adaptaron para las emitidas; la lista ya no muestra «Editar» en ellas.
+  - **Probado en `celcer` desde el navegador:**
+    - `001-002-000000020`: cédula 1710034065, 2 ítems (hito de USD 1,50 y producto del catálogo 0,5 × 45 con descuento de 2,25), total USD 21,75 → **AUTORIZADO**; XML `<autorizacion>` y RIDE guardados en R2.
+    - `001-002-000000021`: consumidor final, desde «Facturar» de un hito, USD 2,00 → **AUTORIZADO**.
+    - Cédula inválida bloquea «Revisar y emitir»; menú «Facturar» y «Registrar del SRI» con el hito precargado; claro y oscuro; ancho de 500 px (la ventana no baja más) sin desbordes.
+    - Cron: finalizó 3 facturas autorizadas de la campaña B4 que no tenían XML ni RIDE.
+  - **No probado:** «Enviar factura» por correo (no se envió ningún email sin permiso); el ligado de hitos en PRODUCCION (solo existe el punto de pruebas); `next build`.
+  - 171 tests en verde.
+  - **Pendientes:** la vista a 390 px real; la línea de tiempo de `SriSubmission` es la de B4 (tarjeta SRI), sin cambios.
+
+- **2026-11-27, B6b: plan de pagos de una factura emitida** (pedido de Sebastián: «facturar primero y luego ir asociando los pagos», flexible y fácil):
+  - Se puede facturar sin hitos (ítems libres o del catálogo) y planificar los pagos después. En la ficha de una emitida y autorizada, la tarjeta «Pagos de la factura»:
+    - **Plan de pagos:** crea los hitos de lo que falta cubrir. Por defecto un solo pago por el saldo; con un clic, 2 o 3 cuotas iguales (la última absorbe el centavo); cada cuota con nombre, monto y vencimiento. No deja pasar del saldo.
+    - **Ligar hitos:** elige hitos libres del cliente.
+    - **Desligar** cada hito; el hito y sus pagos se conservan en Cobros.
+    - **Cobrar** directo desde la ficha (`SinglePaymentDialog`).
+    - Cifras: planificado, cobrado y por planificar.
+  - **Regla nueva de «Pagada» para emitidas** (`syncInvoicePaidStatus`): lo cobrado más lo retenido de sus hitos debe llegar al **total de la factura**. Antes bastaba con que sus hitos ligados estuvieran cobrados, y una factura de $1.000 con un hito de $300 quedaba «Pagada». Las registradas (UPLOADED) mantienen la regla anterior.
+  - El ligado manual también funciona en PRUEBAS, para poder probarlo; el ligado automático al emitir sigue siendo solo de PRODUCCION. El diálogo avisa que esos hitos sí aparecen en Cobros.
+  - `DatePickerField` (shadcn) ahora está en español, se cierra al elegir y se puede usar de forma controlada; aplica a todo el panel.
+  - Probado en el navegador: la factura 020 ($21,75) se partió en 2 cuotas (10,87 + 10,88); al cobrar la primera siguió «Por enviar» y al cobrar la segunda pasó a **Pagada**. En la 021 ($2) se ligó un hito de $1,50, se planificó el resto ($0,50, vence el 4 dic) y se desligó un hito. Claro y oscuro.
+  - **Datos de prueba que quedan en local:** hitos «Factura 001-002-000000020 · cuota 1/2 y 2/2» (cobrados), «Pago factura 001-002-000000021» y «Hito prueba B6 · …», todos del «Cliente de pruebas SRI».
+- **2026-11-27, auditoría antes de producción** (seguridad y rendimiento sobre `9414172..HEAD`, con dos revisores independientes):
+  - **Seguridad, sin hallazgos críticos ni altos.** Pasan: auth en todas las acciones y rutas, custodia del `.p12`, regla de oro (el ambiente sale del punto de emisión, producción bloqueada por `SRI_ALLOW_PRODUCTION`, el cron nunca empieza una emisión), escape del XML, URLs del SRI fijas y secretos fuera del repo.
+  - **Corregido:**
+    - «Emitir» idempotente: `Invoice.issueRequestId` único (migración `20261128020000_invoice_issue_request`). Probado: dos envíos simultáneos con el mismo id dan una sola factura y el reintento devuelve la misma.
+    - Hitos bloqueados (`FOR UPDATE`) dentro de la transacción que emite, del plan de pagos y del ligado.
+    - `advanceInvoice` con presupuesto de 45 s (lo que no cabe lo retoma el cron), `maxDuration = 60` en las páginas de emisión, `sriNextAttemptAt` al firmar (una ejecución cortada no queda huérfana), lease liberado solo por quien lo tiene y finalización del cron con lease.
+    - Sondeo del progreso: una consulta a la vez cada 1,2 s, sin respuestas tardías.
+    - `*.p12`/`*.pfx` en `.gitignore`.
+  - **Pendiente, menor:** los mensajes de error del firmador llegan crudos al admin (solo él los ve) y las consultas de lista cargan `sriXml` (optimización con `omit`).
+  - `next build` en verde. Emisión `001-002-000000023` AUTORIZADA en `celcer` después de las correcciones.

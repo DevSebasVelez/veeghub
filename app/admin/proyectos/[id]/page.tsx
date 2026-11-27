@@ -7,6 +7,7 @@ import {
   ExternalLink,
   HardDrive,
   KeyRound,
+  Receipt,
 } from "lucide-react";
 import { FaGithub } from "react-icons/fa6";
 
@@ -361,6 +362,14 @@ export default async function ProjectDetailPage({
                         </Link>
                       </Button>
                     </>
+                  ) : null}
+                  {project.client ? (
+                    <Button asChild variant="outline" size="sm">
+                      <Link href={`/admin/facturas/nueva?proyecto=${project.id}`}>
+                        <Receipt className="size-4" />
+                        Facturar
+                      </Link>
+                    </Button>
                   ) : null}
                   {project.client ? (
                     <AccountStatementDialog

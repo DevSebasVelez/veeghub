@@ -80,3 +80,41 @@ export function findAccessKey(text: string) {
   }
   return null;
 }
+
+export type AccessKeyInput = {
+  /** Calendar day "yyyy-MM-dd". */
+  issueDay: string;
+  docType: string;
+  ruc: string;
+  environment: SriEnvironment;
+  establishment: string;
+  emissionPoint: string;
+  sequential: string | number;
+  /** 8 digits chosen by the emitter. */
+  numericCode: string;
+  /** "1" = emisión normal, the only one the offline scheme uses. */
+  emissionType?: string;
+};
+
+/** Builds the 49-digit clave with its check digit; throws on malformed parts. */
+export function buildAccessKey(input: AccessKeyInput) {
+  const day = /^(\d{4})-(\d{2})-(\d{2})$/.exec(input.issueDay);
+  if (!day) throw new Error(`Fecha de emisión inválida: ${input.issueDay}`);
+  const sequential = String(input.sequential).padStart(9, "0");
+  const parts: [string, RegExp][] = [
+    [`${day[3]}${day[2]}${day[1]}`, /^\d{8}$/],
+    [input.docType, /^\d{2}$/],
+    [input.ruc, /^\d{13}$/],
+    [input.environment === "PRUEBAS" ? "1" : "2", /^[12]$/],
+    [input.establishment, /^\d{3}$/],
+    [input.emissionPoint, /^\d{3}$/],
+    [sequential, /^\d{9}$/],
+    [input.numericCode, /^\d{8}$/],
+    [input.emissionType ?? "1", /^\d$/],
+  ];
+  for (const [value, shape] of parts) {
+    if (!shape.test(value)) throw new Error(`Parte inválida de la clave de acceso: «${value}»`);
+  }
+  const first48 = parts.map(([value]) => value).join("");
+  return `${first48}${accessKeyCheckDigit(first48)}`;
+}

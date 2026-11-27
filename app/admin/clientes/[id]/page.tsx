@@ -759,10 +759,20 @@ export default async function ClientDetailPage({
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-base">Facturas</CardTitle>
-                <CreateInvoiceDialog
-                  clientsWithContext={invoiceCtxCreate}
-                  fixedClientId={id}
-                />
+                <div className="flex gap-2">
+                  <CreateInvoiceDialog
+                    clientsWithContext={invoiceCtxCreate}
+                    fixedClientId={id}
+                    trigger={
+                      <Button type="button" variant="outline" size="sm">
+                        Registrar del SRI
+                      </Button>
+                    }
+                  />
+                  <Button asChild size="sm">
+                    <Link href={`/admin/facturas/nueva?cliente=${id}`}>Emitir factura</Link>
+                  </Button>
+                </div>
               </div>
             </CardHeader>
             <CardContent className="p-0">

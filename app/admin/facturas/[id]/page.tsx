@@ -13,9 +13,12 @@ import {
 import { deleteWithholding } from "@/lib/admin/actions/withholdings/actions";
 import { ConfirmActionButton } from "@/components/admin/finance/confirm-action-button";
 import { WithholdingDialog } from "@/components/admin/dialogs/withholding-dialog";
+import { SinglePaymentDialog } from "@/components/admin/dialogs/receivable-dialog";
 import { WITHHOLDING_KIND_LABELS } from "@/components/admin/finance/labels";
 import { checkInvoiceTotals } from "@/lib/admin/finance/calc";
-import { fromCents, sumCents } from "@/lib/admin/finance/money";
+import { fromCents, sumCents, toCents } from "@/lib/admin/finance/money";
+import { setInvoiceReceivables } from "@/lib/admin/actions/invoices/payment-plan";
+import { LinkHitosDialog, PaymentPlanDialog } from "@/components/admin/finance/invoice-plan-dialogs";
 
 import { InvoiceEditDialog } from "@/components/admin/dialogs/invoice-dialog";
 import { ReconcileInvoiceDialog } from "@/components/admin/dialogs/reconcile-invoice-dialog";
@@ -27,6 +30,11 @@ import { formatCurrency, formatDate, formatDateOnly } from "@/lib/admin/format";
 import { IconTile } from "@/components/admin/tone";
 import { Button } from "@/components/ui/button";
 import { parseAccessKey } from "@/lib/sri/access-key";
+import { SriStatusCard } from "@/components/admin/finance/sri-status-card";
+
+// «Emitir» and «Reintentar» are server actions on this page: signing and
+// talking to the SRI take up to ~45 s (advanceInvoice's budget).
+export const maxDuration = 60;
 
 export default async function InvoiceDetailPage({
   params,
@@ -42,12 +50,13 @@ export default async function InvoiceDetailPage({
       project: true,
       receivables: {
         orderBy: { createdAt: "asc" },
-        select: { id: true, title: true, amount: true },
+        select: { id: true, title: true, amount: true, paidAmount: true, withheldAmount: true, dueDate: true },
       },
       xmlFile: true,
       rideFile: true,
       emailLogs: { orderBy: { createdAt: "desc" } },
       withholdings: { orderBy: { createdAt: "asc" } },
+      sriSubmissions: { orderBy: { createdAt: "desc" }, take: 10 },
     },
   });
 
@@ -95,6 +104,22 @@ export default async function InvoiceDetailPage({
     : [];
 
   const canSend = !!(invoice.xmlFile && invoice.rideFile);
+
+  // Payment plan of an issued, authorized invoice.
+  const canPlan = invoice.source === "ISSUED" && invoice.sriStatus === "AUTHORIZED";
+  const plannedCents = sumCents(invoice.receivables, (r) => r.amount);
+  const collectedCents =
+    sumCents(invoice.receivables, (r) => r.paidAmount) + sumCents(invoice.receivables, (r) => r.withheldAmount);
+  const unplannedCents = Math.max(toCents(invoice.total) - plannedCents, 0);
+  const freeHitos = canPlan
+    ? (
+        await prisma.receivable.findMany({
+          where: { clientId: invoice.clientId, invoiceId: null, status: { not: "CANCELLED" } },
+          orderBy: [{ dueDate: "asc" }, { createdAt: "asc" }],
+          select: { id: true, title: true, amount: true, project: { select: { name: true } } },
+        })
+      ).map((h) => ({ id: h.id, title: h.title, amount: h.amount.toString(), project: h.project?.name ?? null }))
+    : [];
   const defaultEmail =
     invoice.client.billingEmail ?? invoice.client.email ?? "";
 
@@ -143,13 +168,27 @@ export default async function InvoiceDetailPage({
       <div className="flex flex-col gap-4 lg:grid lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start">
         {/* Side panel: status, key data and actions (top on mobile) */}
         <aside className="space-y-4 lg:sticky lg:top-20 lg:order-last">
+          {invoice.source === "ISSUED" && invoice.sriStatus && invoice.environment ? (
+            <SriStatusCard
+              invoiceId={invoice.id}
+              status={invoice.sriStatus}
+              environment={invoice.environment}
+              attempts={invoice.sriAttempts}
+              lastError={invoice.sriLastError}
+              nextAttemptAt={invoice.sriNextAttemptAt}
+              authorizedAt={invoice.authorizedAt}
+              submissions={invoice.sriSubmissions}
+            />
+          ) : null}
           <section className="rounded-2xl border bg-card">
             <div className="flex items-center justify-between border-b px-5 py-4">
               <div>
                 <h2 className="text-sm font-semibold">Datos de la factura</h2>
                 <p className="mt-0.5 text-xs text-muted-foreground">Tal como se registró.</p>
               </div>
-              <InvoiceEditDialog invoice={forInvoiceDialog(invoice)} clientsWithContext={editCtx} />
+              {invoice.source === "ISSUED" ? null : (
+                <InvoiceEditDialog invoice={forInvoiceDialog(invoice)} clientsWithContext={editCtx} />
+              )}
             </div>
             <dl className="space-y-3 px-5 py-4 text-sm">
               {[
@@ -189,7 +228,11 @@ export default async function InvoiceDetailPage({
                 />
               ) : (
                 <p className="text-sm text-muted-foreground">
-                  Sube el XML y el RIDE (con «Editar») para poder enviarla.
+                  {invoice.source === "ISSUED"
+                    ? invoice.sriStatus === "AUTHORIZED"
+                      ? "VeegHub está guardando el XML autorizado y el RIDE; en unos minutos podrás enviarla."
+                      : "Se podrá enviar cuando el SRI la autorice: VeegHub adjunta el XML y el RIDE solo."
+                    : "Sube el XML y el RIDE (con «Editar») para poder enviarla."}
                 </p>
               )}
             </div>
@@ -252,29 +295,105 @@ export default async function InvoiceDetailPage({
             ) : null}
           </section>
 
-          {/* Milestones */}
+          {/* Milestones: how the client pays it */}
           <section className="rounded-2xl border bg-card">
-            <div className="border-b px-5 py-4">
-              <h2 className="text-sm font-semibold">Hitos que cubre</h2>
-              <p className="mt-0.5 text-xs text-muted-foreground">
-                Cuando todos se cobran, la factura pasa a «Pagada» sola.
-              </p>
+            <div className="flex flex-col gap-3 border-b px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h2 className="text-sm font-semibold">{canPlan ? "Pagos de la factura" : "Hitos que cubre"}</h2>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  {canPlan
+                    ? "Hitos con los que el cliente la paga. Se cobran con «Cobrar»; cubierto el total, pasa a «Pagada»."
+                    : "Cuando todos se cobran, la factura pasa a «Pagada» sola."}
+                </p>
+              </div>
+              {canPlan ? (
+                <div className="flex flex-wrap gap-2">
+                  <LinkHitosDialog
+                    invoiceId={invoice.id}
+                    linkedIds={invoice.receivables.map((r) => r.id)}
+                    freeHitos={freeHitos}
+                  />
+                  <PaymentPlanDialog
+                    invoiceId={invoice.id}
+                    invoiceNumber={invoice.invoiceNumber ?? ""}
+                    balanceCents={unplannedCents}
+                    isTest={invoice.environment === "PRUEBAS"}
+                  />
+                </div>
+              ) : null}
             </div>
+            {canPlan ? (
+              <div className="grid grid-cols-3 gap-3 border-b px-5 py-3 text-xs">
+                {[
+                  ["Planificado", plannedCents],
+                  ["Cobrado", collectedCents],
+                  ["Por planificar", unplannedCents],
+                ].map(([label, cents]) => (
+                  <div key={label as string}>
+                    <p className="text-muted-foreground">{label}</p>
+                    <p className="mt-0.5 text-sm font-semibold tabular-nums">{formatCurrency(fromCents(cents as number))}</p>
+                  </div>
+                ))}
+              </div>
+            ) : null}
             {invoice.receivables.length === 0 ? (
               <p className="px-5 py-6 text-sm text-muted-foreground">
-                No está ligada a ningún hito. Usa «Editar» para elegir los que cubre.
+                {invoice.source === "ISSUED"
+                  ? invoice.sriStatus === "AUTHORIZED"
+                    ? "Aún no tiene hitos. Crea el plan de pagos (un pago o cuotas) o liga hitos que ya existen."
+                    : "Podrás planificar los pagos cuando el SRI la autorice."
+                  : "No está ligada a ningún hito. Usa «Editar» para elegir los que cubre."}
               </p>
             ) : (
               <ul className="divide-y">
-                {invoice.receivables.map((r) => (
-                  <li key={r.id} className="flex items-center gap-3 px-5 py-3.5">
-                    <IconTile icon={Flag} tone="blue" size="sm" />
-                    <p className="min-w-0 flex-1 truncate text-sm font-medium">{r.title}</p>
-                    <p className="shrink-0 text-sm font-semibold tabular-nums">
-                      {formatCurrency(r.amount.toString())}
-                    </p>
-                  </li>
-                ))}
+                {invoice.receivables.map((r) => {
+                  const covered = toCents(r.paidAmount) + toCents(r.withheldAmount);
+                  const settled = covered >= toCents(r.amount);
+                  return (
+                    <li key={r.id} className="flex items-center gap-3 px-5 py-3.5">
+                      <IconTile icon={Flag} tone={settled ? "emerald" : "blue"} size="sm" />
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium">{r.title}</p>
+                        <p className="truncate text-xs text-muted-foreground">
+                          {[
+                            settled ? "Cobrado" : covered > 0 ? `Cobrado ${formatCurrency(fromCents(covered))}` : "Por cobrar",
+                            r.dueDate ? `vence ${formatDateOnly(r.dueDate)}` : null,
+                          ]
+                            .filter(Boolean)
+                            .join(" · ")}
+                        </p>
+                      </div>
+                      <p className="shrink-0 text-sm font-semibold tabular-nums">
+                        {formatCurrency(r.amount.toString())}
+                      </p>
+                      {canPlan && !settled ? (
+                        <SinglePaymentDialog
+                          receivable={{
+                            id: r.id,
+                            title: r.title,
+                            amount: formatCurrency(r.amount.toString()),
+                            remaining: formatCurrency(fromCents(toCents(r.amount) - covered)),
+                          }}
+                        />
+                      ) : null}
+                      {canPlan ? (
+                        <ConfirmActionButton
+                          icon="trash"
+                          compact
+                          title="Desligar hito"
+                          description={`«${r.title}» deja de cobrar esta factura. El hito y sus pagos se conservan en Cobros.`}
+                          confirmLabel="Desligar"
+                          successMessage="Hito desligado."
+                          action={setInvoiceReceivables.bind(
+                            null,
+                            invoice.id,
+                            invoice.receivables.filter((x) => x.id !== r.id).map((x) => x.id),
+                          )}
+                        />
+                      ) : null}
+                    </li>
+                  );
+                })}
               </ul>
             )}
           </section>
@@ -288,7 +407,7 @@ export default async function InvoiceDetailPage({
                   El cliente debe recibir los dos.
                 </p>
               </div>
-              {invoice.xmlFile || invoice.rideFile ? (
+              {invoice.source !== "ISSUED" && (invoice.xmlFile || invoice.rideFile) ? (
                 <ReconcileInvoiceDialog
                   invoiceId={invoice.id}
                   label={invoice.xmlFile ? "Comparar con el XML" : "Comparar con el RIDE"}
@@ -307,7 +426,9 @@ export default async function InvoiceDetailPage({
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-medium">{doc.label}</p>
                     <p className="truncate text-xs text-muted-foreground">
-                      {doc.file ? doc.file.name : `${doc.hint} · pendiente de subir`}
+                      {doc.file
+                        ? doc.file.name
+                        : `${doc.hint} · ${invoice.source === "ISSUED" ? "se guarda al autorizarse" : "pendiente de subir"}`}
                     </p>
                   </div>
                   {doc.file ? (

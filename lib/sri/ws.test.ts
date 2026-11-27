@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { afterEach, describe, it } from "node:test";
 
 import { parseSriInvoiceXml } from "@/lib/sri/invoice-xml";
-import { checkAuthorizationStatus, fetchAuthorization } from "@/lib/sri/ws";
+import { checkAuthorizationStatus, fetchAuthorization, sendToReception } from "@/lib/sri/ws";
 
 // Responses captured from cel.sri.gob.ec (2026-11-27), plus an authorized one
 // built from the same shape, with fetch stubbed: tests never call the SRI.
@@ -82,4 +82,32 @@ describe("SRI web services", () => {
     stub(timeout, timeout);
     await assert.rejects(() => checkAuthorizationStatus(KEY, "PRODUCCION"), /no respondió a tiempo/);
   });
+
+  const RECEIVED =
+    `<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/"><soap:Body><ns2:validarComprobanteResponse xmlns:ns2="http://ec.gob.sri.ws.recepcion"><RespuestaRecepcionComprobante><estado>RECIBIDA</estado><comprobantes/></RespuestaRecepcionComprobante></ns2:validarComprobanteResponse></soap:Body></soap:Envelope>`;
+  const RETURNED =
+    `<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/"><soap:Body><ns2:validarComprobanteResponse xmlns:ns2="http://ec.gob.sri.ws.recepcion"><RespuestaRecepcionComprobante><estado>DEVUELTA</estado><comprobantes><comprobante><claveAcceso>${KEY}</claveAcceso><mensajes><mensaje><identificador>43</identificador><mensaje>CLAVE ACCESO REGISTRADA</mensaje><tipo>ERROR</tipo></mensaje></mensajes></comprobante></comprobantes></RespuestaRecepcionComprobante></ns2:validarComprobanteResponse></soap:Body></soap:Envelope>`;
+
+  it("sends the signed XML in base64 to the reception service of the given environment", async () => {
+    stub(RECEIVED);
+    const result = await sendToReception("<factura>ñ</factura>", "PRUEBAS");
+    assert.deepEqual(result, { state: "RECIBIDA", messages: [] });
+    assert.equal(calls[0].url, "https://celcer.sri.gob.ec/comprobantes-electronicos-ws/RecepcionComprobantesOffline");
+    const sent = /<xml>([^<]+)<\/xml>/.exec(calls[0].body)![1];
+    assert.equal(Buffer.from(sent, "base64").toString("utf8"), "<factura>ñ</factura>");
+  });
+
+  it("reads why a document came back", async () => {
+    stub(RETURNED);
+    const result = await sendToReception("<factura/>", "PRUEBAS");
+    assert.equal(result.state, "DEVUELTA");
+    assert.deepEqual(result.messages, [{ id: "43", text: "CLAVE ACCESO REGISTRADA", detail: null, type: "ERROR" }]);
+  });
+
+  it("never retries a reception: the outcome of a timeout is unknown", async () => {
+    stub(Object.assign(new Error("t"), { name: "TimeoutError" }), RECEIVED);
+    await assert.rejects(sendToReception("<factura/>", "PRUEBAS"), /no respondió a tiempo/);
+    assert.equal(calls.length, 1);
+  });
 });
+

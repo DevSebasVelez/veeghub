@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
@@ -8,10 +9,12 @@ import {
   BadgeCheck,
   CloudOff,
   FileCode2,
+  FileUp,
   KeyRound,
   Loader2,
   Plus,
   Receipt,
+  Send,
   ShieldQuestion,
   Sparkles,
   XCircle,
@@ -40,6 +43,12 @@ import {
   type UploadedFile,
 } from "@/components/admin/invoice-file-uploader";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
@@ -739,14 +748,22 @@ export function CreateInvoiceDialog({
   fixedProjectId,
   fixedReceivableId,
   trigger,
+  open: controlledOpen,
+  onOpenChange,
 }: {
   clientsWithContext: ClientWithContext[];
   fixedClientId?: string | null;
   fixedProjectId?: string | null;
   fixedReceivableId?: string | null;
   trigger?: React.ReactNode;
+  /** Controlled mode, for opening it from a menu item (no trigger rendered). */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }) {
-  const [open, setOpen] = useState(false);
+  const [ownOpen, setOwnOpen] = useState(false);
+  const controlled = controlledOpen !== undefined;
+  const open = controlled ? controlledOpen : ownOpen;
+  const setOpen = (value: boolean) => (controlled ? onOpenChange?.(value) : setOwnOpen(value));
   const [xml, setXml] = useState<UploadedFile | null>(null);
   const [ride, setRide] = useState<UploadedFile | null>(null);
   const [busyCount, setBusyCount] = useState(0);
@@ -807,14 +824,16 @@ export function CreateInvoiceDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogTrigger asChild>
-        {trigger ?? (
-          <Button size="sm">
-            <Plus className="size-4" />
-            Nueva factura
-          </Button>
-        )}
-      </DialogTrigger>
+      {controlled ? null : (
+        <DialogTrigger asChild>
+          {trigger ?? (
+            <Button size="sm">
+              <Plus className="size-4" />
+              Registrar del SRI
+            </Button>
+          )}
+        </DialogTrigger>
+      )}
       <DialogContent className="max-h-[90svh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>Registrar factura</DialogTitle>
@@ -954,6 +973,11 @@ export function InvoiceEditDialog({
 
 // ── Quick invoice from receivable ──────────────────────────────────────────
 
+/**
+ * «Facturar» on a milestone: issue it from VeegHub (the «Emitir factura»
+ * screen, prefilled with the milestone) or register one already issued in
+ * the SRI's facturador by uploading its XML.
+ */
 export function QuickInvoiceDialog({
   clientsWithContext,
   fixedClientId,
@@ -966,18 +990,38 @@ export function QuickInvoiceDialog({
   fixedReceivableId: string;
   receivableTitle: string;
 }) {
+  const [registerOpen, setRegisterOpen] = useState(false);
+
   return (
-    <CreateInvoiceDialog
-      clientsWithContext={clientsWithContext}
-      fixedClientId={fixedClientId}
-      fixedProjectId={fixedProjectId}
-      fixedReceivableId={fixedReceivableId}
-      trigger={
-        <Button variant="outline" size="sm" className="h-7 gap-1 px-2 text-xs">
-          <Receipt className="size-3" />
-          Facturar
-        </Button>
-      }
-    />
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="outline" size="sm" className="h-7 gap-1 px-2 text-xs">
+            <Receipt className="size-3" />
+            Facturar
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="min-w-52">
+          <DropdownMenuItem asChild>
+            <Link href={`/admin/facturas/nueva?hito=${fixedReceivableId}`}>
+              <Send className="size-4" />
+              Emitir factura
+            </Link>
+          </DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => setRegisterOpen(true)}>
+            <FileUp className="size-4" />
+            Registrar del SRI (XML)
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <CreateInvoiceDialog
+        clientsWithContext={clientsWithContext}
+        fixedClientId={fixedClientId}
+        fixedProjectId={fixedProjectId}
+        fixedReceivableId={fixedReceivableId}
+        open={registerOpen}
+        onOpenChange={setRegisterOpen}
+      />
+    </>
   );
 }

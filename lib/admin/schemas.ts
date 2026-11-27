@@ -1,6 +1,8 @@
 import { z } from "zod";
 
 import { APP_TIME_ZONE, zoneOffsetMinutes } from "@/lib/admin/format";
+import { VAT_CODE_RATES } from "@/lib/sri/invoice-calc";
+import { SRI_REGIMES } from "@/lib/sri/regime";
 
 // Preprocess normalizes null/undefined to "" so downstream validators don't choke on missing form fields.
 const coerceStr = (val: unknown) => (val == null ? "" : String(val));
@@ -480,6 +482,10 @@ const rateList = z.preprocess(
 export const taxProfileSchema = z
   .object({
     regime: requiredText,
+    sriRegime: z.preprocess(
+      (v) => (v === "" || v === "none" ? null : v),
+      z.enum(SRI_REGIMES).nullable(),
+    ),
     validFrom: z.preprocess(
       coerceStr,
       z
@@ -497,6 +503,22 @@ export const taxProfileSchema = z
     message: "La fecha de fin debe ser posterior al inicio.",
     path: ["validTo"],
   });
+
+// A product or service of the invoicing catalogue. The price keeps up to six
+// decimals, as precioUnitario does in the factura.
+export const catalogItemSchema = z.object({
+  code: optionalText.refine((v) => v === null || v.length <= 25, "El código admite hasta 25 caracteres."),
+  name: requiredText.max(300, "La descripción admite hasta 300 caracteres."),
+  unitPrice: z
+    .preprocess(coerceStr, z.string().trim().min(1, "Ingresa un precio"))
+    .transform((v) => String(v).replace(",", "."))
+    .refine((v) => /^\d+(\.\d{1,6})?$/.test(v), "El precio admite hasta 6 decimales."),
+  vatCode: optionalText.refine(
+    (v) => v === null || v in VAT_CODE_RATES,
+    "Tarifa de IVA desconocida.",
+  ),
+  notes: optionalText,
+});
 
 export function parseForm<T extends z.ZodType>(schema: T, formData: FormData) {
   return schema.parse(Object.fromEntries(formData));

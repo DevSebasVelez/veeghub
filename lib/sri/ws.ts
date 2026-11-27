@@ -2,7 +2,7 @@ import { XMLParser } from "fast-xml-parser";
 
 import type { SriEnvironment } from "@/lib/sri/access-key";
 
-// Read-only calls to the SRI web services (esquema offline). Plain fetch +
+// Calls to the SRI web services (esquema offline). Plain fetch +
 // a hand-written SOAP envelope: two fixed operations do not justify a SOAP
 // client. Every call has a short timeout: the SRI is often slow or down and
 // the invoice form must keep working without it.
@@ -21,28 +21,34 @@ const parser = new XMLParser({
   removeNSPrefix: true,
   parseTagValue: false,
   ignoreAttributes: true,
-  isArray: (name) => ["autorizacion", "mensaje"].includes(name),
+  isArray: (name) => ["autorizacion", "mensaje", "comprobante"].includes(name),
 });
 
 export type SriMessage = { id: string | null; text: string | null; detail: string | null; type: string | null };
 
-async function soap(url: string, namespace: string, operation: string, body: string) {
+async function soap(
+  url: string,
+  namespace: string,
+  operation: string,
+  body: string,
+  { attempts = ATTEMPTS, timeoutMs = TIMEOUT_MS } = {},
+) {
   const envelope =
     `<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:ec="${namespace}">` +
     `<soapenv:Header/><soapenv:Body><ec:${operation}>${body}</ec:${operation}></soapenv:Body></soapenv:Envelope>`;
   let response: Response | null = null;
-  for (let attempt = 1; attempt <= ATTEMPTS; attempt += 1) {
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
     try {
       response = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "text/xml;charset=UTF-8" },
         body: envelope,
-        signal: AbortSignal.timeout(TIMEOUT_MS),
+        signal: AbortSignal.timeout(timeoutMs),
         cache: "no-store",
       });
       break;
     } catch (error) {
-      if (attempt === ATTEMPTS) {
+      if (attempt === attempts) {
         throw new Error(
           error instanceof Error && error.name === "TimeoutError"
             ? "El SRI no respondió a tiempo."
@@ -140,4 +146,83 @@ export async function checkAuthorizationStatus(accessKey: string, env: SriEnviro
     authorizedAt: str(node.fechaAutorizacion),
     messages: messages(node.mensajes),
   };
+}
+
+export type ReceptionResult = {
+  /** RECIBIDA or DEVUELTA. */
+  state: string | null;
+  messages: SriMessage[];
+};
+
+/**
+ * validarComprobante(xml firmado en base64): the first step of issuing.
+ *
+ * Not idempotent, so it is never retried here: a timeout leaves the outcome
+ * unknown, and the caller must ask for the authorization before sending
+ * again (plan §3.6; a resend answers 43 "clave registrada").
+ */
+export async function sendToReception(signedXml: string, env: SriEnvironment): Promise<ReceptionResult> {
+  const text = await soap(
+    `${HOSTS[env]}/RecepcionComprobantesOffline`,
+    "http://ec.gob.sri.ws.recepcion",
+    "validarComprobante",
+    `<xml>${Buffer.from(signedXml, "utf8").toString("base64")}</xml>`,
+    { attempts: 1, timeoutMs: 15_000 },
+  );
+  const doc = parser.parse(text) as Record<string, unknown>;
+  const body = (doc.Envelope as Record<string, unknown> | undefined)?.Body as Record<string, unknown> | undefined;
+  const response = body?.validarComprobanteResponse as Record<string, unknown> | undefined;
+  const answer = response?.RespuestaRecepcionComprobante as Record<string, unknown> | undefined;
+  if (!answer) {
+    const fault = (body?.Fault as Record<string, unknown> | undefined)?.faultstring;
+    throw new Error(typeof fault === "string" ? fault : "Respuesta inesperada del SRI.");
+  }
+  const comprobantes = (answer.comprobantes as { comprobante?: Array<Record<string, unknown>> } | undefined)
+    ?.comprobante ?? [];
+  return {
+    state: typeof answer.estado === "string" ? answer.estado : null,
+    messages: comprobantes.flatMap((c) => messages(c.mensajes)),
+  };
+}
+
+
+export type AuthorizationAnswer = {
+  /** AUTORIZADO, NO AUTORIZADO, EN PROCESO…; null when the SRI has no record of the clave. */
+  state: string | null;
+  /** fechaAutorizacion as the SRI writes it (ISO with offset). */
+  authorizedAt: string | null;
+  messages: SriMessage[];
+  /** The <autorizacion> element, to keep with the invoice. */
+  xml: string | null;
+};
+
+/**
+ * autorizacionComprobante(clave), read for the issuing state machine: the
+ * latest <autorizacion> with its state and messages. Safe to repeat.
+ */
+export async function queryAuthorization(accessKey: string, env: SriEnvironment): Promise<AuthorizationAnswer> {
+  const text = await soap(
+    `${HOSTS[env]}/AutorizacionComprobantesOffline`,
+    "http://ec.gob.sri.ws.autorizacion",
+    "autorizacionComprobante",
+    `<claveAccesoComprobante>${accessKey}</claveAccesoComprobante>`,
+  );
+  // The comprobante inside is CDATA or escaped XML: cut the element out of
+  // the raw text so it is stored exactly as the SRI sent it.
+  const blocks = [...text.matchAll(/<autorizacion>[\s\S]*?<\/autorizacion>/g)].map((m) => m[0]);
+  if (blocks.length === 0) return { state: null, authorizedAt: null, messages: [], xml: null };
+
+  // Several answers when it was sent more than once: an AUTORIZADO wins,
+  // otherwise the last one.
+  const parsed = blocks.map((xml) => {
+    const node = (parser.parse(xml) as { autorizacion?: Array<Record<string, unknown>> }).autorizacion?.[0] ?? {};
+    const str = (v: unknown) => (typeof v === "string" ? v : null);
+    return {
+      state: str(node.estado),
+      authorizedAt: str(node.fechaAutorizacion),
+      messages: messages(node.mensajes),
+      xml: `<?xml version="1.0" encoding="UTF-8"?>${xml}`,
+    };
+  });
+  return parsed.find((a) => a.state === "AUTORIZADO") ?? parsed[parsed.length - 1];
 }
