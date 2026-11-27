@@ -20,6 +20,30 @@ import {
   syncInvoicePaidStatus,
   syncInvoiceReceivables,
 } from "@/lib/admin/services/invoice-sync";
+import { isValidAccessKey } from "@/lib/sri/access-key";
+
+/**
+ * A clave de acceso, when given, must be a valid one and belong to no other
+ * invoice. On edits an unchanged clave is left alone, so older records keep
+ * saving even if they were typed before this check existed.
+ */
+async function assertAccessKey(accessKey: string | null | undefined, invoiceId?: string) {
+  if (!accessKey) return;
+  if (invoiceId) {
+    const current = await prisma.invoice.findUnique({ where: { id: invoiceId }, select: { accessKey: true } });
+    if (current?.accessKey === accessKey) return;
+  }
+  if (!isValidAccessKey(accessKey)) {
+    throw new Error("La clave de acceso debe tener 49 dígitos y un dígito verificador válido.");
+  }
+  const other = await prisma.invoice.findFirst({
+    where: { accessKey, ...(invoiceId ? { id: { not: invoiceId } } : {}) },
+    select: { invoiceNumber: true },
+  });
+  if (other) {
+    throw new Error(`Ya hay otra factura con esa clave de acceso${other.invoiceNumber ? ` (${other.invoiceNumber})` : ""}.`);
+  }
+}
 
 export async function createInvoice(formData: FormData): Promise<AdminFormState> {
   await requireAdmin();
@@ -215,6 +239,7 @@ export async function createInvoiceWithKeys(formData: FormData): Promise<AdminFo
 
   return actionState(async () => {
     const { receivableIds, ...data } = parseForm(invoiceSchema, formData);
+    await assertAccessKey(data.accessKey);
 
     const xmlMeta = fileMetaFromForm(formData, "xml");
     const rideMeta = fileMetaFromForm(formData, "ride");
@@ -259,6 +284,7 @@ export async function updateInvoiceWithKeys(id: string, formData: FormData): Pro
 
   return actionState(async () => {
     const { receivableIds, ...data } = parseForm(invoiceSchema, formData);
+    await assertAccessKey(data.accessKey, id);
 
     const xmlMeta = fileMetaFromForm(formData, "xml");
     const rideMeta = fileMetaFromForm(formData, "ride");

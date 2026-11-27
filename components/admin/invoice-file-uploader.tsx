@@ -27,6 +27,7 @@ export function InvoiceFileUploader({
   onUpload,
   onClear,
   onBusy,
+  onFile,
 }: {
   label: string;
   accept: string;
@@ -34,6 +35,8 @@ export function InvoiceFileUploader({
   onUpload: (file: UploadedFile) => void;
   onClear: () => void;
   onBusy?: (busy: boolean) => void;
+  /** The picked file itself, before it uploads (e.g. to read an XML). */
+  onFile?: (file: File) => void;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [state, setState] = useState<State>({ status: "idle" });
@@ -41,6 +44,7 @@ export function InvoiceFileUploader({
   async function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
+    onFile?.(file);
 
     setState({ status: "uploading", name: file.name, progress: 0 });
     onBusy?.(true);

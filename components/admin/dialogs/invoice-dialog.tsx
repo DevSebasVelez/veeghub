@@ -3,13 +3,17 @@
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Plus, Receipt } from "lucide-react";
+import { AlertTriangle, FileCode2, Loader2, Plus, Receipt, Sparkles } from "lucide-react";
 
 import {
   createInvoiceWithKeys,
   updateInvoiceWithKeys,
 } from "@/lib/admin/actions/invoices/actions";
 import { unwrap } from "@/lib/admin/actions/types";
+import {
+  analyzeInvoiceXml,
+  type InvoiceXmlAnalysis,
+} from "@/lib/admin/actions/invoices/xml";
 import {
   DialogSubmitFooter,
   EditTrigger,
@@ -32,6 +36,7 @@ import {
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { invoiceBreakdown } from "@/lib/admin/finance/calc";
+import { formatCurrency } from "@/lib/admin/format";
 import {
   Select,
   SelectContent,
@@ -85,6 +90,7 @@ function InvoiceFormBody({
   onRideUpload,
   onRideClear,
   onBusy,
+  onBlockedChange,
 }: {
   invoice?: InvoiceData;
   clientsWithContext: ClientWithContext[];
@@ -98,6 +104,8 @@ function InvoiceFormBody({
   onRideUpload: (f: UploadedFile) => void;
   onRideClear: () => void;
   onBusy: (busy: boolean) => void;
+  /** True while the XML points at an invoice that is already registered. */
+  onBlockedChange?: (blocked: boolean) => void;
 }) {
   const initialClientId =
     fixedClientId ?? invoice?.clientId ?? clientsWithContext[0]?.id ?? "";
@@ -114,6 +122,51 @@ function InvoiceFormBody({
   const subtotalRef = useRef<HTMLInputElement>(null);
   const taxRef = useRef<HTMLInputElement>(null);
   const vatRateRef = useRef<HTMLInputElement>(null);
+
+  // What the SRI XML says. Its figures become the fields' defaults; the
+  // fields remount (prefillKey) so they show them, and stay editable.
+  const [analysis, setAnalysis] = useState<InvoiceXmlAnalysis | null>(null);
+  const [reading, setReading] = useState(false);
+  const [prefillKey, setPrefillKey] = useState(0);
+
+  async function readXml(file: File) {
+    setReading(true);
+    try {
+      const result = await analyzeInvoiceXml(await file.text(), invoice?.id ?? null);
+      if (!result.ok) {
+        setAnalysis(null);
+        onBlockedChange?.(false);
+        toast.error("No se pudo leer el XML.", { description: result.error });
+        return;
+      }
+      const data = result.data;
+      setAnalysis(data);
+      setPrefillKey((k) => k + 1);
+      onBlockedChange?.(Boolean(data.duplicate));
+      if (data.client && !fixedClientId && data.client.id !== clientId) {
+        handleClientChange(data.client.id);
+      }
+      if (!data.duplicate) toast.success("Datos leídos del XML.");
+    } finally {
+      setReading(false);
+    }
+  }
+
+  function clearXml() {
+    setAnalysis(null);
+    onBlockedChange?.(false);
+    onXmlClear();
+  }
+
+  const defaults = {
+    invoiceNumber: analysis?.number ?? invoice?.invoiceNumber ?? "",
+    accessKey: analysis?.accessKey ?? invoice?.accessKey ?? "",
+    issueDate: analysis?.issueDay ?? invoice?.issueDate,
+    vatRate: analysis ? (analysis.vatRate ?? "") : (invoice?.vatRate ?? ""),
+    subtotal: analysis?.subtotal ?? invoice?.subtotal ?? "",
+    taxAmount: analysis?.taxAmount ?? invoice?.taxAmount ?? "",
+    total: analysis?.total ?? invoice?.total ?? "",
+  };
 
   function handleProjectChange(val: string) {
     setProjectId(val);
@@ -202,6 +255,45 @@ function InvoiceFormBody({
         name="receivableIds"
         value={submittedReceivableIds.join(",")}
       />
+
+      {/* SRI documents first: the XML fills everything else */}
+      <div className="space-y-3 rounded-xl bg-muted/40 p-4">
+        <div className="flex items-start gap-2.5">
+          <Sparkles className="mt-0.5 size-4 shrink-0 text-blue-600 dark:text-blue-300" />
+          <div>
+            <p className="text-sm font-medium">Documentos del SRI</p>
+            <p className="text-xs text-muted-foreground">
+              Sube el XML autorizado y se llenan solos el número, la fecha, la clave, los montos y el cliente.
+            </p>
+          </div>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <InvoiceFileUploader
+            label="XML autorizado"
+            accept=".xml,text/xml,application/xml"
+            existingName={invoice?.xmlFileName}
+            onUpload={onXmlUpload}
+            onClear={clearXml}
+            onBusy={onBusy}
+            onFile={readXml}
+          />
+          <InvoiceFileUploader
+            label="RIDE PDF"
+            accept=".pdf,application/pdf"
+            existingName={invoice?.rideFileName}
+            onUpload={onRideUpload}
+            onClear={onRideClear}
+            onBusy={onBusy}
+          />
+        </div>
+        {reading ? (
+          <p className="flex items-center gap-2 text-xs text-muted-foreground">
+            <Loader2 className="size-3.5 animate-spin" />
+            Leyendo el XML…
+          </p>
+        ) : null}
+        {analysis ? <XmlReadout analysis={analysis} /> : null}
+      </div>
 
       {/* Client */}
       {showClientSelect ? (
@@ -297,19 +389,20 @@ function InvoiceFormBody({
         </div>
       ) : null}
 
-      {/* Invoice metadata */}
+      {/* Invoice metadata (remounts with the XML's figures) */}
+      <div key={prefillKey} className="contents">
       <div className="grid gap-3 sm:grid-cols-2">
         <Field>
           <FieldLabel>Número de factura</FieldLabel>
           <Input
             name="invoiceNumber"
-            defaultValue={invoice?.invoiceNumber ?? ""}
+            defaultValue={defaults.invoiceNumber}
             placeholder="001-001-000000001"
           />
         </Field>
         <Field>
           <FieldLabel>Fecha de emisión</FieldLabel>
-          <DatePickerField name="issueDate" defaultValue={invoice?.issueDate} />
+          <DatePickerField name="issueDate" defaultValue={defaults.issueDate} />
         </Field>
       </div>
 
@@ -317,7 +410,8 @@ function InvoiceFormBody({
         <FieldLabel>Clave de acceso SRI</FieldLabel>
         <Input
           name="accessKey"
-          defaultValue={invoice?.accessKey ?? ""}
+          defaultValue={defaults.accessKey}
+          className="font-mono text-xs"
           placeholder="49 dígitos"
         />
       </Field>
@@ -340,7 +434,7 @@ function InvoiceFormBody({
           step="0.01"
           min="0"
           max="100"
-          defaultValue={invoice?.vatRate ?? ""}
+          defaultValue={defaults.vatRate}
           placeholder="La que corresponda a esta factura"
         />
       </Field>
@@ -354,7 +448,7 @@ function InvoiceFormBody({
             type="number"
             step="0.01"
             min="0"
-            defaultValue={invoice?.subtotal ?? ""}
+            defaultValue={defaults.subtotal}
           />
         </Field>
         <Field>
@@ -365,7 +459,7 @@ function InvoiceFormBody({
             type="number"
             step="0.01"
             min="0"
-            defaultValue={invoice?.taxAmount ?? ""}
+            defaultValue={defaults.taxAmount}
           />
         </Field>
         <Field>
@@ -376,10 +470,11 @@ function InvoiceFormBody({
             type="number"
             step="0.01"
             min="0"
-            defaultValue={invoice?.total ?? ""}
+            defaultValue={defaults.total}
             required
           />
         </Field>
+      </div>
       </div>
 
       {isEdit ? (
@@ -404,26 +499,71 @@ function InvoiceFormBody({
         <input type="hidden" name="status" value="READY_TO_SEND" />
       )}
 
-      {/* File uploads */}
-      <div className="grid gap-3 sm:grid-cols-2">
-        <InvoiceFileUploader
-          label="XML autorizado"
-          accept=".xml,text/xml,application/xml"
-          existingName={invoice?.xmlFileName}
-          onUpload={onXmlUpload}
-          onClear={onXmlClear}
-          onBusy={onBusy}
-        />
-        <InvoiceFileUploader
-          label="RIDE PDF"
-          accept=".pdf,application/pdf"
-          existingName={invoice?.rideFileName}
-          onUpload={onRideUpload}
-          onClear={onRideClear}
-          onBusy={onBusy}
-        />
-      </div>
     </FieldGroup>
+  );
+}
+
+// ── What the XML says ──────────────────────────────────────────────────────
+
+function XmlReadout({ analysis }: { analysis: InvoiceXmlAnalysis }) {
+  const rows: Array<[string, string]> = [
+    ["Factura", analysis.number],
+    ["Emisión", analysis.issueDay.split("-").reverse().join("/")],
+    ["Comprador", [analysis.buyer.name, analysis.buyer.id].filter(Boolean).join(" · ") || "—"],
+    ["Cliente", analysis.client?.name ?? "Sin coincidencia"],
+    [
+      "Total",
+      `${formatCurrency(analysis.total)}${analysis.vatRate != null ? ` · IVA ${analysis.vatRate}%` : ""}`,
+    ],
+  ];
+
+  return (
+    <div className="space-y-3 rounded-xl border bg-card p-3.5">
+      <div className="flex items-center gap-2">
+        <FileCode2 className="size-4 text-emerald-600 dark:text-emerald-300" />
+        <p className="text-sm font-medium">Leído del XML</p>
+        <span
+          className={
+            analysis.environment === "PRODUCCION"
+              ? "ml-auto rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
+              : "ml-auto rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-300"
+          }
+        >
+          {analysis.environment === "PRODUCCION" ? "Producción" : "Pruebas"}
+        </span>
+      </div>
+      <dl className="grid gap-x-4 gap-y-1.5 text-xs sm:grid-cols-[auto_1fr]">
+        {rows.map(([label, value]) => (
+          <div key={label} className="contents">
+            <dt className="text-muted-foreground">{label}</dt>
+            <dd className="min-w-0 truncate font-medium tabular-nums">{value}</dd>
+          </div>
+        ))}
+      </dl>
+      {analysis.items.length ? (
+        <p className="line-clamp-2 text-xs text-muted-foreground">
+          {analysis.items.map((i) => i.description).join(" · ")}
+        </p>
+      ) : null}
+      {analysis.duplicate ? (
+        <p className="flex items-start gap-1.5 rounded-lg bg-red-50 px-2.5 py-2 text-xs text-red-700 dark:bg-red-950/40 dark:text-red-300">
+          <AlertTriangle className="mt-px size-3.5 shrink-0" />
+          <span>
+            Esta factura ya está registrada
+            {analysis.duplicate.number ? ` (${analysis.duplicate.number})` : ""}. No se puede volver a registrar.
+          </span>
+        </p>
+      ) : null}
+      {analysis.warnings.map((warning) => (
+        <p
+          key={warning}
+          className="flex items-start gap-1.5 rounded-lg bg-amber-50 px-2.5 py-2 text-xs text-amber-800 dark:bg-amber-950/40 dark:text-amber-300"
+        >
+          <AlertTriangle className="mt-px size-3.5 shrink-0" />
+          <span>{warning}</span>
+        </p>
+      ))}
+    </div>
   );
 }
 
@@ -447,6 +587,7 @@ export function CreateInvoiceDialog({
   const [ride, setRide] = useState<UploadedFile | null>(null);
   const [busyCount, setBusyCount] = useState(0);
   const [submitting, setSubmitting] = useState(false);
+  const [blocked, setBlocked] = useState(false);
   const router = useRouter();
 
   const isUploading = busyCount > 0;
@@ -496,6 +637,7 @@ export function CreateInvoiceDialog({
       setXml(null);
       setRide(null);
       setBusyCount(0);
+      setBlocked(false);
     }
   }
 
@@ -513,7 +655,7 @@ export function CreateInvoiceDialog({
         <DialogHeader>
           <DialogTitle>Registrar factura</DialogTitle>
           <DialogDescription>
-            Adjunta el XML autorizado y el RIDE PDF del Facturador SRI.
+            Empieza por el XML autorizado del SRI: el resto se llena solo.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -529,12 +671,13 @@ export function CreateInvoiceDialog({
             onRideUpload={setRide}
             onRideClear={() => setRide(null)}
             onBusy={trackBusy}
+            onBlockedChange={setBlocked}
           />
           <DialogSubmitFooter
             submitLabel="Registrar factura"
             saving={submitting || isUploading}
             savingLabel={isUploading ? "Subiendo archivos..." : "Guardando..."}
-            disabled={!clientsWithContext.length}
+            disabled={!clientsWithContext.length || blocked}
           />
         </form>
       </DialogContent>
@@ -556,6 +699,7 @@ export function InvoiceEditDialog({
   const [ride, setRide] = useState<UploadedFile | null>(null);
   const [busyCount, setBusyCount] = useState(0);
   const [submitting, setSubmitting] = useState(false);
+  const [blocked, setBlocked] = useState(false);
   const router = useRouter();
 
   const isUploading = busyCount > 0;
@@ -603,6 +747,7 @@ export function InvoiceEditDialog({
       setXml(null);
       setRide(null);
       setBusyCount(0);
+      setBlocked(false);
     }
   }
 
@@ -629,11 +774,13 @@ export function InvoiceEditDialog({
             onRideUpload={setRide}
             onRideClear={() => setRide(null)}
             onBusy={trackBusy}
+            onBlockedChange={setBlocked}
           />
           <DialogSubmitFooter
             submitLabel="Guardar cambios"
             saving={submitting || isUploading}
             savingLabel={isUploading ? "Subiendo archivos..." : "Guardando..."}
+            disabled={blocked}
           />
         </form>
       </DialogContent>
