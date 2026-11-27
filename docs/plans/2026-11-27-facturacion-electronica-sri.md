@@ -1,7 +1,7 @@
 # Plan: Facturación electrónica SRI
 
 **Creado:** 2026-11-27
-**Estado:** 🟡 A1 y rediseño de Facturas hechos en rama, sin desplegar. Siguen A2 y A3.
+**Estado:** 🟢 Fase A completa en rama (A1, A1b, A2, A3), lista para desplegar. Sigue B0 (trámites) y luego B1.
 **Ramas:** una por subfase (`feat/sri-a1-lector-xml`, `feat/sri-b2-xml`, …) → `develop` → `main`
 
 ---
@@ -30,8 +30,8 @@ Antes de escribir código revisa:
 |---|---|---|---|
 | **A1** | Lector de XML: al subir el XML autorizado se llenan solos los campos de la factura, que se valida | — | ✅ en rama `feat/sri-a1-lector-xml` |
 | **A1b** | Rediseño de Facturas según convenciones: KPIs, lista §7, ficha patrón «Plan», diálogo con el XML primero | — | ✅ en la misma rama |
-| **A2** | Releer XML de facturas existentes y corregir sus datos | A1 | ⬜ |
-| **A3** | Desde el RIDE (PDF) o la clave pegada: se extrae la clave y se baja el XML del SRI | A1 | ⬜ |
+| **A2** | «Comparar con el XML/RIDE» en la ficha: lista diferencias y corrige las elegidas | A1 | ✅ en rama |
+| **A3** | Desde el RIDE (PDF) o la clave pegada; si el SRI aún lo entrega, se baja y adjunta el XML; verificación de estado | A1 | ✅ en rama |
 | **B0** | Trámites: ambiente de pruebas, punto de emisión 001-002, consulta al contador | — | ⬜ (Sebastián) |
 | **B1** | Modelo de datos: puntos de emisión, ítems, estados SRI, intentos | A1 | ⬜ |
 | **B2** | Generador de XML factura 1.1.0 + clave de acceso + cálculo de totales | B1 | ⬜ |
@@ -298,3 +298,13 @@ Migración aditiva: las facturas actuales quedan como `UPLOADED`.
   - **Hallazgo:** el XML que baja del facturador del SRI es la `<factura>` firmada sin `<autorizacion>`.
   - **Pendiente:** la vista móvil a 390 px no se pudo revisar (la ventana no cambió de tamaño).
   - La lista ya no tiene el envío rápido por fila: se envía desde la ficha.
+- **2026-11-27, A2 + A3 hechos:**
+  - **A2:** `reconcile.ts` + `ReconcileInvoiceDialog`. Probado con la factura local: detectó 6 diferencias y aplicó 3 elegidas.
+  - **A3:** `lib/sri/ride.ts` (unpdf), `lib/sri/ws.ts` y las acciones `analyzeInvoiceRide`, `analyzeAccessKey` y `verifyWithSri`. Probado con el RIDE real y con una clave pegada. Se detectó el duplicado y se deshabilitó «Registrar».
+  - **Hallazgos del SRI**, consultados en vivo:
+    - El WS de autorización no devuelve las facturas del facturador web (0 comprobantes).
+    - `ConsultaComprobante` rechaza las facturas antiguas («fuera del rango»).
+    - Hay cortes intermitentes; se pusieron un timeout de 5 s y 1 reintento.
+    - Detalle en `docs/runbooks/facturas-lectura-sri.md`.
+  - 113 tests en verde.
+  - **Pendientes:** probar el RIDE contra el build de producción con sesión, y la vista móvil.
