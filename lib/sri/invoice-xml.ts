@@ -53,6 +53,10 @@ export type SriInvoice = {
     tradeName: string | null;
     address: string | null;
     rimpeLegend: string | null;
+    /** dirEstablecimiento, when given. */
+    establishmentAddress: string | null;
+    /** obligadoContabilidad: true for "SI", false for "NO", null when absent. */
+    keepsAccounting: boolean | null;
   };
   establishment: string;
   emissionPoint: string;
@@ -78,6 +82,8 @@ export type SriInvoice = {
   totalCents: number;
   currency: string | null;
   items: SriInvoiceItem[];
+  /** pagos/pago: Tabla 24 code and amount. */
+  payments: Array<{ method: string; totalCents: number }>;
   additional: Record<string, string>;
   /** Only present when the file carries the SRI authorization wrapper. */
   authorization: {
@@ -302,6 +308,9 @@ export function parseSriInvoiceXml(xml: string): SriInvoice {
       tradeName: text(info.nombreComercial),
       address: text(info.dirMatriz),
       rimpeLegend: text(info.contribuyenteRimpe),
+      establishmentAddress: text(inv.dirEstablecimiento),
+      keepsAccounting:
+        text(inv.obligadoContabilidad) === "SI" ? true : text(inv.obligadoContabilidad) === "NO" ? false : null,
     },
     establishment,
     emissionPoint,
@@ -323,6 +332,10 @@ export function parseSriInvoiceXml(xml: string): SriInvoice {
     totalCents,
     currency: text(inv.moneda),
     items,
+    payments: asArray(isNode(inv.pagos) ? inv.pagos.pago : undefined).map((p) => ({
+      method: text(p.formaPago) ?? "",
+      totalCents: toCents(text(p.total)),
+    })),
     additional,
     authorization: auth,
     warnings,
