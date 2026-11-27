@@ -1,6 +1,9 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // unpdf (RIDE text) ships a serverless build of pdf.js: load it with plain
+  // Node require instead of bundling it, the same way the tests run it.
+  serverExternalPackages: ["unpdf"],
   // Receipts and account statements read their fonts and logo from disk at
   // request time (lib/pdf); route handlers and server actions under /admin
   // render them.
