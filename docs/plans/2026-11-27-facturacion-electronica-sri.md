@@ -1,7 +1,7 @@
 # Plan: Facturación electrónica SRI
 
 **Creado:** 2026-11-27
-**Estado:** 🟢 Fase A en producción (2026-11-27). **Siguiente sesión:** revisar la solicitud de pruebas (B0) y empezar B1 → B2.
+**Estado:** 🟢 Fase A en producción. B0 resuelto, B1 y B2 hechos en ramas sin desplegar (2026-11-27). **Siguiente sesión:** decidir despliegue de B1+B2 y empezar B3 (firma).
 **Ramas:** una por subfase (`feat/sri-a1-lector-xml`, `feat/sri-b2-xml`, …) → `develop` → `main`
 
 ---
@@ -32,9 +32,9 @@ Antes de escribir código revisa:
 | **A1b** | Rediseño de Facturas según convenciones: KPIs, lista §7, ficha patrón «Plan», diálogo con el XML primero | — | ✅ en producción |
 | **A2** | «Comparar con el XML/RIDE» en la ficha: lista diferencias y corrige las elegidas | A1 | ✅ en producción |
 | **A3** | Desde el RIDE (PDF) o la clave pegada; si el SRI aún lo entrega, se baja y adjunta el XML; verificación de estado | A1 | ✅ en producción |
-| **B0** | Trámites: ambiente de pruebas, punto de emisión 001-002, consulta al contador | — | 🟡 solicitud de pruebas «en curso» (ver bitácora) |
-| **B1** | Modelo de datos: puntos de emisión, ítems, estados SRI, intentos | A1 | ⬜ |
-| **B2** | Generador de XML factura 1.1.0 + clave de acceso + cálculo de totales | B1 | ⬜ |
+| **B0** | Trámites: ambiente de pruebas, punto de emisión 001-002, consulta al contador | — | 🟡 pruebas ✅ aprobado; falta B0.2 (001-002) y B0.3 (contador) |
+| **B1** | Modelo de datos: puntos de emisión, ítems, estados SRI, intentos | A1 | ✅ rama `feat/sri-b1-modelo`, sin desplegar |
+| **B2** | Generador de XML factura 1.1.0 + clave de acceso + cálculo de totales | B1 | ✅ rama `feat/sri-b2-xml` (sobre B1), sin desplegar |
 | **B3** | Firma XAdES-BES con el `.p12` (custodia cifrada) | B2 | ⬜ |
 | **B4** | Cliente SRI: recepción, autorización, reintentos y máquina de estados | B3 | ⬜ |
 | **B5** | RIDE en PDF (Anexo 2 de la ficha) con el estilo de `lib/pdf` | B2 | ⬜ |
@@ -317,3 +317,22 @@ Migración aditiva: las facturas actuales quedan como `UPLOADED`.
   - **Ojo:** la autorización de oficio debería cubrir pruebas; puede que ya esté habilitado y la «solicitud en curso» sea un trámite viejo.
   - Si no se resuelve, llamar al 1700 774 774.
   - **B1 y B2 no dependen de esto:** se pueden hacer mientras tanto.
+- **2026-11-27, B0 revisado** (Claude leyó SRI en línea con la sesión ya abierta por Sebastián; no se ingresó ninguna clave):
+  - Solicitud de emisión en **ambiente de pruebas**: al pulsar «Siguiente» el SRI responde «YA TIENE UNA SOLICITUD DE AUTORIZACIÓN APROBADA EN AMBIENTE DE PRUEBAS». **Pruebas ya está habilitado**; la «solicitud en curso» era eso.
+  - **Validación de emisor** (`comprobantes-electronicos-internet/publico/validezEmisor.jsf`) con el RUC 0104885694001: aparece como emisor autorizado, fecha de autorización **13/05/2026 10:25**, Azuay, Cuenca.
+  - Siguen abiertos B0.2 (¿001-002 sin registro aparte?) y B0.3 (contador).
+- **2026-11-27, B1 hecho** (rama `feat/sri-b1-modelo`, 3 commits):
+  - Migración aditiva `20261127230000_sri_emission_model`: `EmissionPoint` (uno por ambiente, contador propio), `Invoice.source/sriStatus/environment/emissionPointId/sequential/authorizedAt`, `InvoiceItem`, `SriSubmission`, `TaxProfile.sriRegime`.
+  - CHECK en BD: una factura `ISSUED` siempre tiene ambiente, punto, secuencial y estado; `(punto, secuencial)` es único. Se siembra solo `001-002` en **PRUEBAS**; el de producción se crea a propósito en B7.
+  - `lib/sri/emission.ts`: `takeSequential` (bloquea el punto dentro de la transacción de la factura; rechaza punto de otro ambiente) y `getSriTaxContext(día)` (rechaza emitir si no hay perfil vigente o no tiene régimen SRI).
+  - `TaxProfile.regime` era texto libre, así que se agregó `sriRegime` (enum) con selector en el diálogo de Impuestos. La leyenda sale de `lib/sri/regime.ts`.
+  - Probado contra la BD local: 20 emisiones concurrentes dan 1..20 sin huecos ni duplicados, un rollback devuelve el número, el CHECK y el único funcionan.
+  - **Pendiente:** probar el selector de régimen en el navegador (claro/oscuro). El `next dev` que estaba corriendo tenía el cliente Prisma viejo («error de la base de datos» al guardar); hay que reiniciarlo.
+  - **Al desplegar:** en producción, editar la vigencia actual en Finanzas › Impuestos y elegir «RIMPE · Negocio Popular»; sin eso VeegHub no emite.
+- **2026-11-27, B2 hecho** (rama `feat/sri-b2-xml`, sobre B1, 2 commits):
+  - `lib/sri/build-invoice.ts` (`buildInvoiceXml`), `lib/sri/emitter.ts` (emisor tal como en el RUC: razón social apellidos primero) y `buildAccessKey` en `access-key.ts`.
+  - Cantidad × precio exacto con BigInt (6 decimales), un solo redondeo por línea; IVA por tarifa sobre la base sumada. Formatos como el facturador: `cantidad`/`precioUnitario`/`descuento` cortos («1»), totales con 2 decimales, `tarifa` «0.0».
+  - **Test de oro en verde:** con los datos de la factura de mayo da el mismo `<factura>` (sin firma) y la misma clave. 12 tests del constructor; 127 en total.
+  - **Riesgo a verificar en `celcer` (B3/B7):** el IVA de cada línea se redondea por separado y el total por tarifa sobre la suma, así que pueden diferir en 1 centavo con varias líneas gravadas. Si el SRI devuelve error 52, cambiar a total = suma de líneas.
+  - **Sin validar contra el XSD oficial:** no se descargó `factura_V1.1.0.xsd`. Validarlo con `xmllint` antes de B3 ahorra errores 35.
+
