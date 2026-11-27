@@ -10,7 +10,6 @@ import { SignedXml } from "xml-crypto";
 import { buildInvoiceXml } from "@/lib/sri/build-invoice";
 import {
   SriCertificateError,
-  certificatePassword,
   daysUntilExpiry,
   decryptCertificate,
   encryptCertificate,
@@ -74,14 +73,28 @@ describe("SRI certificate", () => {
     assert.throws(() => readCertificate(Buffer.from("no soy un p12"), PASSWORD), SriCertificateError);
   });
 
-  it("encrypts at rest and gives back the same bytes", () => {
-    const stored = encryptCertificate(P12, ENV);
+  it("encrypts the file and its password at rest and gives them back", () => {
+    const stored = encryptCertificate(P12, PASSWORD, ENV);
     assert.ok(!stored.encryptedData.includes(P12.toString("base64").slice(0, 40)));
-    assert.ok(decryptCertificate(stored, ENV).equals(P12));
+    assert.ok(!JSON.stringify(stored).includes(PASSWORD));
+    const opened = decryptCertificate(stored, ENV);
+    assert.ok(opened.p12.equals(P12));
+    assert.equal(opened.password, PASSWORD);
+  });
+
+  it("will not open the password from the file's columns or the other way round", () => {
+    const stored = encryptCertificate(P12, PASSWORD, ENV);
+    const swapped = {
+      ...stored,
+      encryptedData: stored.encryptedPassword,
+      iv: stored.passwordIv,
+      authTag: stored.passwordTag,
+    };
+    assert.throws(() => decryptCertificate(swapped, ENV), SriCertificateError);
   });
 
   it("refuses to decrypt with another key or a tampered blob", () => {
-    const stored = encryptCertificate(P12, ENV);
+    const stored = encryptCertificate(P12, PASSWORD, ENV);
     const other = { SRI_CERT_KEY: randomBytes(32).toString("base64") };
     assert.throws(() => decryptCertificate(stored, other), SriCertificateError);
 
@@ -93,13 +106,9 @@ describe("SRI certificate", () => {
     );
   });
 
-  it("has no fallback key or password", () => {
-    assert.throws(() => encryptCertificate(P12, {}), /SRI_CERT_KEY/);
-    assert.throws(
-      () => encryptCertificate(P12, { SRI_CERT_KEY: "corta" }),
-      /32 bytes/,
-    );
-    assert.throws(() => certificatePassword({}), /SRI_CERT_PASSWORD/);
+  it("has no fallback key", () => {
+    assert.throws(() => encryptCertificate(P12, PASSWORD, {}), /SRI_CERT_KEY/);
+    assert.throws(() => encryptCertificate(P12, PASSWORD, { SRI_CERT_KEY: "corta" }), /32 bytes/);
   });
 });
 

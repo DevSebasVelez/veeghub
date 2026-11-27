@@ -4,12 +4,13 @@
 // (PRUEBAS), signs it, sends it to reception and asks for its authorization.
 // Run by hand, never in CI:
 //
-//   npx tsx scripts/sri-smoke.ts                 # signs with the .p12 stored in VeegHub
-//   SRI_P12_PATH=~/firma.p12 npx tsx scripts/sri-smoke.ts   # signs with a file
+//   npx tsx scripts/sri-smoke.ts     # signs with the .p12 uploaded in VeegHub
 //
-// Needs SRI_CERT_PASSWORD in .env (and SRI_CERT_KEY for the stored .p12). It
-// prints the SRI's answer and where the signed XML was saved; it never prints
-// the password or the file.
+// or, to try a file before uploading it, SRI_P12_PATH and SRI_P12_PASSWORD in
+// .env (never on the command line, where the shell history keeps it).
+//
+// It prints the SRI's answer and where the signed XML was saved; it never
+// prints the password or the file.
 
 import "dotenv/config";
 import { execFileSync, spawnSync } from "node:child_process";
@@ -20,7 +21,6 @@ import path from "node:path";
 import prisma from "@/lib/db/prisma";
 import { dayKeyInAppZone } from "@/lib/admin/format";
 import { buildInvoiceXml } from "@/lib/sri/build-invoice";
-import { certificatePassword } from "@/lib/sri/certificate";
 import { getSriTaxContext, takeSequential } from "@/lib/sri/emission";
 import { SRI_EMITTER } from "@/lib/sri/emitter";
 import { signInvoiceWith, signStoredInvoice } from "@/lib/sri/signing";
@@ -29,6 +29,12 @@ import { fetchAuthorization, sendToReception } from "@/lib/sri/ws";
 // Fixed on purpose. This script must never be able to reach production.
 const ENVIRONMENT = "PRUEBAS" as const;
 const POINT_ID = "ep_001_002_pruebas";
+
+function filePassword() {
+  const password = process.env.SRI_P12_PASSWORD;
+  if (!password) throw new Error("Con SRI_P12_PATH hace falta SRI_P12_PASSWORD en .env.");
+  return password;
+}
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -57,7 +63,7 @@ async function main() {
 
   const p12Path = process.env.SRI_P12_PATH?.replace(/^~(?=\/)/, homedir());
   const signed = p12Path
-    ? signInvoiceWith(built.xml, readFileSync(p12Path), certificatePassword())
+    ? signInvoiceWith(built.xml, readFileSync(p12Path), filePassword())
     : await signStoredInvoice(built.xml, {
         accessKey: built.accessKey,
         environment: ENVIRONMENT,

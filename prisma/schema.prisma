@@ -491,27 +491,30 @@ model SriSubmission {
   @@index([invoiceId, createdAt])
 }
 
-/// Electronic signature (.p12) used to sign SRI documents. The file is kept
-/// encrypted with AES-256-GCM under SRI_CERT_KEY; its password lives only in
-/// SRI_CERT_PASSWORD. Never sent to the browser or written to logs.
+/// Electronic signature (.p12) used to sign SRI documents. The file and its
+/// password are kept encrypted with AES-256-GCM under SRI_CERT_KEY (server
+/// environment). Never sent to the browser or written to logs.
 model SriCertificate {
-  id            String            @id @default(cuid())
-  encryptedData String
-  iv            String
-  authTag       String
+  id                String            @id @default(cuid())
+  encryptedData     String
+  iv                String
+  authTag           String
+  encryptedPassword String
+  passwordIv        String
+  passwordTag       String
   /// Subject common name (titular).
-  holder        String
+  holder            String
   /// Identification found in the certificate (cédula/RUC), if any.
-  holderId      String?
-  issuer        String
-  serialNumber  String
-  validFrom     DateTime
-  validTo       DateTime
+  holderId          String?
+  issuer            String
+  serialNumber      String
+  validFrom         DateTime
+  validTo           DateTime
   /// Only one certificate signs at a time.
-  active        Boolean           @default(true)
-  signingEvents SriSigningEvent[]
-  createdAt     DateTime          @default(now())
-  updatedAt     DateTime          @updatedAt
+  active            Boolean           @default(true)
+  signingEvents     SriSigningEvent[]
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
 
   @@index([active])
 }

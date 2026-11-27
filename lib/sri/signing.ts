@@ -4,7 +4,6 @@ import type { SriEnvironment } from "@/app/generated/prisma/client";
 import prisma from "@/lib/db/prisma";
 import {
   SriCertificateError,
-  certificatePassword,
   decryptCertificate,
   encryptCertificate,
   readCertificate,
@@ -66,7 +65,8 @@ export async function signStoredInvoice(
   if (stored.validTo < now) throw new SriCertificateError("La firma electrónica está caducada.");
   if (stored.validFrom > now) throw new SriCertificateError("La firma electrónica aún no está vigente.");
 
-  const signed = signInvoiceWith(xml, decryptCertificate(stored), certificatePassword());
+  const { p12, password } = decryptCertificate(stored);
+  const signed = signInvoiceWith(xml, p12, password);
 
   await prisma.sriSigningEvent.create({
     data: {
@@ -81,19 +81,20 @@ export async function signStoredInvoice(
 }
 
 /**
- * Stores a new .p12: opens it with SRI_CERT_PASSWORD (so a wrong file or
- * password fails here, not at the first invoice), encrypts it and makes it the
- * only active one. Returns the certificate's description, never the file.
+ * Stores a new .p12 with its password: opens it (so a wrong file or password
+ * fails here, not at the first invoice), signs a probe, encrypts both and
+ * makes it the only active one. Returns the certificate's description, never
+ * the file or the password.
  */
-export async function storeCertificate(p12: Buffer) {
-  const info = readCertificate(p12, certificatePassword());
+export async function storeCertificate(p12: Buffer, password: string) {
+  const info = readCertificate(p12, password);
   if (info.validTo < new Date()) {
     throw new SriCertificateError("Esa firma electrónica ya caducó.");
   }
   // Fails before touching the database if it cannot actually sign.
-  signInvoiceWith(PROBE_XML, p12, certificatePassword());
+  signInvoiceWith(PROBE_XML, p12, password);
 
-  const encrypted = encryptCertificate(p12);
+  const encrypted = encryptCertificate(p12, password);
   await prisma.$transaction([
     prisma.sriCertificate.updateMany({ where: { active: true }, data: { active: false } }),
     prisma.sriCertificate.create({ data: { ...encrypted, ...info, active: true } }),

@@ -2,9 +2,11 @@ import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
 import forge from "node-forge";
 
 // The electronic signature (.p12) is the emitter's legal signature (plan §3.4):
-// - encrypted at rest with AES-256-GCM under SRI_CERT_KEY (32 random bytes,
-//   base64). No fallback key, not even in development.
-// - its password lives only in SRI_CERT_PASSWORD; no screen asks for it.
+// - the file AND its password are encrypted at rest with AES-256-GCM under
+//   SRI_CERT_KEY (32 random bytes, base64), which lives only in the server
+//   environment. No fallback key, not even in development.
+// - the password is typed once, when uploading the .p12, and never shown or
+//   returned again.
 // - nothing here logs, returns or serializes the file or the password.
 
 export class SriCertificateError extends Error {}
@@ -13,8 +15,14 @@ export class SriCertificateError extends Error {}
 type Env = Record<string, string | undefined>;
 
 const ALGORITHM = "aes-256-gcm";
-/** Binds the ciphertext to its purpose: a blob from another feature won't decrypt. */
-const AAD = Buffer.from("veeghub:sri-certificate:v1");
+/**
+ * Binds each ciphertext to what it is: a blob from another feature, or the
+ * password swapped into the file's column, won't decrypt.
+ */
+const AAD = {
+  file: Buffer.from("veeghub:sri-certificate:v1"),
+  password: Buffer.from("veeghub:sri-certificate-password:v1"),
+};
 
 function certificateKey(env: Env = process.env) {
   const raw = env.SRI_CERT_KEY;
@@ -30,43 +38,62 @@ function certificateKey(env: Env = process.env) {
   return key;
 }
 
-export function certificatePassword(env: Env = process.env) {
-  const password = env.SRI_CERT_PASSWORD;
-  if (password == null || password === "") {
-    throw new SriCertificateError("Falta SRI_CERT_PASSWORD, la clave del archivo .p12.");
-  }
-  return password;
-}
+type Sealed = { data: string; iv: string; tag: string };
 
-export type EncryptedCertificate = { encryptedData: string; iv: string; authTag: string };
-
-export function encryptCertificate(p12: Buffer, env?: Env): EncryptedCertificate {
+function seal(plain: Buffer, aad: Buffer, env?: Env): Sealed {
   const iv = randomBytes(12);
   const cipher = createCipheriv(ALGORITHM, certificateKey(env), iv);
-  cipher.setAAD(AAD);
-  const encrypted = Buffer.concat([cipher.update(p12), cipher.final()]);
-  return {
-    encryptedData: encrypted.toString("base64"),
-    iv: iv.toString("base64"),
-    authTag: cipher.getAuthTag().toString("base64"),
-  };
+  cipher.setAAD(aad);
+  const data = Buffer.concat([cipher.update(plain), cipher.final()]);
+  return { data: data.toString("base64"), iv: iv.toString("base64"), tag: cipher.getAuthTag().toString("base64") };
 }
 
-export function decryptCertificate(stored: EncryptedCertificate, env?: Env) {
+function open(sealed: Sealed, aad: Buffer, env?: Env) {
   try {
-    const decipher = createDecipheriv(ALGORITHM, certificateKey(env), Buffer.from(stored.iv, "base64"));
-    decipher.setAAD(AAD);
-    decipher.setAuthTag(Buffer.from(stored.authTag, "base64"));
-    return Buffer.concat([
-      decipher.update(Buffer.from(stored.encryptedData, "base64")),
-      decipher.final(),
-    ]);
+    const decipher = createDecipheriv(ALGORITHM, certificateKey(env), Buffer.from(sealed.iv, "base64"));
+    decipher.setAAD(aad);
+    decipher.setAuthTag(Buffer.from(sealed.tag, "base64"));
+    return Buffer.concat([decipher.update(Buffer.from(sealed.data, "base64")), decipher.final()]);
   } catch (error) {
     if (error instanceof SriCertificateError) throw error;
     throw new SriCertificateError(
       "No se pudo descifrar la firma electrónica. ¿Cambió SRI_CERT_KEY? Vuelve a subir el .p12.",
     );
   }
+}
+
+/** The SriCertificate columns that hold the sealed file and password. */
+export type EncryptedCertificate = {
+  encryptedData: string;
+  iv: string;
+  authTag: string;
+  encryptedPassword: string;
+  passwordIv: string;
+  passwordTag: string;
+};
+
+export function encryptCertificate(p12: Buffer, password: string, env?: Env): EncryptedCertificate {
+  const file = seal(p12, AAD.file, env);
+  const secret = seal(Buffer.from(password, "utf8"), AAD.password, env);
+  return {
+    encryptedData: file.data,
+    iv: file.iv,
+    authTag: file.tag,
+    encryptedPassword: secret.data,
+    passwordIv: secret.iv,
+    passwordTag: secret.tag,
+  };
+}
+
+export function decryptCertificate(stored: EncryptedCertificate, env?: Env) {
+  return {
+    p12: open({ data: stored.encryptedData, iv: stored.iv, tag: stored.authTag }, AAD.file, env),
+    password: open(
+      { data: stored.encryptedPassword, iv: stored.passwordIv, tag: stored.passwordTag },
+      AAD.password,
+      env,
+    ).toString("utf8"),
+  };
 }
 
 export type CertificateInfo = {

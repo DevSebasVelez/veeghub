@@ -11,8 +11,9 @@ import { storeCertificate } from "@/lib/sri/signing";
 const MAX_BYTES = 200 * 1024;
 
 /**
- * Uploads the electronic signature. Only the file travels: its password is
- * SRI_CERT_PASSWORD on the server, so no screen ever asks for it.
+ * Uploads the electronic signature with its password. Both are checked (the
+ * .p12 must open and sign) and stored encrypted; the password is never sent
+ * back to the browser.
  */
 export async function uploadSriCertificate(formData: FormData): Promise<AdminFormState> {
   await requireAdmin();
@@ -24,8 +25,12 @@ export async function uploadSriCertificate(formData: FormData): Promise<AdminFor
     }
     if (file.size > MAX_BYTES) throw new Error("Ese archivo es demasiado grande para ser un .p12.");
     if (!/\.(p12|pfx)$/i.test(file.name)) throw new Error("El archivo debe ser .p12 o .pfx.");
+    const password = formData.get("password");
+    if (typeof password !== "string" || password === "") {
+      throw new Error("Escribe la clave de la firma electrónica.");
+    }
 
-    await storeCertificate(Buffer.from(await file.arrayBuffer()));
+    await storeCertificate(Buffer.from(await file.arrayBuffer()), password);
 
     revalidatePath("/admin/finanzas/impuestos");
   });
