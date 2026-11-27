@@ -370,17 +370,18 @@ model Invoice {
   paidAt        DateTime?
 
   // Electronic invoicing. UPLOADED invoices leave the rest null.
-  source          InvoiceSource   @default(UPLOADED)
+  source          InvoiceSource     @default(UPLOADED)
   sriStatus       SriStatus?
   environment     SriEnvironment?
   emissionPointId String?
-  emissionPoint   EmissionPoint?  @relation(fields: [emissionPointId], references: [id], onDelete: Restrict)
+  emissionPoint   EmissionPoint?    @relation(fields: [emissionPointId], references: [id], onDelete: Restrict)
   /// Secuencial taken from the emission point; the 9-digit text is in invoiceNumber.
   sequential      Int?
   /// Instant the SRI authorized it (fechaAutorizacion), not a calendar day.
   authorizedAt    DateTime?
   items           InvoiceItem[]
   sriSubmissions  SriSubmission[]
+  signingEvents   SriSigningEvent[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -488,6 +489,51 @@ model SriSubmission {
   createdAt   DateTime       @default(now())
 
   @@index([invoiceId, createdAt])
+}
+
+/// Electronic signature (.p12) used to sign SRI documents. The file and its
+/// password are kept encrypted with AES-256-GCM under SRI_CERT_KEY (server
+/// environment). Never sent to the browser or written to logs.
+model SriCertificate {
+  id                String            @id @default(cuid())
+  encryptedData     String
+  iv                String
+  authTag           String
+  encryptedPassword String
+  passwordIv        String
+  passwordTag       String
+  /// Subject common name (titular).
+  holder            String
+  /// Identification found in the certificate (cédula/RUC), if any.
+  holderId          String?
+  issuer            String
+  serialNumber      String
+  validFrom         DateTime
+  validTo           DateTime
+  /// Only one certificate signs at a time.
+  active            Boolean           @default(true)
+  signingEvents     SriSigningEvent[]
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  @@index([active])
+}
+
+/// One row per signature made with the .p12 (plan §3.4: every signature is logged).
+model SriSigningEvent {
+  id            String         @id @default(cuid())
+  certificateId String
+  certificate   SriCertificate @relation(fields: [certificateId], references: [id], onDelete: Restrict)
+  invoiceId     String?
+  invoice       Invoice?       @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+  accessKey     String
+  environment   SriEnvironment
+  /// What asked for the signature: "invoice", "smoke-test"...
+  purpose       String
+  createdAt     DateTime       @default(now())
+
+  @@index([certificateId, createdAt])
+  @@index([invoiceId])
 }
 
 model DocumentSequence {
