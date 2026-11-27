@@ -1,4 +1,5 @@
 import type { Prisma } from "@/app/generated/prisma/client";
+import { sumCents, toCents } from "@/lib/admin/finance/money";
 import {
   releaseWithholdings,
   syncInvoiceWithholdings,
@@ -13,6 +14,8 @@ export async function syncInvoicePaidStatus(
     where: { id: invoiceId },
     select: {
       status: true,
+      source: true,
+      total: true,
       emailLogs: { select: { id: true }, take: 1 },
     },
   });
@@ -23,11 +26,18 @@ export async function syncInvoicePaidStatus(
     select: { amount: true, paidAmount: true, withheldAmount: true },
   });
   // Applied withholdings settle a milestone just like cash does.
-  const allPaid =
+  const hitosSettled =
     hitos.length > 0 &&
     hitos.every(
       (h) => Number(h.paidAmount) + Number(h.withheldAmount) >= Number(h.amount),
     );
+  // An issued invoice's milestones are its payment plan and may cover only
+  // part of it: it is paid when what they collected reaches its total.
+  const allPaid =
+    hitosSettled &&
+    (invoice.source !== "ISSUED" ||
+      sumCents(hitos, (h) => h.paidAmount) + sumCents(hitos, (h) => h.withheldAmount) >=
+        toCents(invoice.total));
 
   if (allPaid && invoice.status !== "PAID") {
     await tx.invoice.update({
