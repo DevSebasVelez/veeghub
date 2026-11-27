@@ -18,6 +18,7 @@ import { checkInvoiceTotals } from "@/lib/admin/finance/calc";
 import { fromCents, sumCents } from "@/lib/admin/finance/money";
 
 import { InvoiceEditDialog } from "@/components/admin/dialogs/invoice-dialog";
+import { ReconcileInvoiceDialog } from "@/components/admin/dialogs/reconcile-invoice-dialog";
 import { SendInvoiceForm } from "@/components/admin/send-invoice-form";
 import { StatusBadge } from "@/components/admin/status-badge";
 import { forInvoiceDialog, forWithholdingDialog } from "@/lib/admin/serialize";
@@ -280,12 +281,25 @@ export default async function InvoiceDetailPage({
 
           {/* Documents */}
           <section className="rounded-2xl border bg-card">
-            <div className="border-b px-5 py-4">
-              <h2 className="text-sm font-semibold">Documentos del SRI</h2>
-              <p className="mt-0.5 text-xs text-muted-foreground">
-                El cliente debe recibir los dos.
-              </p>
+            <div className="flex items-start justify-between gap-3 border-b px-5 py-4">
+              <div>
+                <h2 className="text-sm font-semibold">Documentos del SRI</h2>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  El cliente debe recibir los dos.
+                </p>
+              </div>
+              {invoice.xmlFile || invoice.rideFile ? (
+                <ReconcileInvoiceDialog
+                  invoiceId={invoice.id}
+                  label={invoice.xmlFile ? "Comparar con el XML" : "Comparar con el RIDE"}
+                />
+              ) : null}
             </div>
+            {(invoice.xmlFile || invoice.rideFile) && !invoice.accessKey ? (
+              <p className="border-b bg-amber-50/60 px-5 py-2.5 text-xs text-amber-800 dark:bg-amber-950/30 dark:text-amber-300">
+                Falta la clave de acceso. Usa «Comparar» para completar los datos desde el documento.
+              </p>
+            ) : null}
             <ul className="divide-y">
               {documents.map((doc) => (
                 <li key={doc.label} className="flex items-center gap-3 px-5 py-3.5">
