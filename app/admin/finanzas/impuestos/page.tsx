@@ -14,13 +14,15 @@ import { SRI_REGIME_LABELS, isSriRegime } from "@/lib/sri/regime";
 import { getActiveCertificate } from "@/lib/sri/signing";
 import prisma from "@/lib/db/prisma";
 import { SriCertificateCard } from "@/components/admin/finance/sri-certificate-card";
+import { SriEmissionCard } from "@/components/admin/finance/sri-emission-card";
 
 export default async function TaxSettingsPage() {
-  const [profiles, current, certificate, signatures] = await Promise.all([
+  const [profiles, current, certificate, signatures, points] = await Promise.all([
     getTaxProfiles(),
     getCurrentTaxProfile(),
     getActiveCertificate(),
     prisma.sriSigningEvent.count(),
+    prisma.emissionPoint.findMany({ orderBy: [{ environment: "desc" }, { emissionPoint: "asc" }] }),
   ]);
   const certificateServerReady = Boolean(process.env.SRI_CERT_KEY);
   const today = dayStartUtc(new Date());
@@ -60,6 +62,21 @@ export default async function TaxSettingsPage() {
         certificate={certificate}
         signatures={signatures}
         serverReady={certificateServerReady}
+      />
+
+      <SriEmissionCard
+        points={points.map((p) => ({
+          id: p.id,
+          prefix: `${p.establishment}-${p.emissionPoint}`,
+          environment: p.environment,
+          nextNumber: `${p.establishment}-${p.emissionPoint}-${String(p.nextSequential).padStart(9, "0")}`,
+          active: p.active,
+        }))}
+        checks={[
+          { label: "Firma electrónica vigente cargada", ok: Boolean(certificate && certificate.validTo > new Date()) },
+          { label: "Régimen para la factura electrónica en la configuración vigente", ok: isSriRegime(current?.sriRegime) },
+          { label: "SRI_ALLOW_PRODUCTION=true en el servidor", ok: process.env.SRI_ALLOW_PRODUCTION === "true" },
+        ]}
       />
 
       {profiles.length === 0 ? (

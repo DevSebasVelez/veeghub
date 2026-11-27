@@ -100,8 +100,9 @@ function lineTotal(item: IssueFormItem, totals: InvoiceTotals | null, index: num
 export function IssueInvoiceForm({ data, issueDayLabel }: { data: IssueInvoiceData; issueDayLabel: string }) {
   const [clientId, setClientId] = useState(data.prefill.clientId ?? "");
   const [projectId, setProjectId] = useState(data.prefill.projectId ?? "");
+  // Production when it exists (real invoicing); test stays in the selector.
   const [pointId, setPointId] = useState(
-    (data.points.find((p) => p.environment === "PRUEBAS") ?? data.points[0])?.id ?? "",
+    (data.points.find((p) => p.environment === "PRODUCCION") ?? data.points[0])?.id ?? "",
   );
   const client = data.clients.find((c) => c.id === clientId);
   const [buyer, setBuyer] = useState<Buyer>(() => buyerFromClient(client));
@@ -188,6 +189,9 @@ export function IssueInvoiceForm({ data, issueDayLabel }: { data: IssueInvoiceDa
     data.taxProblem,
     data.points.length === 0 ? "No hay un punto de emisión activo." : null,
     data.certificate ? null : "Falta la firma electrónica vigente.",
+    point?.environment === "PRODUCCION" && !data.productionAllowed
+      ? "El envío a producción está deshabilitado en el servidor (SRI_ALLOW_PRODUCTION)."
+      : null,
   ].filter(Boolean) as string[];
 
   const problems = [

@@ -178,6 +178,7 @@ export async function getIssueInvoiceData({ hito, proyecto, cliente }: { hito?: 
       nextNumber: `${p.establishment}-${p.emissionPoint}-${String(p.nextSequential).padStart(9, "0")}`,
     })),
     certificate: certificate && certificate.validTo > new Date() ? { holder: certificate.holder } : null,
+    productionAllowed: process.env.SRI_ALLOW_PRODUCTION === "true",
     prefill,
   };
 }
