@@ -1,0 +1,75 @@
+                                                                                      R.U.C.:              0104885694001
+                                                                                      FACTURA
+                                                                                      No.        001-001-000000001
+
+                                                                                      NÚMERO DE AUTORIZACIÓN
+
+
+                                                                                      1305202601010488569400120010010000000016329301616
+
+  VELEZ PALOMEQUE CHRISTIAN SEBASTIAN                                                 FECHA Y HORA DE
+                                                                                      AUTORIZACIÓN:                       13/05/2026 11:05:04
+
+  VEEGSOFT
+                                                                                      AMBIENTE:                           PRODUCCIÓN
+
+  Dirección         Barrio: LA FLORIDA Calle: RAFAEL AGUILAR Numero:
+  Matriz:           SN Interseccion: ISAURO RODRIGUEZ                                 EMISIÓN:                            NORMAL
+
+                    Barrio: LA FLORIDA Calle: RAFAEL AGUILAR Numero:
+  Dirección         SN Interseccion: ISAURO RODRIGUEZ
+  Sucursal:                                                                           CLAVE DE ACCESO
+
+
+
+  OBLIGADO A LLEVAR CONTABILIDAD                                       NO
+
+
+
+
+  CONTRIBUYENTE NEGOCIO POPULAR - RÉGIMEN RIMPE
+
+
+
+
+Razón Social / Nombres y Apellidos:                                CLIENTE DE PRUEBA S.A.
+
+Identificación              0102030405
+Fecha                       13/05/2026                Placa / Matrícula:                                            Guía
+Direccion:                  AV. DE PRUEBA 1-23
+
+
+
+
+   Cod.           Cod.                                                                            Precio Unitario                     Precio sin                     Precio Total
+                               Cantidad              Descripción             Detalle Adicional                        Subsidio                         Descuento
+ Principal       Auxiliar                                                                                                             Subsidio
+
+                                          PRODUCCION Y
+                                          POSTPRODUCCION
+  AV001                           1.00                                                                      1.00               0.00           0.00            0.00            1.00
+                                          AUDIOVISUAL ANIMACION 3D
+                                          Y EFECTOS VISUALES
+                                                                                                                    SUBTOTAL 0%                                               1.00
+                                               Información Adicional
+Email:                              cliente@example.com                                                           SUBTOTAL NO OBJETO DE IVA                                 0.00
+
+                                                                                                                    SUBTOTAL EXENTO DE IVA                                    0.00
+                   Forma de pago                                   Valor
+                                                                                                                    SUBTOTAL SIN IMPUESTOS                                    1.00
+01 - SIN UTILIZACION DEL SISTEMA FINANCIERO                                   1.00
+                                                                                                                    TOTAL DESCUENTO                                           0.00
+
+                                                                                                                    ICE                                                       0.00
+
+                                                                                                                    IRBPNR                                                    0.00
+
+                                                                                                                    PROPINA                                                   0.00
+
+                                                                                                                    VALOR TOTAL                                               1.00
+
+                                                                                                                    VALOR TOTAL SIN SUBSIDIO                                  0.00
+
+                                                                                                                    AHORRO POR SUBSIDIO:                                      0.00
+                                                                                                                    (Incluye IVA cuando corresponda)
+
