@@ -5,6 +5,10 @@ import { IssueInvoiceForm } from "@/components/admin/finance/issue-invoice-form"
 import { getIssueInvoiceData } from "@/lib/admin/queries/issue-invoice";
 import { dayStartUtc, formatDateOnly } from "@/lib/admin/format";
 
+// «Emitir» and «Reintentar» are server actions on this page: signing and
+// talking to the SRI take up to ~45 s (advanceInvoice's budget).
+export const maxDuration = 60;
+
 export default async function NewInvoicePage({
   searchParams,
 }: {

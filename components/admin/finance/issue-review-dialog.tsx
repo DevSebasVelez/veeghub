@@ -77,13 +77,17 @@ export function IssueReviewDialog({
   const [invoiceId, setInvoiceId] = useState<string | null>(null);
   const [live, setLive] = useState<Live>({ status: null, problem: null, number: null, documentsReady: false });
   const [pending, setPending] = useState(false);
-  const poll = useRef<ReturnType<typeof setInterval> | null>(null);
+  // One id per review: retrying «Emitir» after a lost answer returns the
+  // invoice already created instead of issuing a second one.
+  const [requestId, setRequestId] = useState("");
+  // Polling: one request at a time; `polling.current` false drops late answers.
+  const polling = useRef(false);
 
   const busy = phase === "creating" || phase === "sending";
   const isTest = environment === "PRUEBAS";
 
   useEffect(() => () => {
-    if (poll.current) clearInterval(poll.current);
+    polling.current = false;
   }, []);
 
   useEffect(() => () => {
@@ -104,6 +108,7 @@ export function IssueReviewDialog({
         throw new Error(body?.error ?? "No se pudo armar la vista previa.");
       }
       setPreviewUrl(URL.createObjectURL(await response.blob()));
+      setRequestId(crypto.randomUUID());
       setPhase("review");
       setOpen(true);
     } catch (error) {
@@ -120,7 +125,12 @@ export function IssueReviewDialog({
 
   async function emit() {
     setPhase("creating");
-    const created = await createIssued(request);
+    let created: Awaited<ReturnType<typeof createIssued>>;
+    try {
+      created = await createIssued({ ...request, requestId });
+    } catch {
+      created = { ok: false, error: "Se perdió la conexión. Vuelve a pulsar «Emitir»: no se duplicará la factura." };
+    }
     if (!created.ok) {
       toast.error(created.error);
       setPhase("review");
@@ -131,10 +141,22 @@ export function IssueReviewDialog({
     setLive({ status: "DRAFT", problem: null, number: created.data.number, documentsReady: false });
     setPhase("sending");
 
-    poll.current = setInterval(() => void readStatus(id), 700);
-    const sent = await sendIssued(id);
-    if (poll.current) clearInterval(poll.current);
-    poll.current = null;
+    polling.current = true;
+    void (async () => {
+      while (polling.current) {
+        await new Promise((resolve) => setTimeout(resolve, 1200));
+        if (!polling.current) break;
+        const response = await fetch(`/admin/facturas/${id}/estado`, { cache: "no-store" }).catch(() => null);
+        if (response?.ok && polling.current) setLive((await response.json()) as Live);
+      }
+    })();
+    let sent: Awaited<ReturnType<typeof sendIssued>>;
+    try {
+      sent = await sendIssued(id);
+    } catch {
+      sent = { ok: false, error: "Se perdió la conexión con VeegHub. La factura sigue su curso: revisa su estado en la ficha." };
+    }
+    polling.current = false;
     await readStatus(id);
     if (!sent.ok) {
       setLive((l) => ({ ...l, problem: l.problem ?? sent.error }));
